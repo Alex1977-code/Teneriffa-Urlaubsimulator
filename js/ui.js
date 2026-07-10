@@ -180,10 +180,12 @@ const UI = (() => {
     // Kopfzeile
     const slotName = D.SLOT_NAMEN[run.slot];
     const hotel = D.HOTELS[run.hotel];
+    const zimmerInfo = run.flags.zimmerSchoen ? ' · 🌅 Zimmer mit Meerblick'
+      : run.flags.zimmerLaut ? ' · 🔊 Zimmer zum Parkplatz' : '';
     $('#spiel-kopf').innerHTML = `
       <div class="kopf-links">
         <div class="kopf-tag">☀️ Tag ${run.tag} von ${run.dauer} · <strong>${slotName}</strong></div>
-        <div class="kopf-ort">${D.REGIONEN[run.region].icon} ${esc(hotel.name)} ${hotel.sterne}, ${esc(D.REGIONEN[run.region].name)}</div>
+        <div class="kopf-ort">${D.REGIONEN[run.region].icon} ${esc(hotel.name)} ${hotel.sterne}, ${esc(D.REGIONEN[run.region].name)}${zimmerInfo}</div>
       </div>
       <div class="kopf-budget">💶 ${run.budget} €</div>`;
 
@@ -222,6 +224,9 @@ const UI = (() => {
     html += balken('Energie', '🔋', run.energie, run.energie < 25 ? 'rot' : 'gruen');
     html += balken('Stimmung', '😊', run.stimmung, run.stimmung < 30 ? 'rot' : 'gelb');
     html += balken('Erholung', '🧘', run.erholung, 'blau');
+    html += balken('Stress', '😰', run.stress, run.stress >= 70 ? 'rot' : 'orange');
+    if (run.stress >= 70)
+      html += '<p class="hint warn-hint">⚠️ Zu gestresst, um richtig abzuschalten – gönn dir Ruhe!</p>';
     if (run.sonnenbrand > 0)
       html += balken('Sonnenbrand', '🥵', run.sonnenbrand, 'orange');
     html += `<div class="stat-zeile klein"><span>⭐ Erlebnispunkte</span><span>${run.erlebnis}</span></div>`;
@@ -236,7 +241,7 @@ const UI = (() => {
       erholung: run.erholung, budget: run.budget, fotosRun: run.fotosRun,
       zonenBesucht: run.zonenBesucht, restaurantAbende: run.restaurantAbende,
       wanderungen: run.wanderungen, kulturAusfluege: run.kulturAusfluege,
-      strandTage: run.strandTage,
+      strandTage: run.strandTage, stress: run.stress,
     };
     let html = '<h4>🎯 Deine Urlaubsziele <span class="hint">(+40 Punkte je Ziel)</span></h4>';
     for (const qid of run.quests) {
@@ -253,6 +258,13 @@ const UI = (() => {
   function renderInventar() {
     const run = Game.run;
     const panel = $('#inventar-panel');
+    if (run.kofferWeg) {
+      panel.innerHTML = '<h4>🧳 Gepäck</h4>' +
+        `<p class="hint warn-hint">😱 Dein Koffer ist noch unterwegs – Nachlieferung voraussichtlich an Tag ${run.kofferTag}. Bis dahin ist deine Ausrüstung nicht nutzbar!</p>` +
+        (run.items.length ? '<div class="inventar-reihe koffer-weg">' +
+          run.items.map(id => `<span class="inventar-item" title="${esc(DATA.ITEMS[id].name)} (im verlorenen Koffer)">${DATA.ITEMS[id].icon}</span>`).join('') + '</div>' : '');
+      return;
+    }
     if (!run.items.length) { panel.innerHTML = '<h4>🧳 Gepäck</h4><p class="hint">Leichtes Gepäck – nur das Nötigste.</p>'; return; }
     panel.innerHTML = '<h4>🧳 Gepäck</h4><div class="inventar-reihe">' +
       run.items.map(id => `<span class="inventar-item" title="${esc(DATA.ITEMS[id].name)}">${DATA.ITEMS[id].icon}</span>`).join('') +
@@ -281,7 +293,7 @@ const UI = (() => {
       const w = DATA.WETTER[e.wetterId];
       const zone = DATA.ZONEN[act.zone];
       const karte = el('button', 'akt-karte' + (e.gesperrt ? ' gesperrt' : ''));
-      const energie = act.energieMitSchuhen !== undefined && Game.run.items.includes('wanderschuhe')
+      const energie = act.energieMitSchuhen !== undefined && Game.hatItem('wanderschuhe')
         ? act.energieMitSchuhen : act.energie;
 
       const chips = [];
@@ -466,11 +478,91 @@ const UI = (() => {
       <tr><th></th><th>Punkte</th><th>Reise</th><th>Fotos</th><th>Datum</th></tr>${zeilen}</table></div>`;
   }
 
+  // ------------------------------------------------------------------- Flug
+  // Spielt die Anreise als Echtzeit-Sequenz ab: Flugzeug wandert über die
+  // Strecke, die Borduhr tickt (4:20 h komprimiert), Ereignisse trudeln ein.
+  const flug = { timer: [], laeuft: false };
+
+  function flugAufraeumen() {
+    flug.timer.forEach(clearTimeout);
+    flug.timer = [];
+    flug.laeuft = false;
+  }
+
+  function flugZeile(zeile) {
+    const div = el('div', 'flug-zeile',
+      `<span class="flug-zeile-icon">${zeile.icon}</span><div>${esc(zeile.text)}` +
+      (zeile.chips && zeile.chips.length
+        ? '<div class="flug-chips">' + zeile.chips.map(c => `<span class="chip">${esc(c)}</span>`).join('') + '</div>'
+        : '') + '</div>');
+    $('#flug-log').appendChild(div);
+    requestAnimationFrame(() => div.classList.add('sichtbar'));
+    $('#flug-log').scrollTop = $('#flug-log').scrollHeight;
+  }
+
+  function zeigeFlug() {
+    const run = Game.run;
+    if (!run || !run.flug) { fortsetzen(); return; }
+    zeigeScreen('flug');
+    flugAufraeumen();
+    flug.laeuft = true;
+    $('#flug-log').innerHTML = '';
+    $('#btn-flug-weiter').classList.add('versteckt');
+    $('#btn-flug-skip').classList.remove('versteckt');
+
+    const zeilen = run.flug.zeilen;
+    const DAUER = 20000;                       // 20 s Realzeit …
+    const FLUGMINUTEN = 260;                   // … stehen für 4:20 h Flugzeit
+    const start = Date.now();
+
+    const uhr = setInterval(() => {
+      const anteil = Math.min(1, (Date.now() - start) / DAUER);
+      const min = Math.round(anteil * FLUGMINUTEN);
+      $('#flug-uhr').textContent = `Flugzeit ${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')} h`;
+      $('#flug-fortschritt').style.width = (anteil * 100) + '%';
+      $('#flug-flugzeug').style.left = `calc(${anteil * 100}% - 14px)`;
+      if (anteil >= 1) clearInterval(uhr);
+    }, 120);
+    flug.timer.push(uhr);
+
+    zeilen.forEach((zeile, i) => {
+      const t = setTimeout(() => {
+        flugZeile(zeile);
+        if (i === zeilen.length - 1) flugFertig();
+      }, Math.round(((i + 1) / zeilen.length) * DAUER));
+      flug.timer.push(t);
+    });
+
+    $('#btn-flug-skip').onclick = () => {
+      flugAufraeumen();
+      clearInterval(uhr);
+      $('#flug-log').innerHTML = '';
+      zeilen.forEach(flugZeile);
+      $('#flug-uhr').textContent = 'Flugzeit 4:20 h';
+      $('#flug-fortschritt').style.width = '100%';
+      $('#flug-flugzeug').style.left = 'calc(100% - 14px)';
+      flugFertig();
+    };
+  }
+
+  function flugFertig() {
+    $('#btn-flug-skip').classList.add('versteckt');
+    $('#btn-flug-weiter').classList.remove('versteckt');
+    $('#btn-flug-weiter').onclick = () => {
+      flugAufraeumen();
+      Game.flugBestaetigen();
+      renderSpiel();
+      zeigeScreen('spiel');
+      toast('🌴 Willkommen auf Teneriffa – dein Urlaub beginnt jetzt!');
+    };
+  }
+
   // ------------------------------------------------------- Urlaub fortsetzen
   function fortsetzen() {
+    const run = Game.run;
+    if (run && run.flug && !run.flug.gesehen) { zeigeFlug(); return; }
     renderSpiel();
     zeigeScreen('spiel');
-    const run = Game.run;
     if (!run || !run.pending) return;
     // Der Spielstand wurde mitten in einer Auflösung gespeichert – sauber weiterspielen
     if (run.pending.typ === 'ereignis') {
@@ -509,9 +601,7 @@ const UI = (() => {
 
     $('#btn-abflug').addEventListener('click', () => {
       Game.neuerUrlaub(cfg);
-      renderSpiel();
-      zeigeScreen('spiel');
-      toast(`✈️ Willkommen auf Teneriffa! ${cfg.dauer} Tage ${DATA.REGIONEN[cfg.region].name} warten auf dich.`);
+      zeigeFlug();
     });
 
     $('#btn-abbrechen').addEventListener('click', () => {

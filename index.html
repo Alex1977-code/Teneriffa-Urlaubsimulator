@@ -43,6 +43,31 @@
     </div>
   </section>
 
+  <!-- ————— Anreise / Flug ————— -->
+  <section id="screen-flug" class="screen">
+    <div class="flug-himmel">
+      <div class="flug-wolke w1"></div>
+      <div class="flug-wolke w2"></div>
+      <div class="flug-wolke w3"></div>
+      <div class="flug-karte">
+        <div class="flug-info">
+          <span class="flug-route">✈️ Flug TFS-1977 · nach Teneriffa Süd</span>
+          <span id="flug-uhr">Flugzeit 0:00 h</span>
+        </div>
+        <div class="flug-strecke">
+          <span class="flug-punkt">🏠</span>
+          <div class="flug-spur"><div id="flug-fortschritt"></div><span id="flug-flugzeug">✈️</span></div>
+          <span class="flug-punkt">🌴</span>
+        </div>
+        <div id="flug-log"></div>
+        <div class="flug-buttons">
+          <button id="btn-flug-skip" class="btn">⏩ Vorspulen</button>
+          <button id="btn-flug-weiter" class="btn btn-primary btn-gross versteckt">🏨 Auf ins Hotel!</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ————— Hauptspiel ————— -->
   <section id="screen-spiel" class="screen">
     <header id="spiel-kopf"></header>
@@ -108,8 +133,18 @@
         <h3>🔋 Deine Werte</h3>
         <p><strong>Budget</strong> – Jede Aktivität und jede Anfahrt kostet Geld. Ist es leer, bleiben nur Gratis-Aktivitäten.<br>
         <strong>Energie</strong> – Ausflüge machen müde, Schlaf, Pool und Siesta machen fit. Wer erschöpft loszieht, hat nur halb so viel vom Tag.<br>
-        <strong>Stimmung</strong> – Steigt bei schönen Erlebnissen, leidet unter Stress, Staus und Sonnenbrand.<br>
-        <strong>Erholung</strong> – Der Kern deines Urlaubs. Strand, Pool und schöne Abende füllen sie langsam auf.</p>
+        <strong>Stimmung</strong> – Steigt bei schönen Erlebnissen, leidet unter Ärger, Staus und Sonnenbrand.<br>
+        <strong>Erholung</strong> – Der Kern deines Urlaubs. Strand, Pool und schöne Abende füllen sie langsam auf.<br>
+        <strong>Stress</strong> – Verspätete Flieger, verlorene Koffer, reservierte Poolliegen: Der Alltag reist mit.
+        Ab 70 Stress kannst du dich kaum noch erholen. Spa, Siesta, Strand und schöne Abende bauen ihn ab –
+        und jedes Stresslevel bei der Abreise kostet dich am Ende Punkte.</p>
+      </div>
+      <div class="panel">
+        <h3>✈️ Die Anreise zählt mit</h3>
+        <p>Schon der Flug gehört zum Urlaub: Ein pünktlicher Abflug entspannt, Verspätungen und Turbulenzen nerven.
+        Mit etwas Glück siehst du beim Anflug den Teide über dem Wolkenmeer – und mit etwas Pech dreht sich am
+        Gepäckband alles, nur dein Koffer nicht. Dann heißt es: zwei Tage ohne Sonnencreme, Wanderschuhe &amp; Co.
+        auskommen. Auch die Zimmer-Lotterie beim Check-in entscheidet mit, wie gut du in den Urlaub startest.</p>
       </div>
       <div class="panel">
         <h3>🌦️ Das Wetter</h3>

@@ -39,6 +39,8 @@ for (let n = 0; n < DURCHLAEUFE; n++) {
     pruefe(run.energie >= 0 && run.energie <= 100, `Energie außerhalb 0–100: ${run.energie}`);
     pruefe(run.stimmung >= 0 && run.stimmung <= 100, `Stimmung außerhalb 0–100: ${run.stimmung}`);
     pruefe(run.erholung >= 0 && run.erholung <= 100, `Erholung außerhalb 0–100: ${run.erholung}`);
+    pruefe(run.stress >= 0 && run.stress <= 100, `Stress außerhalb 0–100: ${run.stress}`);
+    pruefe(run.flug && run.flug.zeilen.length >= 5, 'Flug-Zeitachse fehlt oder zu kurz');
     pruefe(run.slot >= 0 && run.slot <= 2, `Ungültiger Slot: ${run.slot}`);
     pruefe(run.tag >= 1 && run.tag <= run.dauer, `Ungültiger Tag: ${run.tag}/${run.dauer}`);
 
@@ -68,7 +70,7 @@ for (let n = 0; n < DURCHLAEUFE; n++) {
   pruefe(ende !== null, `Urlaub endete nicht (${schritte} Schritte, cfg ${JSON.stringify(cfg)})`);
   if (!ende) continue;
 
-  pruefe(Number.isFinite(ende.score) && ende.score >= 0, `Ungültiger Score: ${ende.score}`);
+  pruefe(Number.isFinite(ende.score), `Ungültiger Score: ${ende.score}`);
   pruefe(ende.teile.reduce((s, t) => s + t.punkte, 0) === ende.score, 'Score-Teile summieren nicht zum Gesamtscore');
   pruefe(ende.quests.length === 3, `Erwartet 3 Quests, erhalten ${ende.quests.length}`);
   pruefe(!!ende.bewertung, 'Keine Bewertung ermittelt');

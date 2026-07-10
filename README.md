@@ -4,9 +4,13 @@ Ein Browserspiel, das einen Urlaub auf Teneriffa simuliert – realistisch, mit 
 und Mikroklimata, strategischer Tiefe und langfristigem Sammel-Suchtfaktor.
 Komplett in HTML, CSS und JavaScript, ohne Abhängigkeiten, ohne Build-Schritt.
 
-## ▶️ Spielen
+## ▶️ Direkt online spielen
 
-Einfach `index.html` im Browser öffnen – fertig. Alternativ lokal servieren:
+**https://alex1977-code.github.io/Teneriffa-Urlaubsimulator/**
+
+(Wird bei jedem Push automatisch über GitHub Actions auf GitHub Pages veröffentlicht.)
+
+Oder lokal: einfach `index.html` im Browser öffnen. Alternativ servieren mit:
 
 ```bash
 python3 -m http.server 8000
@@ -21,23 +25,32 @@ Du buchst einen Urlaub (7, 10 oder 14 Tage), wählst Unterkunft im Süden oder N
 Mietwagen oder TITSA-Bus – und packst deinen Koffer. Dann gilt es, jeden Tag in drei
 Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
 
-- **31 Aktivitäten an echten Orten** – von der Masca-Schlucht über die Teide-Seilbahn und
-  den Siam Park bis zur Guachinche, die dir erst ein Einheimischer verraten muss.
+- **Die Anreise als Echtzeit-Flug** – Boarding, Getränkeservice (mit Eiswürfeln, obwohl du
+  „ohne“ gesagt hast …), mit Glück der Teide aus dem Fenster – mit Pech Verspätung, ein
+  verlorener Koffer, der erst an Tag 3 nachgeliefert wird, oder das laute Zimmer zum Parkplatz.
+- **37 Aktivitäten an echten Orten** – von der Masca-Schlucht über die Teide-Seilbahn,
+  den Siam Park, Brunelli’s Steakhouse über der Brandung von Punta Brava, La Orotava,
+  den Barranco del Infierno und die Cueva del Viento bis zur Guachinche, die dir erst
+  ein Einheimischer verraten muss.
 - **Realistisches Wetter** – der Süden ist sonnenverwöhnt, der Norden wechselhaft
   (Passatwolken!), am Teide herrscht Höhenwetter. Und manchmal kommt Calima.
-- **Ressourcen-Management** – Budget, Energie, Stimmung, Erholung und Sonnenbrand wollen
-  ausbalanciert werden. Wer erschöpft in die Schlucht steigt, hat nur halb so viel davon.
-- **Zufallsereignisse mit Entscheidungen** – Delfine am Bug, Stau auf der TF-1,
-  fliegende Händler, Hotel-Upgrades und der Barraquito, den du nie vergisst.
+- **Ressourcen-Management** – Budget, Energie, Stimmung, Erholung, **Stress** und
+  Sonnenbrand wollen ausbalanciert werden. Reservierte Poolliegen, Staus und
+  Flugverspätungen treiben den Stress hoch – ab 70 kannst du kaum noch abschalten.
+  Spa, Siesta und schöne Abende bringen dich wieder runter.
+- **Zufallsereignisse mit Entscheidungen** – Delfine am Bug, die Splash-Zone der
+  Orca-Show (klatschnass!), die Kiss-Cam im Loro Parque, fliegende Händler,
+  Hotel-Upgrades und der Barraquito, den du nie vergisst.
 - **Anreise & Abreise zählen** – am Ankunftstag bist du erst mittags im Hotel, am
   Abreisetag bleibt nur der Vormittag.
 
 ## 🔁 Suchtfaktor
 
-- **Urlaubsscore** aus Erholung, Erlebnissen, Stimmung, Fotos, Souvenirs und Urlaubszielen –
-  wiederholte Aktivitäten verlieren an Neuigkeitswert, Abwechslung wird belohnt.
+- **Urlaubsscore** aus Erholung, Erlebnissen, Stimmung, Fotos, Souvenirs und Urlaubszielen,
+  abzüglich deines Stresslevels bei der Abreise – wiederholte Aktivitäten verlieren an
+  Neuigkeitswert, Abwechslung wird belohnt.
 - **3 zufällige Urlaubsziele** pro Durchgang (à 40 Bonuspunkte) machen jeden Urlaub anders.
-- **Fotoalbum mit 21 Motiven** und **14 Erfolge**, die über alle Urlaube hinweg erhalten bleiben.
+- **Fotoalbum mit 27 Motiven** und **17 Erfolge**, die über alle Urlaube hinweg erhalten bleiben.
 - **10 Inselkenner-Level** mit Titeln vom „Neuankömmling“ bis zum „Geist der Guanchen“ –
   ab Level 2/3/4 schaltest du Geheimstrand, Tauchausflug und Paragliding frei.
 - **Lokale Bestenliste** – und die Messlatte für „Traumurlaub“ wächst mit der Urlaubsdauer.

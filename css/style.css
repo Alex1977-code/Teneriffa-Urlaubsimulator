@@ -211,6 +211,95 @@ button { font: inherit; cursor: pointer; }
 .budget-posten { font-size: 0.78rem; color: #8a8d9c; }
 .budget-summe { font-size: 1.15rem; margin-top: 2px; }
 
+/* ------------------------------------------------------------------- Flug */
+.flug-himmel {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #4ea8de 0%, #90e0ef 55%, #cdeffb 100%);
+  display: flex; align-items: center; justify-content: center;
+  padding: 30px 16px;
+  position: relative; overflow: hidden;
+}
+
+.flug-wolke {
+  position: absolute; background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px; filter: blur(2px);
+  animation: wolkenzug linear infinite;
+}
+
+.flug-wolke.w1 { width: 180px; height: 48px; top: 12%; animation-duration: 38s; }
+.flug-wolke.w2 { width: 120px; height: 34px; top: 32%; animation-duration: 26s; animation-delay: -12s; }
+.flug-wolke.w3 { width: 240px; height: 60px; top: 72%; animation-duration: 48s; animation-delay: -30s; }
+
+@keyframes wolkenzug {
+  from { left: 110%; }
+  to { left: -30%; }
+}
+
+.flug-karte {
+  position: relative;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 24px;
+  box-shadow: var(--schatten-gross);
+  width: min(620px, 100%);
+  padding: 26px 28px;
+}
+
+.flug-info {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 8px;
+  font-weight: 700; margin-bottom: 18px;
+}
+
+#flug-uhr {
+  font-variant-numeric: tabular-nums;
+  background: var(--sand); border-radius: 999px; padding: 4px 14px;
+  font-size: 0.9rem; font-weight: 600; color: var(--ozean-dunkel);
+}
+
+.flug-strecke { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.flug-punkt { font-size: 1.4rem; }
+
+.flug-spur {
+  position: relative; flex: 1; height: 6px;
+  background: var(--sand-dunkel); border-radius: 3px;
+}
+
+#flug-fortschritt {
+  height: 100%; width: 0; border-radius: 3px;
+  background: linear-gradient(90deg, var(--ozean-hell), var(--ozean));
+  transition: width 0.15s linear;
+}
+
+#flug-flugzeug {
+  position: absolute; top: -16px; left: -14px;
+  font-size: 1.5rem;
+  transition: left 0.15s linear;
+  filter: drop-shadow(0 3px 4px rgba(0,0,0,0.2));
+}
+
+#flug-log {
+  max-height: 44vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 16px; min-height: 160px;
+}
+
+.flug-zeile {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--sand); border-radius: 12px; padding: 10px 12px;
+  font-size: 0.88rem;
+  opacity: 0; transform: translateY(10px);
+  transition: opacity 0.4s, transform 0.4s;
+}
+
+.flug-zeile.sichtbar { opacity: 1; transform: none; }
+.flug-zeile-icon { font-size: 1.3rem; }
+.flug-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+
+.flug-buttons { display: flex; justify-content: center; gap: 10px; }
+
+.koffer-weg { opacity: 0.45; filter: grayscale(0.8); }
+.warn-hint { color: var(--sonne-dunkel); }
+
 /* ------------------------------------------------------------------ Spiel */
 #spiel-kopf {
   background: linear-gradient(135deg, var(--ozean), var(--ozean-dunkel));
