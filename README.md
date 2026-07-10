@@ -46,7 +46,8 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Abreisetag bleibt nur der Vormittag.
 - **Unterwegs auf der Insel** – Ausflüge in andere Regionen laufen als Reise-Sequenz mit
   animierter Route auf der Inselkarte ab: Staus, Ziegenherden, Miradore, Barraquito-Stopps.
-  Mit dem Mietwagen kannst du **selbst ans Steuer** – eine Pseudo-3D-Fahrt im Arcade-Racer-Stil:
+  Mit dem Mietwagen kannst du **selbst ans Steuer** – eine echte 3D-Fahrt mit
+  Verfolgerkamera im Open-World-Stil (eigene Mini-3D-Engine, Minimap inklusive):
   Lenkung, Gas, Bremse und Turbo-Boost, langsamer Verkehr zum Überholen (Fahrstil-Punkte
   für Überholmanöver und knappe Ausweicher!), Hügelkuppen, Kurven-Warnschilder,
   Gegenverkehr und Ortsschild am Ziel. Die Landschaft passt zur echten Route (Lavaland

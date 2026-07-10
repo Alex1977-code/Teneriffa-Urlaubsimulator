@@ -206,25 +206,31 @@ const UI = (() => {
     canvas.style.width = 'min(340px, 100%)';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+    // ————— GTA-Stil: echte 3D-Welt mit Verfolgerkamera —————
+    // Eigene Mini-3D-Engine: Punkte werden perspektivisch projiziert, die
+    // Kamera hängt mit Verzögerung hinter dem Auto, das wirklich lenkt.
+    const HORIZONT = 116;
+    const F = 235;                  // Brennweite (Pixel)
+    const KAM_H = 3.4;              // Kamerahöhe (m)
+    const KAM_ABSTAND = 8.5;        // Kamera hinter dem Auto (m)
+    const HALB = 6.4;               // halbe Fahrbahnbreite (m)
     const COUNTDOWN = 2000;
-    const HOR = 128;                       // Basis-Horizontlinie
-    const TIEFE = 90;                      // Projektionskonstante (Weltlänge einer Bildzeile)
 
-    // Streckenlänge nach echter Entfernung; Gas geben verkürzt die Fahrzeit
     const hops = (fahrt && fahrt.hops) || 1;
-    const STRECKE = window.FAHRSPIEL_DAUER
-      ? (window.FAHRSPIEL_DAUER / 1000) * 255
-      : 3400 + hops * 900;
+    const S_END = window.FAHRSPIEL_DAUER
+      ? (window.FAHRSPIEL_DAUER / 1000) * 18
+      : 330 + hops * 130;                          // Streckenlänge (m)
+    const ZEITLIMIT = Math.max(6, S_END / 6);      // Sekunden bis Auto-Ankunft
     const GESAMT_KM = 16 + hops * 17;
 
-    // Umgebung passend zur echten Route: Lavaland Richtung Teide, grüner Norden …
+    // Umgebung passend zur echten Route
     const zielZone = fahrt ? (fahrt.nach === 'hotel' ? Game.run.region : fahrt.nach) : 'sued';
     const THEMEN = {
-      sued:  { boden: ['#e5d3a8', '#dcc794'], deko: ['🌵', '🌴', '🌵'], himmel: ['#4ea8de', '#bde6f5'] },
-      west:  { boden: ['#dcc794', '#cdb27f'], deko: ['🌵', '🌴', '🪨'], himmel: ['#4ea8de', '#bde6f5'] },
-      teide: { boden: ['#9b7d63', '#8a6f52'], deko: ['🌲', '🪨', '🌲'], himmel: ['#3d7fb8', '#a9d2e8'] },
-      nord:  { boden: ['#a9c47f', '#98b56e'], deko: ['🌴', '🌳', '🍌'], himmel: ['#5aa5cf', '#c9e6f0'] },
-      anaga: { boden: ['#8fb56e', '#7ea55f'], deko: ['🌳', '🌿', '🌲'], himmel: ['#5aa5cf', '#c9e6f0'] },
+      sued:  { boden: '#e0cfa2', deko: ['🌵', '🌴', '🌵'], himmel: ['#4ea8de', '#bde6f5'] },
+      west:  { boden: '#d5c08c', deko: ['🌵', '🌴', '🪨'], himmel: ['#4ea8de', '#bde6f5'] },
+      teide: { boden: '#93775e', deko: ['🌲', '🪨', '🌲'], himmel: ['#3d7fb8', '#a9d2e8'] },
+      nord:  { boden: '#a2bd77', deko: ['🌴', '🌳', '🍌'], himmel: ['#5aa5cf', '#c9e6f0'] },
+      anaga: { boden: '#88ad68', deko: ['🌳', '🌿', '🌲'], himmel: ['#5aa5cf', '#c9e6f0'] },
     };
     const thema = THEMEN[zielZone] || THEMEN.sued;
     let wetterId = 'sonnig';
@@ -236,45 +242,104 @@ const UI = (() => {
       : truebe ? ['#7d95a8', '#c2cfd8']
       : calima ? ['#c9a86a', '#e8d5a8'] : thema.himmel;
 
-    // Kurven & Hügel der Strecke
-    const kurveBei = d => Math.sin(d * 0.00115) * 1.0 + Math.sin(d * 0.00043 + 1.7) * 0.65;
-    const huegelBei = d => Math.sin(d * 0.00058) * 1.0 + Math.sin(d * 0.00021 + 0.8) * 0.7;
+    // Straße als geschwungener 3D-Pfad (Stützpunkte alle 3 m)
+    const SCHRITT = 3;
+    const samples = [];
+    {
+      let x = 0, z = 0, richtung = 0;
+      for (let s = 0; s <= S_END + 80; s += SCHRITT) {
+        samples.push({ x, z, richtung });
+        richtung += (Math.sin(s * 0.012) + 0.7 * Math.sin(s * 0.0045 + 1.7)) * 0.028;
+        x += Math.sin(richtung) * SCHRITT;
+        z += Math.cos(richtung) * SCHRITT;
+      }
+    }
+    const samplesBei = s => samples[Math.max(0, Math.min(samples.length - 1, Math.round(s / SCHRITT)))];
+    const rechtsVon = p => ({ x: Math.cos(p.richtung), z: -Math.sin(p.richtung) });
 
-    let dist = 0, px = 0, lenkung = 0, lenkIst = 0, tempo = 0, gas = 0;
-    let treffer = 0, blitz = 0, offroadZeit = 0, vorbei = false;
-    let stil = 0, boostRest = 3, boostZeit = 0;
-    const schweber = [];                    // aufsteigende „Überholt!“-Texte
-    let countdownPiep = 3;
+    // Randbewuchs, Warnschilder, Hindernisse, Ortsschild & Zielflagge
+    const objekte = [];
+    for (let s = 15; s < S_END + 40; s += 24 + Math.random() * 20) {
+      const p = samplesBei(s), r = rechtsVon(p);
+      const seite = Math.random() < 0.5 ? -1 : 1;
+      const abstand = 9 + Math.random() * 14;
+      objekte.push({ x: p.x + r.x * seite * abstand, z: p.z + r.z * seite * abstand,
+        icon: thema.deko[Math.floor(Math.random() * thema.deko.length)], gr: 3.4 });
+    }
+    for (let i = 0; i < 40; i++) {
+      const p = samplesBei(Math.random() * S_END), r = rechtsVon(p);
+      const seite = Math.random() < 0.5 ? -1 : 1;
+      objekte.push({ x: p.x + r.x * seite * (26 + Math.random() * 70),
+        z: p.z + r.z * seite * (26 + Math.random() * 70),
+        icon: thema.deko[Math.floor(Math.random() * thema.deko.length)], gr: 4.2 });
+    }
+    let letztesSchild = -999;
+    for (let s = 40; s < S_END - 20; s += 15) {
+      const dr = samplesBei(s + 30).richtung - samplesBei(s).richtung;
+      if (Math.abs(dr) > 0.34 && s - letztesSchild > 70) {
+        const p = samplesBei(s), r = rechtsVon(p);
+        const seite = -Math.sign(dr);
+        objekte.push({ x: p.x + r.x * seite * 9, z: p.z + r.z * seite * 9, icon: '⚠️', gr: 2.6 });
+        letztesSchild = s;
+      }
+    }
+    const hindernisse = [];
+    for (let s = 55; s < S_END - 25; s += 42 + Math.random() * 30) {
+      if (Math.random() < 0.6) {
+        const p = samplesBei(s), r = rechtsVon(p);
+        const q = (Math.random() * 2 - 1) * 4.2;
+        hindernisse.push({ x: p.x + r.x * q, z: p.z + r.z * q,
+          icon: ['🐐', '🕳️', '🚧'][Math.floor(Math.random() * 3)], gr: 2.4 });
+      }
+    }
+    const zielName = fahrt ? DATA.ZONEN[fahrt.nach].name.split(' ')[0].replace('Nordosten', 'Anaga') : 'Ziel';
+    const endP = samplesBei(S_END), endR = rechtsVon(endP);
+    const schild = { x: endP.x + endR.x * 9, z: endP.z + endR.z * 9, text: zielName };
+    const flagge = { x: endP.x, z: endP.z, icon: '🏁', gr: 4.5 };
+
+    // Verkehr: langsame Autos zum Überholen & Gegenverkehr
+    const verkehr = [];
+    const anzahl = Math.max(2, Math.round(S_END / 55));
+    for (let i = 0; i < anzahl; i++) {
+      const gegen = Math.random() < 0.35;
+      verkehr.push({
+        s: 45 + Math.random() * (S_END - 80),
+        spur: gegen ? -2.2 : 2.2,
+        v: gegen ? 10 + Math.random() * 5 : 8 + Math.random() * 4,
+        gegen,
+        icon: gegen ? (Math.random() < 0.5 ? '🚌' : '🚗') : ['🚗', '🚙', '🚕'][Math.floor(Math.random() * 3)],
+        prevRel: 1, hitCd: 0,
+      });
+    }
+
+    // Spielzustand
+    let px = samples[0].x, pz = samples[0].z, heading = samples[0].richtung;
+    let camYaw = heading, speed = 0, lenk = 0, lenkIst = 0, gas = 0;
+    let roadIdx = 0, treffer = 0, stil = 0, blitz = 0, offroadZeit = 0;
+    let boostRest = 3, boostZeit = 0, vorbei = false, countdownPiep = 3;
+    const schweber = [];
     const start = performance.now();
     let letztes = start;
 
     function boost() {
-      if (boostRest > 0 && boostZeit <= 0 && tempo > 0.5 && !vorbei) {
-        boostRest--; boostZeit = 1.4;
+      if (boostRest > 0 && boostZeit <= 0 && speed > 8 && !vorbei) {
+        boostRest--; boostZeit = 1.5;
         piep(520, 200, 'square', 0.1);
       }
     }
 
-    // Randbegrünung, Kurven-Warnschilder & Ortsschild am Ziel
-    const deko = [];
-    for (let d = 300; d < STRECKE + 3000; d += 140 + Math.random() * 180)
-      deko.push({ welt: d, off: (Math.random() < 0.5 ? -1 : 1) * (1.7 + Math.random() * 1.1),
-                  icon: thema.deko[Math.floor(Math.random() * thema.deko.length)] });
-    let letztesSchild = 0;
-    for (let d = 700; d < STRECKE + 1500; d += 200) {
-      const k = kurveBei(d + 450);
-      if (Math.abs(k) > 1.15 && d - letztesSchild > 1000) {
-        deko.push({ welt: d, off: -Math.sign(k) * 1.45, icon: '⚠️' });
-        letztesSchild = d;
-      }
+    // Minimap-Vorberechnung (GTA lässt grüßen)
+    let mmMinX = 1e9, mmMaxX = -1e9, mmMinZ = 1e9, mmMaxZ = -1e9;
+    for (const p of samples) {
+      mmMinX = Math.min(mmMinX, p.x); mmMaxX = Math.max(mmMaxX, p.x);
+      mmMinZ = Math.min(mmMinZ, p.z); mmMaxZ = Math.max(mmMaxZ, p.z);
     }
-    const zielName = fahrt ? DATA.ZONEN[fahrt.nach].name.split(' ')[0].replace('Nordosten', 'Anaga') : 'Ziel';
-    deko.push({ welt: STRECKE + 60, off: 1.5, schild: zielName });
+    const MM = 78, MMX = 8, MMY = H - MM - 8;
+    const mmSkala = (MM - 16) / Math.max(mmMaxX - mmMinX, mmMaxZ - mmMinZ, 1);
+    const mmPx = wx => MMX + 8 + (wx - mmMinX) * mmSkala;
+    const mmPz = wz => MMY + MM - 8 - (wz - mmMinZ) * mmSkala;
 
-    let hindernisse = [], spawnIn = 1600;
-    const ICONS = ['🐐', '🕳️', '🚧', '🐐'];
-
-    // Motorgeräusch: dezentes Brummen, Tonhöhe folgt dem Tempo
+    // Motorgeräusch
     let motor = null;
     function motorStart() {
       try {
@@ -300,26 +365,25 @@ const UI = (() => {
     }
 
     function tasteRunter(e) {
-      if (e.key === 'ArrowLeft' || e.key === 'a') { lenkung = -1; e.preventDefault(); }
-      if (e.key === 'ArrowRight' || e.key === 'd') { lenkung = 1; e.preventDefault(); }
+      if (e.key === 'ArrowLeft' || e.key === 'a') { lenk = -1; e.preventDefault(); }
+      if (e.key === 'ArrowRight' || e.key === 'd') { lenk = 1; e.preventDefault(); }
       if (e.key === 'ArrowUp' || e.key === 'w') { gas = 1; e.preventDefault(); }
       if (e.key === 'ArrowDown' || e.key === 's') { gas = -1; e.preventDefault(); }
       if (e.key === ' ') { boost(); e.preventDefault(); }
     }
     function tasteHoch(e) {
-      if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) lenkung = 0;
+      if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) lenk = 0;
       if (['ArrowUp', 'ArrowDown', 'w', 's'].includes(e.key)) gas = 0;
     }
     function zeigerRunter(e) {
       const box = canvas.getBoundingClientRect();
       const x = (e.clientX - box.left) / box.width * W;
       const y = (e.clientY - box.top) / box.height * H;
-      // Turbo-Knopf unten rechts
       if (x > W - 74 && y > H - 52) { boost(); e.preventDefault(); return; }
-      lenkung = x < W / 2 ? -1 : 1;
+      lenk = x < W / 2 ? -1 : 1;
       e.preventDefault();
     }
-    const zeigerHoch = () => { lenkung = 0; };
+    const zeigerHoch = () => { lenk = 0; };
 
     document.addEventListener('keydown', tasteRunter);
     document.addEventListener('keyup', tasteHoch);
@@ -334,36 +398,28 @@ const UI = (() => {
       document.removeEventListener('pointerup', zeigerHoch);
     }
 
-    // Projektion: Bildzeile y → Anteil p (1 = vorne, 0 = Horizont) → Weltposition.
-    // Der Horizont wandert mit den Hügelkuppen auf und ab.
-    let hor = HOR;
-    const pBei = y => (y - hor) / (H - hor);
-    const weltBei = p => dist + TIEFE / Math.max(0.045, p);
-    const halbBreite = p => 12 + 158 * p;
+    const winkelNorm = a => {
+      while (a > Math.PI) a -= 2 * Math.PI;
+      while (a < -Math.PI) a += 2 * Math.PI;
+      return a;
+    };
 
     function zeichneAuto(x, y, neigung) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(neigung * 0.06);
-      // Schatten
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
       ctx.beginPath(); ctx.ellipse(0, 16, 30, 7, 0, 0, Math.PI * 2); ctx.fill();
-      // Reifen
       ctx.fillStyle = '#1d1f2a';
       ctx.fillRect(-26, 4, 10, 12); ctx.fillRect(16, 4, 10, 12);
-      // Karosserie
       ctx.fillStyle = '#e63946';
-      ctx.beginPath();
-      ctx.roundRect(-24, -6, 48, 20, 6);
-      ctx.fill();
+      ctx.beginPath(); ctx.roundRect(-24, -6, 48, 20, 6); ctx.fill();
       ctx.fillStyle = '#f77f8b';
       ctx.beginPath(); ctx.roundRect(-24, -6, 48, 7, [6, 6, 0, 0]); ctx.fill();
-      // Heckscheibe & Dach
       ctx.fillStyle = '#2b3a55';
       ctx.beginPath(); ctx.roundRect(-15, -16, 30, 12, 4); ctx.fill();
       ctx.fillStyle = '#e63946';
       ctx.fillRect(-17, -19, 34, 5);
-      // Rücklichter
       ctx.fillStyle = '#ffd166';
       ctx.fillRect(-22, 2, 6, 4); ctx.fillRect(16, 2, 6, 4);
       ctx.restore();
@@ -374,191 +430,210 @@ const UI = (() => {
       const dt = Math.min(50, now - letztes) / 1000;
       letztes = now;
       const seitStart = now - start;
-      const fortschritt = Math.min(1, dist / STRECKE);
+      const fahrZeit = Math.max(0, seitStart - COUNTDOWN) / 1000;
 
-      // Countdown-Töne
+      // Countdown
       if (seitStart < COUNTDOWN) {
         const rest = Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3));
         if (rest < countdownPiep) { countdownPiep = rest; piep(440, 120, 'square'); }
-        tempo = 0;
-      } else {
-        if (countdownPiep > 0) { countdownPiep = 0; piep(880, 220, 'square'); motorStart(); }
-        // Gas & Bremse: ↑ beschleunigt (riskant), ↓ bremst (kostet Zeit), Turbo = Leertaste/🔥
-        boostZeit = Math.max(0, boostZeit - dt);
-        const tempoZiel = boostZeit > 0 ? 1.7 : gas > 0 ? 1.22 : gas < 0 ? 0.32 : 0.85;
-        tempo += (tempoZiel - tempo) * dt * (gas < 0 ? 3.2 : boostZeit > 0 ? 2.4 : 1.1);
-        if (Math.abs(px) > 1.05) tempo *= 0.992;   // Schotter bremst
+      } else if (countdownPiep > 0) {
+        countdownPiep = 0; piep(880, 220, 'square'); motorStart();
       }
-      if (motor) { try { motor.osc.frequency.value = 45 + tempo * 75; } catch (e) { /* egal */ } }
 
-      // Physik: weiche Lenkung, Fliehkraft, bei Regen rutschig
-      dist += 300 * tempo * dt;
-      lenkIst += (lenkung - lenkIst) * Math.min(1, dt * 7);
-      const griff = regnet ? 0.82 : 1;
-      px += lenkIst * 1.75 * dt * (0.4 + 0.6 * tempo) * griff;
-      px += kurveBei(dist) * 0.52 * dt * tempo;
-      if (regnet && tempo > 0.6) px += (Math.random() - 0.5) * 0.9 * dt;
-      px = Math.max(-1.45, Math.min(1.45, px));
+      // Nächsten Straßenpunkt verfolgen (für Fortschritt & Abseits-Erkennung)
+      const d2 = i => {
+        const p = samples[Math.max(0, Math.min(samples.length - 1, i))];
+        return (p.x - px) * (p.x - px) + (p.z - pz) * (p.z - pz);
+      };
+      for (let n = 0; n < 10 && roadIdx < samples.length - 1 && d2(roadIdx + 1) < d2(roadIdx); n++) roadIdx++;
+      while (roadIdx > 0 && d2(roadIdx - 1) < d2(roadIdx)) roadIdx--;
+      const roadS = roadIdx * SCHRITT;
+      const seitAbstand = Math.sqrt(d2(roadIdx));
+      const abseits = seitAbstand > HALB + 1.2;
+      const fortschritt = Math.min(1, roadS / S_END);
 
-      // Abseits der Fahrbahn: Gerumpel
-      if (Math.abs(px) > 1.05 && tempo > 0.3) {
+      // Fahrphysik: echtes Lenken, Gas, Bremse, Turbo
+      if (seitStart >= COUNTDOWN) {
+        boostZeit = Math.max(0, boostZeit - dt);
+        let zielTempo = boostZeit > 0 ? 38 : gas > 0 ? 26 : gas < 0 ? 4 : 18;
+        if (abseits) zielTempo *= 0.55;
+        speed += (zielTempo - speed) * dt * (gas < 0 ? 2.6 : boostZeit > 0 ? 2.0 : 0.9);
+        lenkIst += (lenk - lenkIst) * Math.min(1, dt * 7);
+        const griff = regnet ? 0.82 : 1;
+        heading += lenkIst * 1.4 * dt * Math.min(1, speed / 10) * griff;
+        if (regnet && speed > 14) heading += (Math.random() - 0.5) * 0.5 * dt;
+        px += Math.sin(heading) * speed * dt;
+        pz += Math.cos(heading) * speed * dt;
+      }
+      if (motor) { try { motor.osc.frequency.value = 45 + (speed / 38) * 85; } catch (e) { /* egal */ } }
+
+      // Abseits: Gerumpel & Zeitstrafe
+      if (abseits && speed > 6) {
         offroadZeit += dt;
-        if (offroadZeit > 0.8) { treffer++; blitz = 300; offroadZeit = 0; piep(120, 200, 'sawtooth', 0.12); }
+        if (offroadZeit > 1.0) { treffer++; blitz = 300; offroadZeit = 0; piep(120, 200, 'sawtooth', 0.12); }
       } else offroadZeit = 0;
 
-      // Verkehr & Hindernisse erzeugen: Gegenverkehr, langsame Autos zum
-      // Überholen und statische Gefahren
-      spawnIn -= dt * 1000;
-      if (spawnIn <= 0 && tempo > 0.5 && fortschritt < 0.93) {
-        spawnIn = 900 + Math.random() * 850;
-        const los = Math.random();
-        if (los < 0.28) {
-          hindernisse.push({ welt: dist + TIEFE / 0.05, off: -0.55, icon: '🚌', v: -130 });
-        } else if (los < 0.62) {
-          // Langsamer Verkehr in Fahrtrichtung – Überholen bringt Stil-Punkte
-          hindernisse.push({ welt: dist + TIEFE / 0.05,
-            off: Math.random() < 0.6 ? 0.5 : 0,
-            icon: Math.random() < 0.5 ? '🚗' : '🚙', v: 140, verkehr: true });
-        } else {
-          hindernisse.push({ welt: dist + TIEFE / 0.05,
-            off: Math.random() * 1.4 - 0.7,
-            icon: ICONS[Math.floor(Math.random() * ICONS.length)], v: 0 });
+      // Verkehr bewegen, Kollisionen & Überholmanöver
+      for (const auto of verkehr) {
+        auto.s += (auto.gegen ? -auto.v : auto.v) * dt;
+        if (auto.gegen && auto.s < roadS - 40) auto.s = Math.min(S_END - 10, roadS + 170 + Math.random() * 80);
+        const p = samplesBei(auto.s), r = rechtsVon(p);
+        auto.x = p.x + r.x * auto.spur;
+        auto.z = p.z + r.z * auto.spur;
+        auto.hitCd = Math.max(0, auto.hitCd - dt);
+        const abstand = Math.hypot(auto.x - px, auto.z - pz);
+        if (abstand < 2.3 && auto.hitCd <= 0 && speed > 4) {
+          treffer++; blitz = 300; auto.hitCd = 2; speed *= 0.55;
+          piep(110, 260, 'sawtooth', 0.14);
         }
-      }
-      for (const h of hindernisse) {
-        if (h.v) h.welt += h.v * dt;
-        const rel = h.welt - dist;
-        if (!h.erledigt && rel < 30) {
-          h.erledigt = true;
-          const abstand = Math.abs(h.off - px);
-          if (abstand < 0.32) {
-            treffer++; blitz = 300; piep(110, 260, 'sawtooth', 0.14);
-          } else if (h.verkehr) {
-            const punkte = 10 + (abstand < 0.55 ? 5 : 0) + (boostZeit > 0 ? 5 : 0);
+        const rel = auto.s - roadS;
+        if (auto.prevRel > 0 && rel <= 0 && abstand >= 2.3) {
+          if (!auto.gegen) {
+            const punkte = 10 + (abstand < 4.5 ? 5 : 0) + (boostZeit > 0 ? 5 : 0);
             stil += punkte;
-            schweber.push({ text: (abstand < 0.55 ? 'Knapp überholt! +' : 'Überholt! +') + punkte, alter: 0 });
+            schweber.push({ text: (abstand < 4.5 ? 'Knapp überholt! +' : 'Überholt! +') + punkte, alter: 0 });
             piep(760, 90, 'triangle', 0.06);
-          } else if (abstand < 0.5 && tempo > 0.9) {
+          } else if (abstand < 4.5 && speed > 14) {
             stil += 5;
             schweber.push({ text: 'Riskant! +5', alter: 0 });
           }
         }
-      }
-      hindernisse = hindernisse.filter(h => h.welt - dist > -10);
-
-      // ————— Zeichnen —————
-      // Hügel: Horizont hebt und senkt sich mit der Strecke
-      hor = HOR + huegelBei(dist) * 20;
-
-      // Himmel, Sonne, Teide-Silhouette
-      const himmel = ctx.createLinearGradient(0, 0, 0, hor);
-      himmel.addColorStop(0, himmelFarben[0]); himmel.addColorStop(1, himmelFarben[1]);
-      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, hor + 1);
-      if (!regnet && !truebe) {
-        ctx.fillStyle = calima ? '#f0d9a0' : '#ffe8a3';
-        ctx.beginPath(); ctx.arc(W - 60, 38, 16, 0, Math.PI * 2); ctx.fill();
-      }
-      const teideX = W / 2 - kurveBei(dist + 2200) * 90;
-      const teideGroesse = zielZone === 'teide' ? 1.5 : 1;
-      ctx.fillStyle = truebe || regnet ? '#6e7887' : '#8a7f8d';
-      ctx.beginPath();
-      ctx.moveTo(teideX - 85 * teideGroesse, hor);
-      ctx.lineTo(teideX, hor - 52 * teideGroesse);
-      ctx.lineTo(teideX + 85 * teideGroesse, hor);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#f5f0e6';
-      ctx.beginPath();
-      ctx.moveTo(teideX - 18 * teideGroesse, hor - 41 * teideGroesse);
-      ctx.lineTo(teideX, hor - 52 * teideGroesse);
-      ctx.lineTo(teideX + 18 * teideGroesse, hor - 41 * teideGroesse);
-      ctx.lineTo(teideX + 10 * teideGroesse, hor - 36 * teideGroesse);
-      ctx.lineTo(teideX - 10 * teideGroesse, hor - 36 * teideGroesse);
-      ctx.closePath(); ctx.fill();
-
-      // Straße zeilenweise mit Kurvenversatz (klassische Pseudo-3D-Technik)
-      const horZeile = Math.max(0, Math.round(hor));
-      const zentren = new Float32Array(H);
-      let cx = W / 2 - px * halbBreite(1) * 0.9;
-      let dx = -kurveBei(dist) * 0.35;
-      for (let y = H - 1; y >= horZeile; y--) {
-        const p = pBei(y);
-        const welt = weltBei(p);
-        dx += kurveBei(welt) * 0.011;
-        cx += dx;
-        zentren[y] = cx;
-        const halb = halbBreite(p);
-        const streifen = Math.floor(welt / 55) % 2 === 0;
-        // Landschaft
-        ctx.fillStyle = streifen ? thema.boden[0] : thema.boden[1];
-        ctx.fillRect(0, y, W, 1);
-        // Randstreifen (rot-weiß)
-        ctx.fillStyle = streifen ? '#e63946' : '#f5f0e6';
-        ctx.fillRect(cx - halb - 5 * p - 2, y, 5 * p + 2, 1);
-        ctx.fillRect(cx + halb, y, 5 * p + 2, 1);
-        // Asphalt (bei Regen dunkler und glänzend)
-        ctx.fillStyle = regnet ? (streifen ? '#4e5058' : '#484a52') : (streifen ? '#6b6d76' : '#63656e');
-        ctx.fillRect(cx - halb, y, halb * 2, 1);
-        // Mittellinie
-        if (Math.floor(welt / 28) % 2 === 0) {
-          ctx.fillStyle = '#f5f0e6';
-          ctx.fillRect(cx - 1.6 * p, y, 3.2 * p, 1);
-        }
-      }
-
-      // Deko & Hindernisse von hinten nach vorn
-      const objekte = [];
-      for (const d of deko) {
-        const rel = d.welt - dist;
-        if (rel > 8 && rel < TIEFE / 0.045) objekte.push(d);
+        auto.prevRel = rel;
       }
       for (const h of hindernisse) {
-        const rel = h.welt - dist;
-        if (rel > 8 && rel < TIEFE / 0.045) objekte.push(h);
+        if (h.erledigt) continue;
+        const abstand = Math.hypot(h.x - px, h.z - pz);
+        if (abstand < 2.1 && speed > 4) {
+          h.erledigt = true; treffer++; blitz = 300; piep(110, 260, 'sawtooth', 0.14);
+        } else if (abstand < 3.6 && speed > 15 && Math.abs(winkelNorm(Math.atan2(h.x - px, h.z - pz) - heading)) > 1.7) {
+          h.erledigt = true; stil += 5;
+          schweber.push({ text: 'Riskant! +5', alter: 0 });
+        }
       }
-      objekte.sort((a, b) => b.welt - a.welt);
+
+      // Kamera folgt mit Verzögerung (Chase-Cam)
+      camYaw += winkelNorm(heading - camYaw) * Math.min(1, dt * 4);
+      const sinY = Math.sin(camYaw), cosY = Math.cos(camYaw);
+      const kamX = px - sinY * KAM_ABSTAND, kamZ = pz - cosY * KAM_ABSTAND;
+      const projiziere = (x, z) => {
+        const dx = x - kamX, dz = z - kamZ;
+        return { rz: dx * sinY + dz * cosY, rx: dx * cosY - dz * sinY };
+      };
+
+      // ————— Zeichnen —————
+      // Himmel, Sonne & Teide (dreht mit der Blickrichtung)
+      const himmel = ctx.createLinearGradient(0, 0, 0, HORIZONT);
+      himmel.addColorStop(0, himmelFarben[0]); himmel.addColorStop(1, himmelFarben[1]);
+      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, HORIZONT);
+      const teideRel = winkelNorm(0.6 - camYaw);
+      if (Math.abs(teideRel) < 1.15) {
+        const tx = W / 2 + Math.tan(teideRel) * F;
+        ctx.fillStyle = truebe || regnet ? '#6e7887' : '#8a7f8d';
+        ctx.beginPath();
+        ctx.moveTo(tx - 80, HORIZONT); ctx.lineTo(tx, HORIZONT - 46); ctx.lineTo(tx + 80, HORIZONT);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#f5f0e6';
+        ctx.beginPath();
+        ctx.moveTo(tx - 16, HORIZONT - 37); ctx.lineTo(tx, HORIZONT - 46); ctx.lineTo(tx + 16, HORIZONT - 37);
+        ctx.lineTo(tx + 9, HORIZONT - 32); ctx.lineTo(tx - 9, HORIZONT - 32);
+        ctx.closePath(); ctx.fill();
+      }
+      if (!regnet && !truebe) {
+        const sonneRel = winkelNorm(-1.8 - camYaw);
+        if (Math.abs(sonneRel) < 1.2) {
+          ctx.fillStyle = calima ? '#f0d9a0' : '#ffe8a3';
+          ctx.beginPath(); ctx.arc(W / 2 + Math.tan(sonneRel) * F, 40, 16, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      // Boden & Dunst am Horizont
+      ctx.fillStyle = thema.boden;
+      ctx.fillRect(0, HORIZONT, W, H - HORIZONT);
+      const dunst = ctx.createLinearGradient(0, HORIZONT, 0, HORIZONT + 46);
+      dunst.addColorStop(0, himmelFarben[1] + 'e6');
+      dunst.addColorStop(1, himmelFarben[1] + '00');
+      ctx.fillStyle = dunst; ctx.fillRect(0, HORIZONT, W, 46);
+
+      // Straße: Quad-Streifen von fern nach nah
+      const von = Math.max(0, roadIdx - 6), bis = Math.min(samples.length - 1, roadIdx + 85);
+      const punkte = [];
+      for (let i = von; i <= bis; i++) {
+        const p = samples[i], r = rechtsVon(p);
+        const li = projiziere(p.x - r.x * HALB, p.z - r.z * HALB);
+        const re = projiziere(p.x + r.x * HALB, p.z + r.z * HALB);
+        if (li.rz < 0.6 || re.rz < 0.6) { punkte.push(null); continue; }
+        punkte.push({
+          lx: W / 2 + li.rx * F / li.rz, ly: HORIZONT + KAM_H * F / li.rz,
+          rx: W / 2 + re.rx * F / re.rz, ry: HORIZONT + KAM_H * F / re.rz, i,
+        });
+      }
+      for (let n = punkte.length - 2; n >= 0; n--) {
+        const a = punkte[n], b = punkte[n + 1];
+        if (!a || !b) continue;
+        const hell = Math.floor(a.i / 4) % 2 === 0;
+        // Randstreifen (rot-weiß)
+        ctx.fillStyle = hell ? '#e63946' : '#f5f0e6';
+        ctx.beginPath();
+        ctx.moveTo(a.lx - 6, a.ly); ctx.lineTo(a.rx + 6, a.ry);
+        ctx.lineTo(b.rx + 6, b.ry); ctx.lineTo(b.lx - 6, b.ly);
+        ctx.closePath(); ctx.fill();
+        // Asphalt
+        ctx.fillStyle = regnet ? (hell ? '#4e5058' : '#484a52') : (hell ? '#6b6d76' : '#63656e');
+        ctx.beginPath();
+        ctx.moveTo(a.lx, a.ly); ctx.lineTo(a.rx, a.ry);
+        ctx.lineTo(b.rx, b.ry); ctx.lineTo(b.lx, b.ly);
+        ctx.closePath(); ctx.fill();
+        // Mittellinie
+        if (a.i % 4 < 2) {
+          ctx.fillStyle = '#f5f0e6';
+          const amx = (a.lx + a.rx) / 2, amy = (a.ly + a.ry) / 2;
+          const bmx = (b.lx + b.rx) / 2, bmy = (b.ly + b.ry) / 2;
+          const ab = Math.max(1.4, (a.rx - a.lx) * 0.02);
+          ctx.beginPath();
+          ctx.moveTo(amx - ab, amy); ctx.lineTo(amx + ab, amy);
+          ctx.lineTo(bmx + ab, bmy); ctx.lineTo(bmx - ab, bmy);
+          ctx.closePath(); ctx.fill();
+        }
+      }
+
+      // Objekte (Deko, Schilder, Hindernisse, Verkehr, Ziel) sortiert zeichnen
+      const sichtbar = [];
+      const sammle = (o, art) => {
+        const pr = projiziere(o.x, o.z);
+        if (pr.rz < 1 || pr.rz > 240) return;
+        sichtbar.push({ o, art, rz: pr.rz,
+          sx: W / 2 + pr.rx * F / pr.rz, sy: HORIZONT + KAM_H * F / pr.rz });
+      };
+      for (const o of objekte) sammle(o, 'deko');
+      for (const h of hindernisse) if (!h.erledigt || h.icon !== '🐐') sammle(h, 'deko');
+      for (const auto of verkehr) sammle(auto, 'deko');
+      sammle(flagge, 'deko');
+      sammle(schild, 'schild');
+      sichtbar.sort((a, b) => b.rz - a.rz);
       ctx.textAlign = 'center';
-      for (const o of objekte) {
-        const p = TIEFE / (o.welt - dist);
-        if (p < 0.045 || p > 1.15) continue;
-        const y = hor + p * (H - hor);
-        const zeile = Math.min(H - 1, Math.max(horZeile, Math.round(y)));
-        const x = zentren[zeile] + o.off * halbBreite(p);
-        if (o.schild) {
-          // Ortsschild am Ziel
-          const sw = 150 * p, sh = 44 * p;
+      for (const s of sichtbar) {
+        if (s.art === 'schild') {
+          const sw = 8 * F / s.rz, sh = 2.4 * F / s.rz;
           ctx.fillStyle = '#fff';
-          ctx.strokeStyle = '#2b2d42'; ctx.lineWidth = Math.max(1, 3 * p);
-          ctx.beginPath(); ctx.roundRect(x - sw / 2, y - sh, sw, sh, 4 * p); ctx.fill(); ctx.stroke();
+          ctx.strokeStyle = '#2b2d42'; ctx.lineWidth = Math.max(1, 0.16 * F / s.rz);
+          ctx.beginPath(); ctx.roundRect(s.sx - sw / 2, s.sy - sh - 1.4 * F / s.rz, sw, sh, 0.25 * F / s.rz);
+          ctx.fill(); ctx.stroke();
           ctx.fillStyle = '#2b2d42';
-          ctx.font = 'bold ' + Math.round(5 + 15 * p) + 'px sans-serif';
-          ctx.fillText(o.schild, x, y - sh / 2 + 5 * p);
+          ctx.font = 'bold ' + Math.max(4, 1.1 * F / s.rz) + 'px sans-serif';
+          ctx.fillText(s.o.text, s.sx, s.sy - sh / 2 - 1.4 * F / s.rz + 0.4 * F / s.rz);
           ctx.fillStyle = '#8a8d9c';
-          ctx.fillRect(x - 2 * p, y, 4 * p, 14 * p);
+          ctx.fillRect(s.sx - 0.08 * F / s.rz, s.sy - 1.4 * F / s.rz, 0.16 * F / s.rz, 1.4 * F / s.rz);
         } else {
-          ctx.font = Math.round(7 + 30 * p) + 'px serif';
-          ctx.fillText(o.icon, x, y);
+          ctx.font = Math.min(96, Math.max(5, (s.o.gr || 3) * F / s.rz)) + 'px serif';
+          ctx.fillText(s.o.icon, s.sx, s.sy);
         }
       }
 
-      // Auto (leichtes Wackeln abseits der Straße)
-      const ruettel = Math.abs(px) > 1.05 && tempo > 0.3 ? (Math.random() - 0.5) * 4 : 0;
-      zeichneAuto(W / 2 + ruettel, H - 52 + ruettel * 0.5, lenkIst + kurveBei(dist) * 0.4);
+      // Auto: hängt in Kurven sichtbar seitlich in der Kamera (Chase-Cam-Gefühl)
+      const versatz = Math.max(-46, Math.min(46, Math.sin(winkelNorm(heading - camYaw)) * 150));
+      const ruettel = abseits && speed > 6 ? (Math.random() - 0.5) * 4 : 0;
+      zeichneAuto(W / 2 + versatz + ruettel, H - 58 + ruettel * 0.5, lenkIst + winkelNorm(heading - camYaw) * 2);
 
-      // Regenschlieren
-      if (regnet) {
-        ctx.strokeStyle = 'rgba(210,228,245,0.4)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 34; i++) {
-          const rx = Math.random() * W, ry = Math.random() * H;
-          ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 2, ry + 11); ctx.stroke();
-        }
-      }
-      if (calima) {
-        ctx.fillStyle = 'rgba(222,190,120,0.15)';
-        ctx.fillRect(0, 0, W, H);
-      }
-
-      // Turbo: Geschwindigkeitslinien am Rand
+      // Turbo-Linien
       if (boostZeit > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,0.35)';
         ctx.lineWidth = 2;
@@ -569,15 +644,22 @@ const UI = (() => {
           ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy + laenge); ctx.stroke();
         }
       }
-
-      // Kollisions-Blitz
+      // Regen & Calima
+      if (regnet) {
+        ctx.strokeStyle = 'rgba(210,228,245,0.4)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 34; i++) {
+          const rx2 = Math.random() * W, ry2 = Math.random() * H;
+          ctx.beginPath(); ctx.moveTo(rx2, ry2); ctx.lineTo(rx2 - 2, ry2 + 11); ctx.stroke();
+        }
+      }
+      if (calima) { ctx.fillStyle = 'rgba(222,190,120,0.15)'; ctx.fillRect(0, 0, W, H); }
       if (blitz > 0) {
         blitz -= dt * 1000;
-        ctx.fillStyle = 'rgba(230,57,70,0.28)';
-        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = 'rgba(230,57,70,0.28)'; ctx.fillRect(0, 0, W, H);
       }
 
-      // Schwebende Stil-Texte („Überholt! +10“)
+      // Schwebende Stil-Texte
       ctx.textAlign = 'center';
       for (const s of schweber) {
         s.alter += dt;
@@ -585,20 +667,47 @@ const UI = (() => {
         ctx.fillStyle = '#ffd166';
         ctx.strokeStyle = 'rgba(43,45,66,0.8)'; ctx.lineWidth = 3;
         ctx.font = 'bold 17px sans-serif';
-        const sy = H - 110 - s.alter * 55;
+        const sy = H - 130 - s.alter * 55;
         ctx.strokeText(s.text, W / 2, sy);
         ctx.fillText(s.text, W / 2, sy);
       }
       ctx.globalAlpha = 1;
       while (schweber.length && schweber[0].alter > 1.1) schweber.shift();
 
-      // Turbo-Knopf unten rechts
+      // Zu weit weg von der Straße?
+      if (seitAbstand > 22 && seitStart > COUNTDOWN) {
+        ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(43,45,66,0.8)'; ctx.lineWidth = 4;
+        ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+        ctx.strokeText('↩ Zurück zur Straße!', W / 2, 60);
+        ctx.fillText('↩ Zurück zur Straße!', W / 2, 60);
+      }
+
+      // Minimap (unten links)
+      ctx.fillStyle = 'rgba(43,45,66,0.66)';
+      ctx.beginPath(); ctx.roundRect(MMX, MMY, MM, MM, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < samples.length; i += 6) {
+        const mx = mmPx(samples[i].x), my = mmPz(samples[i].z);
+        if (i === 0) ctx.moveTo(mx, my); else ctx.lineTo(mx, my);
+      }
+      ctx.stroke();
+      ctx.fillStyle = '#f4a261';
+      ctx.beginPath(); ctx.arc(mmPx(endP.x), mmPz(endP.z), 3.4, 0, Math.PI * 2); ctx.fill();
+      ctx.save();
+      ctx.translate(mmPx(px), mmPz(pz));
+      ctx.rotate(heading);
+      ctx.fillStyle = '#e63946';
+      ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(3.6, 4); ctx.lineTo(-3.6, 4); ctx.closePath(); ctx.fill();
+      ctx.restore();
+
+      // Turbo-Knopf
       ctx.fillStyle = boostRest > 0 ? 'rgba(43,45,66,0.65)' : 'rgba(43,45,66,0.3)';
       ctx.beginPath(); ctx.roundRect(W - 70, H - 48, 64, 40, 10); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
       ctx.fillText('🔥×' + boostRest, W - 38, H - 23);
 
-      // HUD: Rempler, Stil-Punkte, Fortschritt, Rest-Kilometer & Tacho
+      // HUD oben
       ctx.fillStyle = 'rgba(43,45,66,0.72)';
       ctx.fillRect(0, 0, W, 26);
       ctx.fillStyle = '#f5f0e6';
@@ -614,9 +723,9 @@ const UI = (() => {
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'right';
       ctx.fillText('🏁 ' + Math.max(0, Math.ceil(GESAMT_KM * (1 - fortschritt))) + ' km · ' +
-        Math.round(tempo * 92) + ' km/h', W - 6, 18);
+        Math.round(speed * 3.6) + ' km/h', W - 6, 18);
 
-      // Countdown-Anzeige
+      // Countdown-Overlay
       if (seitStart < COUNTDOWN) {
         ctx.fillStyle = 'rgba(43,45,66,0.45)'; ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
@@ -626,8 +735,8 @@ const UI = (() => {
         ctx.fillText('Fahrt nach ' + zielName + ' – bereit machen …', W / 2, H / 2 + 34);
       }
 
-      // Ziel erreicht?
-      if (dist >= STRECKE) {
+      // Angekommen? (oder Zeitlimit: irgendwann ist jeder mal da)
+      if (roadS >= S_END - 6 || fahrZeit > ZEITLIMIT) {
         vorbei = true;
         aufraeumen();
         ctx.fillStyle = 'rgba(43,45,66,0.55)'; ctx.fillRect(0, 0, W, H);
@@ -652,6 +761,7 @@ const UI = (() => {
 
     requestAnimationFrame(schleife);
   }
+
 
   // ------------------------------------------------------------ Kino-Moment
   // Vollbild-Moment mit echtem Foto – und wenn Wikimedia Commons ein passendes
