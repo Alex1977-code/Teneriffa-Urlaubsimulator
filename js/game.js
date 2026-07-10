@@ -231,8 +231,8 @@ const Game = (() => {
       icon = '🏁'; text = 'Keine Schrecksekunde, jede Kurve gesessen – du fährst wie ein Einheimischer!';
       effekte = { stimmung: 5, stress: -4, erlebnis: 5 };
       meta.perfekteFahrt = true; metaSpeichern();
-    } else if (treffer <= 2) {
-      icon = '🚗'; text = 'Gut angekommen – mit ein, zwei Schrecksekunden und einem entschuldigenden Winken.';
+    } else if (treffer <= 3) {
+      icon = '🚗'; text = 'Gut angekommen – mit ein paar Schrecksekunden und einem entschuldigenden Winken.';
       effekte = { stress: 2 };
     } else {
       icon = '😅'; text = 'Wilde Fahrt! Die Felgen haben Bordstein-Bekanntschaft gemacht. Das bleibt unter uns.';

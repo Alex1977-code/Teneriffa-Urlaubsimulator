@@ -175,6 +175,24 @@ const UI = (() => {
   }
 
   // ------------------------------------------------- Selbstfahren (Minispiel)
+  // Pseudo-3D-Fahrt im Stil klassischer Rennspiele: Horizont, Kurvenperspektive,
+  // Teide in der Ferne, Palmen am Straßenrand, Gegenverkehr und Tacho.
+  let audioCtx = null;
+  function piep(freq, dauerMs, typ, lautstaerke) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = typ || 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(lautstaerke || 0.08, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dauerMs / 1000);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + dauerMs / 1000);
+    } catch (e) { /* kein Ton verfügbar – halb so wild */ }
+  }
+
   function starteFahrspiel(fertigCb) {
     $('#fahrt-inselkarte').classList.add('versteckt');
     $('#fahrspiel-wrap').classList.remove('versteckt');
@@ -182,31 +200,47 @@ const UI = (() => {
 
     const canvas = $('#fahrspiel-canvas');
     const ctx = canvas.getContext('2d');
-    const W = canvas.width = 340, H = canvas.height = 400;
-    const DAUER = window.FAHRSPIEL_DAUER || 14000;
-    const HALB = 72;
-    const zentrum = d => W / 2 + 58 * Math.sin(d * 0.004) + 26 * Math.sin(d * 0.0011 + 2);
+    const W = 340, H = 420;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = 'min(340px, 100%)';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    let dist = 0, carX = W / 2, richtung = 0, treffer = 0;
-    let hindernisse = [], spawnIn = 900, offroadZeit = 0, blitz = 0, vorbei = false;
+    const DAUER = window.FAHRSPIEL_DAUER || 16000;
+    const COUNTDOWN = 2000;
+    const HOR = 128;                       // Horizontlinie
+    const TIEFE = 90;                      // Projektionskonstante (Weltlänge einer Bildzeile)
+
+    // Streckenverlauf: sanfte, sich abwechselnde Kurven
+    const kurveBei = d => Math.sin(d * 0.00115) * 1.0 + Math.sin(d * 0.00043 + 1.7) * 0.65;
+
+    let dist = 0, px = 0, lenkung = 0, tempo = 0;
+    let treffer = 0, blitz = 0, offroadZeit = 0, vorbei = false;
+    let countdownPiep = 3;
     const start = performance.now();
     let letztes = start;
 
-    const ICONS = ['🐐', '🕳️', '🚌', '🚗'];
+    // Randbegrünung & Hindernisse (Weltkoordinaten, off in Fahrbahnbreiten)
+    const deko = [];
+    for (let d = 300; d < 60000; d += 140 + Math.random() * 180)
+      deko.push({ welt: d, off: (Math.random() < 0.5 ? -1 : 1) * (1.7 + Math.random() * 1.1),
+                  icon: Math.random() < 0.65 ? '🌴' : '🌵' });
+    let hindernisse = [], spawnIn = 1600;
+    const ICONS = ['🐐', '🕳️', '🚧', '🐐'];
 
     function tasteRunter(e) {
-      if (e.key === 'ArrowLeft' || e.key === 'a') { richtung = -1; e.preventDefault(); }
-      if (e.key === 'ArrowRight' || e.key === 'd') { richtung = 1; e.preventDefault(); }
+      if (e.key === 'ArrowLeft' || e.key === 'a') { lenkung = -1; e.preventDefault(); }
+      if (e.key === 'ArrowRight' || e.key === 'd') { lenkung = 1; e.preventDefault(); }
     }
     function tasteHoch(e) {
-      if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) richtung = 0;
+      if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) lenkung = 0;
     }
     function zeigerRunter(e) {
       const box = canvas.getBoundingClientRect();
-      richtung = (e.clientX - box.left) < box.width / 2 ? -1 : 1;
+      lenkung = (e.clientX - box.left) < box.width / 2 ? -1 : 1;
       e.preventDefault();
     }
-    const zeigerHoch = () => { richtung = 0; };
+    const zeigerHoch = () => { lenkung = 0; };
 
     document.addEventListener('keydown', tasteRunter);
     document.addEventListener('keyup', tasteHoch);
@@ -220,70 +254,206 @@ const UI = (() => {
       document.removeEventListener('pointerup', zeigerHoch);
     }
 
+    // Projektion: Bildzeile y → Anteil p (1 = vorne, 0 = Horizont) → Weltposition
+    const pBei = y => (y - HOR) / (H - HOR);
+    const weltBei = p => dist + TIEFE / Math.max(0.045, p);
+    const halbBreite = p => 12 + 158 * p;
+
+    function zeichneAuto(x, y, neigung) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(neigung * 0.06);
+      // Schatten
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath(); ctx.ellipse(0, 16, 30, 7, 0, 0, Math.PI * 2); ctx.fill();
+      // Reifen
+      ctx.fillStyle = '#1d1f2a';
+      ctx.fillRect(-26, 4, 10, 12); ctx.fillRect(16, 4, 10, 12);
+      // Karosserie
+      ctx.fillStyle = '#e63946';
+      ctx.beginPath();
+      ctx.roundRect(-24, -6, 48, 20, 6);
+      ctx.fill();
+      ctx.fillStyle = '#f77f8b';
+      ctx.beginPath(); ctx.roundRect(-24, -6, 48, 7, [6, 6, 0, 0]); ctx.fill();
+      // Heckscheibe & Dach
+      ctx.fillStyle = '#2b3a55';
+      ctx.beginPath(); ctx.roundRect(-15, -16, 30, 12, 4); ctx.fill();
+      ctx.fillStyle = '#e63946';
+      ctx.fillRect(-17, -19, 34, 5);
+      // Rücklichter
+      ctx.fillStyle = '#ffd166';
+      ctx.fillRect(-22, 2, 6, 4); ctx.fillRect(16, 2, 6, 4);
+      ctx.restore();
+    }
+
     function schleife(now) {
       if (vorbei) return;
-      const dt = Math.min(50, now - letztes);
+      const dt = Math.min(50, now - letztes) / 1000;
       letztes = now;
-      const tempo = 0.22 + 0.06 * ((now - start) / DAUER);
-      dist += tempo * dt;
-      carX = Math.max(20, Math.min(W - 20, carX + richtung * 0.3 * dt));
+      const seitStart = now - start;
+      const fahrZeit = Math.max(0, seitStart - COUNTDOWN);
+      const fortschritt = Math.min(1, fahrZeit / DAUER);
 
-      // Hindernisse
-      spawnIn -= dt;
-      if (spawnIn <= 0) {
-        spawnIn = 700 + Math.random() * 700;
+      // Countdown-Töne
+      if (seitStart < COUNTDOWN) {
+        const rest = Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3));
+        if (rest < countdownPiep) { countdownPiep = rest; piep(440, 120, 'square'); }
+        tempo = 0;
+      } else {
+        if (countdownPiep > 0) { countdownPiep = 0; piep(880, 220, 'square'); }
+        tempo = Math.min(1, tempo + dt * 0.7) * (Math.abs(px) > 1.05 ? 0.994 : 1);
+      }
+
+      // Physik: Lenken + Fliehkraft der Kurve
+      dist += 300 * tempo * dt;
+      px += lenkung * 1.7 * dt * (0.4 + 0.6 * tempo);
+      px += kurveBei(dist) * 0.5 * dt * tempo;
+      px = Math.max(-1.45, Math.min(1.45, px));
+
+      // Abseits der Fahrbahn: Gerumpel
+      if (Math.abs(px) > 1.05 && tempo > 0.3) {
+        offroadZeit += dt;
+        if (offroadZeit > 0.8) { treffer++; blitz = 300; offroadZeit = 0; piep(120, 200, 'sawtooth', 0.12); }
+      } else offroadZeit = 0;
+
+      // Hindernisse erzeugen
+      spawnIn -= dt * 1000;
+      if (spawnIn <= 0 && tempo > 0.5) {
+        spawnIn = 1050 + Math.random() * 1000;
+        const gegenverkehr = Math.random() < 0.3;
         hindernisse.push({
-          welt: dist + H + 60,
-          off: (Math.random() * 2 - 1) * (HALB - 26),
-          icon: ICONS[Math.floor(Math.random() * ICONS.length)],
+          welt: dist + TIEFE / 0.05,
+          off: gegenverkehr ? -0.55 : (Math.random() * 1.4 - 0.7),
+          icon: gegenverkehr ? '🚌' : ICONS[Math.floor(Math.random() * ICONS.length)],
+          tempo: gegenverkehr ? 130 : 0,
         });
       }
       for (const h of hindernisse) {
-        const y = H - 46 - (h.welt - dist);
-        const x = zentrum(h.welt) + h.off;
-        if (!h.getroffen && Math.abs(x - carX) < 24 && Math.abs(y - (H - 52)) < 24) {
-          h.getroffen = true; treffer++; blitz = 260;
+        if (h.tempo) h.welt -= h.tempo * dt;
+        const rel = h.welt - dist;
+        if (!h.erledigt && rel < 30) {
+          h.erledigt = true;
+          if (Math.abs(h.off - px) < 0.32) { treffer++; blitz = 300; piep(110, 260, 'sawtooth', 0.14); }
         }
       }
-      hindernisse = hindernisse.filter(h => (H - 46 - (h.welt - dist)) < H + 40);
+      hindernisse = hindernisse.filter(h => h.welt - dist > -10);
 
-      // Neben der Straße?
-      if (Math.abs(carX - zentrum(dist + 40)) > HALB - 14) {
-        offroadZeit += dt;
-        if (offroadZeit > 800) { treffer++; blitz = 260; offroadZeit = 0; }
-      } else offroadZeit = 0;
-
-      // Zeichnen
-      ctx.fillStyle = '#e8d9b8'; ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#6b6d76';
-      for (let y = 0; y < H; y += 6) {
-        const cx = zentrum(dist + (H - y));
-        ctx.fillRect(cx - HALB, y, HALB * 2, 6);
-      }
+      // ————— Zeichnen —————
+      // Himmel, Meer am Horizont, Teide
+      const himmel = ctx.createLinearGradient(0, 0, 0, HOR);
+      himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
+      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, HOR);
+      ctx.fillStyle = '#ffe8a3';
+      ctx.beginPath(); ctx.arc(W - 60, 38, 16, 0, Math.PI * 2); ctx.fill();
+      const teideX = W / 2 - kurveBei(dist + 2200) * 90;
+      ctx.fillStyle = '#8a7f8d';
+      ctx.beginPath();
+      ctx.moveTo(teideX - 85, HOR); ctx.lineTo(teideX, HOR - 52); ctx.lineTo(teideX + 85, HOR);
+      ctx.closePath(); ctx.fill();
       ctx.fillStyle = '#f5f0e6';
-      for (let y = 0; y < H; y += 6) {
-        const welt = dist + (H - y);
-        if (Math.floor(welt / 30) % 2 === 0) ctx.fillRect(zentrum(welt) - 2, y, 4, 6);
-      }
-      ctx.font = '24px serif'; ctx.textAlign = 'center';
-      for (const h of hindernisse) {
-        const y = H - 46 - (h.welt - dist);
-        if (y > -20 && !h.getroffen) ctx.fillText(h.icon, zentrum(h.welt) + h.off, y);
-      }
-      ctx.font = '26px serif';
-      ctx.fillText('🚙', carX, H - 40);
-      if (blitz > 0) {
-        blitz -= dt;
-        ctx.fillStyle = 'rgba(230,57,70,0.25)'; ctx.fillRect(0, 0, W, H);
-      }
-      const rest = Math.max(0, Math.ceil((DAUER - (now - start)) / 1000));
-      ctx.fillStyle = '#2b2d42'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText(`⏱ ${rest}s`, 10, 20);
-      ctx.fillText(`💥 ${treffer}`, 10, 40);
+      ctx.beginPath();
+      ctx.moveTo(teideX - 18, HOR - 41); ctx.lineTo(teideX, HOR - 52); ctx.lineTo(teideX + 18, HOR - 41);
+      ctx.lineTo(teideX + 10, HOR - 36); ctx.lineTo(teideX - 10, HOR - 36);
+      ctx.closePath(); ctx.fill();
 
-      if (now - start >= DAUER) {
+      // Straße zeilenweise mit Kurvenversatz (klassische Pseudo-3D-Technik)
+      const zentren = new Float32Array(H);
+      let cx = W / 2 - px * halbBreite(1) * 0.9;
+      let dx = -kurveBei(dist) * 0.35;
+      for (let y = H - 1; y >= HOR; y--) {
+        const p = pBei(y);
+        const welt = weltBei(p);
+        dx += kurveBei(welt) * 0.011;
+        cx += dx;
+        zentren[y] = cx;
+        const halb = halbBreite(p);
+        const streifen = Math.floor(welt / 55) % 2 === 0;
+        // Landschaft
+        ctx.fillStyle = streifen ? '#e5d3a8' : '#dcc794';
+        ctx.fillRect(0, y, W, 1);
+        // Randstreifen (rot-weiß)
+        ctx.fillStyle = streifen ? '#e63946' : '#f5f0e6';
+        ctx.fillRect(cx - halb - 5 * p - 2, y, 5 * p + 2, 1);
+        ctx.fillRect(cx + halb, y, 5 * p + 2, 1);
+        // Asphalt
+        ctx.fillStyle = streifen ? '#6b6d76' : '#63656e';
+        ctx.fillRect(cx - halb, y, halb * 2, 1);
+        // Mittellinie
+        if (Math.floor(welt / 28) % 2 === 0) {
+          ctx.fillStyle = '#f5f0e6';
+          ctx.fillRect(cx - 1.6 * p, y, 3.2 * p, 1);
+        }
+      }
+
+      // Deko & Hindernisse von hinten nach vorn
+      const objekte = [];
+      for (const d of deko) {
+        const rel = d.welt - dist;
+        if (rel > 8 && rel < TIEFE / 0.045) objekte.push(d);
+      }
+      for (const h of hindernisse) {
+        const rel = h.welt - dist;
+        if (rel > 8 && rel < TIEFE / 0.045) objekte.push(h);
+      }
+      objekte.sort((a, b) => b.welt - a.welt);
+      ctx.textAlign = 'center';
+      for (const o of objekte) {
+        const p = TIEFE / (o.welt - dist);
+        if (p < 0.045 || p > 1.15) continue;
+        const y = HOR + p * (H - HOR);
+        const zeile = Math.min(H - 1, Math.max(HOR, Math.round(y)));
+        const x = zentren[zeile] + o.off * halbBreite(p);
+        ctx.font = Math.round(7 + 30 * p) + 'px serif';
+        ctx.fillText(o.icon, x, y);
+      }
+
+      // Auto (leichtes Wackeln abseits der Straße)
+      const ruettel = Math.abs(px) > 1.05 && tempo > 0.3 ? (Math.random() - 0.5) * 4 : 0;
+      zeichneAuto(W / 2 + ruettel, H - 52 + ruettel * 0.5, lenkung + kurveBei(dist) * 0.4);
+
+      // Kollisions-Blitz
+      if (blitz > 0) {
+        blitz -= dt * 1000;
+        ctx.fillStyle = 'rgba(230,57,70,0.28)';
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // HUD: Fortschritt, Tacho, Rempler
+      ctx.fillStyle = 'rgba(43,45,66,0.72)';
+      ctx.fillRect(0, 0, W, 26);
+      ctx.fillStyle = '#f5f0e6';
+      ctx.fillRect(52, 10, W - 120, 6);
+      ctx.fillStyle = '#f4a261';
+      ctx.fillRect(52, 10, (W - 120) * fortschritt, 6);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'left'; ctx.fillText('🚗', 34, 18);
+      ctx.textAlign = 'right'; ctx.fillText('🏁', W - 52, 18);
+      ctx.fillText(Math.round(tempo * (68 + 26 * fortschritt)) + ' km/h', W - 8, 18);
+      ctx.textAlign = 'left';
+      ctx.fillText('💥 ' + treffer, 6, 18);
+
+      // Countdown-Anzeige
+      if (seitStart < COUNTDOWN) {
+        ctx.fillStyle = 'rgba(43,45,66,0.45)'; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+        ctx.font = 'bold 64px sans-serif';
+        ctx.fillText(String(Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3))), W / 2, H / 2);
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText('Bereit machen …', W / 2, H / 2 + 34);
+      }
+
+      // Ziel erreicht?
+      if (fahrZeit >= DAUER) {
         vorbei = true;
         aufraeumen();
+        ctx.fillStyle = 'rgba(43,45,66,0.55)'; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+        ctx.font = 'bold 34px sans-serif';
+        ctx.fillText('🏁 Angekommen!', W / 2, H / 2);
+        piep(660, 150, 'square'); setTimeout(() => piep(880, 250, 'square'), 160);
+
         const ergebnis = Game.fahrtBewerten(treffer);
         $('#fahrt-log').appendChild(el('div', 'flug-zeile sichtbar',
           `<span class="flug-zeile-icon">${ergebnis.icon}</span><div>${esc(ergebnis.text)}` +
@@ -321,14 +491,16 @@ const UI = (() => {
       const weiter = el('button', 'btn btn-primary', '▶ Weiter');
       weiter.addEventListener('click', () => { overlay.classList.add('versteckt'); weiterCb(); });
       buttons.appendChild(weiter);
-      const video = el('button', 'btn', '🎬 Echtes Video ansehen');
-      video.addEventListener('click', () => {
-        window.open('https://www.youtube.com/results?search_query=' +
-          encodeURIComponent(suchbegriff + ' Teneriffa'), '_blank', 'noopener');
-      });
+      // Echte Links statt window.open: öffnen zuverlässig einen NEUEN Tab –
+      // das Spiel bleibt geöffnet und wartet hier weiter.
+      const video = el('a', 'btn', '🎬 Echtes Video ansehen');
+      video.href = 'https://www.youtube.com/results?search_query=' +
+        encodeURIComponent(suchbegriff + ' Teneriffa');
+      video.target = '_blank'; video.rel = 'noopener';
       buttons.appendChild(video);
-      const quelle = el('button', 'btn btn-klein', '📷 Bildquelle');
-      quelle.addEventListener('click', () => window.open(bild.artikelUrl, '_blank', 'noopener'));
+      const quelle = el('a', 'btn btn-klein', '📷 Bildquelle');
+      quelle.href = bild.artikelUrl;
+      quelle.target = '_blank'; quelle.rel = 'noopener';
       buttons.appendChild(quelle);
       overlay.classList.remove('versteckt');
     });
@@ -876,7 +1048,10 @@ const UI = (() => {
     document.addEventListener('click', ev => {
       const img = ev.target.closest ? ev.target.closest('img[data-quelle]') : null;
       if (img && !img.closest('.akt-karte')) {
-        window.open(img.dataset.quelle, '_blank', 'noopener');
+        // Über einen echten Link öffnen → neuer Tab, kein Popup-Blocker
+        const a = el('a');
+        a.href = img.dataset.quelle; a.target = '_blank'; a.rel = 'noopener';
+        document.body.appendChild(a); a.click(); a.remove();
         ev.stopPropagation();
       }
     }, true);

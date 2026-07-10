@@ -129,6 +129,9 @@ button { font: inherit; cursor: pointer; }
   font-weight: 600;
   color: var(--vulkan);
   transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
 }
 
 .btn:hover { transform: translateY(-2px); box-shadow: var(--schatten); border-color: var(--ozean-hell); }
