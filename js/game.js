@@ -223,9 +223,12 @@ const Game = (() => {
     return { von: run.region, nach: zielZone, transport: run.transport, hops: anzahlHops, zeilen };
   }
 
-  // Ergebnis des Selbstfahr-Minispiels (nur Mietwagen). treffer = Rempler.
-  function fahrtBewerten(treffer) {
+  // Ergebnis des Selbstfahr-Minispiels (nur Mietwagen).
+  // treffer = Rempler, stil = Fahrstil-Punkte (Überholmanöver, knappe Ausweicher).
+  function fahrtBewerten(treffer, stil) {
     if (!run) return null;
+    stil = stil || 0;
+    run.fahrstilBestes = Math.max(run.fahrstilBestes || 0, stil);
     let icon, text, effekte;
     if (treffer === 0) {
       icon = '🏁'; text = 'Keine Schrecksekunde, jede Kurve gesessen – du fährst wie ein Einheimischer!';
@@ -238,14 +241,33 @@ const Game = (() => {
       icon = '😅'; text = 'Wilde Fahrt! Die Felgen haben Bordstein-Bekanntschaft gemacht. Das bleibt unter uns.';
       effekte = { stress: 7, stimmung: -4, energie: -4 };
     }
+    if (stil >= 150) {
+      text += ' Und dieser Fahrstil: Überholmanöver wie ein Insel-Racer!';
+      effekte.erlebnis = (effekte.erlebnis || 0) + Math.min(12, Math.round(stil / 20));
+      effekte.stimmung = (effekte.stimmung || 0) + 3;
+    } else if (stil >= 60) {
+      effekte.erlebnis = (effekte.erlebnis || 0) + Math.min(8, Math.round(stil / 15));
+    }
     const chips = effekteAnwenden(effekte);
+    if (stil > 0) chips.unshift(`🏎️ Fahrstil: ${stil} Punkte`);
     runSpeichern();
     return { icon, text, chips };
   }
 
+  // Perfekt getimter Foto-Auslöser (Kino-Minispiel)
+  function fotoPerfekt() {
+    if (!run) return null;
+    run.erlebnis += 5;
+    run.stimmung = clamp(run.stimmung + 2, 0, 100);
+    meta.perfektesFoto = true;
+    metaSpeichern();
+    runSpeichern();
+    return { erlebnis: 5, stimmung: 2 };
+  }
+
   // ------------------------------------------------------------ Neuer Lauf
   function neuerUrlaub(cfg) {
-    const hotel = D.HOTELS[cfg.hotel];
+    const hotel = D.HOTELS[cfg.region][cfg.hotel];
     const dauer = cfg.dauer;
     let budget = Math.round(hotel.budgetProTag * dauer);
 
@@ -483,7 +505,18 @@ const Game = (() => {
     let effekte, antwort = null;
     if (ereignis.wahl) {
       const wahl = ereignis.wahl[clamp(wahlIndex || 0, 0, ereignis.wahl.length - 1)];
-      effekte = wahl.effekte; antwort = wahl.antwort;
+      if (wahl.zufall) {
+        // Risiko-Entscheidung: Der Ausgang wird ausgewürfelt
+        let wurf = Math.random();
+        let ausgang = wahl.zufall[wahl.zufall.length - 1];
+        for (const kandidat of wahl.zufall) {
+          wurf -= kandidat.p;
+          if (wurf <= 0) { ausgang = kandidat; break; }
+        }
+        effekte = ausgang.effekte; antwort = ausgang.antwort;
+      } else {
+        effekte = wahl.effekte; antwort = wahl.antwort;
+      }
     } else {
       effekte = ereignis.effekte;
     }
@@ -538,7 +571,7 @@ const Game = (() => {
   }
 
   function tagBeenden() {
-    const hotel = D.HOTELS[run.hotel];
+    const hotel = D.HOTELS[run.region][run.hotel];
     let regen = 30 + hotel.regen;
     if (run.flags.fruehSchlafen) { regen += 8; run.flags.fruehSchlafen = false; }
     if (run.flags.hotelUpgrade) regen += 3;
@@ -614,7 +647,7 @@ const Game = (() => {
       actionZahl: run.actionZahl, guachincheBesucht: !!run.guachincheBesucht,
       souvenirs: run.souvenirs, dauer: run.dauer,
       stress: run.stress, kofferVerloren: run.kofferVerloren,
-      flirtStufe: run.flirt.stufe,
+      flirtStufe: run.flirt.stufe, fahrstil: run.fahrstilBestes || 0,
     };
 
     // Quests auswerten
@@ -699,7 +732,7 @@ const Game = (() => {
     titelFuerLevel: levelTitel,
     neuerUrlaub, aktivitaetenListe, aktivitaetAusfuehren,
     ereignisEntscheiden, fortfahren, urlaubAbbrechen,
-    wetterFuerZone, flugBestaetigen, hatItem, fahrtBewerten,
+    wetterFuerZone, flugBestaetigen, hatItem, fahrtBewerten, fotoPerfekt,
     _reset() { meta = metaNeu(); run = null; metaSpeichern(); runSpeichern(); },
   };
 })();

@@ -242,9 +242,18 @@ const UI = (() => {
 
     let dist = 0, px = 0, lenkung = 0, lenkIst = 0, tempo = 0, gas = 0;
     let treffer = 0, blitz = 0, offroadZeit = 0, vorbei = false;
+    let stil = 0, boostRest = 3, boostZeit = 0;
+    const schweber = [];                    // aufsteigende „Überholt!“-Texte
     let countdownPiep = 3;
     const start = performance.now();
     let letztes = start;
+
+    function boost() {
+      if (boostRest > 0 && boostZeit <= 0 && tempo > 0.5 && !vorbei) {
+        boostRest--; boostZeit = 1.4;
+        piep(520, 200, 'square', 0.1);
+      }
+    }
 
     // Randbegrünung, Kurven-Warnschilder & Ortsschild am Ziel
     const deko = [];
@@ -295,6 +304,7 @@ const UI = (() => {
       if (e.key === 'ArrowRight' || e.key === 'd') { lenkung = 1; e.preventDefault(); }
       if (e.key === 'ArrowUp' || e.key === 'w') { gas = 1; e.preventDefault(); }
       if (e.key === 'ArrowDown' || e.key === 's') { gas = -1; e.preventDefault(); }
+      if (e.key === ' ') { boost(); e.preventDefault(); }
     }
     function tasteHoch(e) {
       if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) lenkung = 0;
@@ -302,7 +312,11 @@ const UI = (() => {
     }
     function zeigerRunter(e) {
       const box = canvas.getBoundingClientRect();
-      lenkung = (e.clientX - box.left) < box.width / 2 ? -1 : 1;
+      const x = (e.clientX - box.left) / box.width * W;
+      const y = (e.clientY - box.top) / box.height * H;
+      // Turbo-Knopf unten rechts
+      if (x > W - 74 && y > H - 52) { boost(); e.preventDefault(); return; }
+      lenkung = x < W / 2 ? -1 : 1;
       e.preventDefault();
     }
     const zeigerHoch = () => { lenkung = 0; };
@@ -369,9 +383,10 @@ const UI = (() => {
         tempo = 0;
       } else {
         if (countdownPiep > 0) { countdownPiep = 0; piep(880, 220, 'square'); motorStart(); }
-        // Gas & Bremse: ↑ beschleunigt (riskant), ↓ bremst (kostet Zeit)
-        const tempoZiel = gas > 0 ? 1.22 : gas < 0 ? 0.32 : 0.85;
-        tempo += (tempoZiel - tempo) * dt * (gas < 0 ? 3.2 : 1.1);
+        // Gas & Bremse: ↑ beschleunigt (riskant), ↓ bremst (kostet Zeit), Turbo = Leertaste/🔥
+        boostZeit = Math.max(0, boostZeit - dt);
+        const tempoZiel = boostZeit > 0 ? 1.7 : gas > 0 ? 1.22 : gas < 0 ? 0.32 : 0.85;
+        tempo += (tempoZiel - tempo) * dt * (gas < 0 ? 3.2 : boostZeit > 0 ? 2.4 : 1.1);
         if (Math.abs(px) > 1.05) tempo *= 0.992;   // Schotter bremst
       }
       if (motor) { try { motor.osc.frequency.value = 45 + tempo * 75; } catch (e) { /* egal */ } }
@@ -391,24 +406,42 @@ const UI = (() => {
         if (offroadZeit > 0.8) { treffer++; blitz = 300; offroadZeit = 0; piep(120, 200, 'sawtooth', 0.12); }
       } else offroadZeit = 0;
 
-      // Hindernisse erzeugen
+      // Verkehr & Hindernisse erzeugen: Gegenverkehr, langsame Autos zum
+      // Überholen und statische Gefahren
       spawnIn -= dt * 1000;
       if (spawnIn <= 0 && tempo > 0.5 && fortschritt < 0.93) {
-        spawnIn = 1050 + Math.random() * 1000;
-        const gegenverkehr = Math.random() < 0.3;
-        hindernisse.push({
-          welt: dist + TIEFE / 0.05,
-          off: gegenverkehr ? -0.55 : (Math.random() * 1.4 - 0.7),
-          icon: gegenverkehr ? '🚌' : ICONS[Math.floor(Math.random() * ICONS.length)],
-          tempo: gegenverkehr ? 130 : 0,
-        });
+        spawnIn = 900 + Math.random() * 850;
+        const los = Math.random();
+        if (los < 0.28) {
+          hindernisse.push({ welt: dist + TIEFE / 0.05, off: -0.55, icon: '🚌', v: -130 });
+        } else if (los < 0.62) {
+          // Langsamer Verkehr in Fahrtrichtung – Überholen bringt Stil-Punkte
+          hindernisse.push({ welt: dist + TIEFE / 0.05,
+            off: Math.random() < 0.6 ? 0.5 : 0,
+            icon: Math.random() < 0.5 ? '🚗' : '🚙', v: 140, verkehr: true });
+        } else {
+          hindernisse.push({ welt: dist + TIEFE / 0.05,
+            off: Math.random() * 1.4 - 0.7,
+            icon: ICONS[Math.floor(Math.random() * ICONS.length)], v: 0 });
+        }
       }
       for (const h of hindernisse) {
-        if (h.tempo) h.welt -= h.tempo * dt;
+        if (h.v) h.welt += h.v * dt;
         const rel = h.welt - dist;
         if (!h.erledigt && rel < 30) {
           h.erledigt = true;
-          if (Math.abs(h.off - px) < 0.32) { treffer++; blitz = 300; piep(110, 260, 'sawtooth', 0.14); }
+          const abstand = Math.abs(h.off - px);
+          if (abstand < 0.32) {
+            treffer++; blitz = 300; piep(110, 260, 'sawtooth', 0.14);
+          } else if (h.verkehr) {
+            const punkte = 10 + (abstand < 0.55 ? 5 : 0) + (boostZeit > 0 ? 5 : 0);
+            stil += punkte;
+            schweber.push({ text: (abstand < 0.55 ? 'Knapp überholt! +' : 'Überholt! +') + punkte, alter: 0 });
+            piep(760, 90, 'triangle', 0.06);
+          } else if (abstand < 0.5 && tempo > 0.9) {
+            stil += 5;
+            schweber.push({ text: 'Riskant! +5', alter: 0 });
+          }
         }
       }
       hindernisse = hindernisse.filter(h => h.welt - dist > -10);
@@ -525,6 +558,18 @@ const UI = (() => {
         ctx.fillRect(0, 0, W, H);
       }
 
+      // Turbo: Geschwindigkeitslinien am Rand
+      if (boostZeit > 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 10; i++) {
+          const sy = Math.random() * H;
+          const laenge = 20 + Math.random() * 40;
+          const sx = Math.random() < 0.5 ? Math.random() * 50 : W - Math.random() * 50;
+          ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy + laenge); ctx.stroke();
+        }
+      }
+
       // Kollisions-Blitz
       if (blitz > 0) {
         blitz -= dt * 1000;
@@ -532,16 +577,41 @@ const UI = (() => {
         ctx.fillRect(0, 0, W, H);
       }
 
-      // HUD: Rempler, Fortschritt, Rest-Kilometer & Tacho
+      // Schwebende Stil-Texte („Überholt! +10“)
+      ctx.textAlign = 'center';
+      for (const s of schweber) {
+        s.alter += dt;
+        ctx.globalAlpha = Math.max(0, 1 - s.alter / 1.1);
+        ctx.fillStyle = '#ffd166';
+        ctx.strokeStyle = 'rgba(43,45,66,0.8)'; ctx.lineWidth = 3;
+        ctx.font = 'bold 17px sans-serif';
+        const sy = H - 110 - s.alter * 55;
+        ctx.strokeText(s.text, W / 2, sy);
+        ctx.fillText(s.text, W / 2, sy);
+      }
+      ctx.globalAlpha = 1;
+      while (schweber.length && schweber[0].alter > 1.1) schweber.shift();
+
+      // Turbo-Knopf unten rechts
+      ctx.fillStyle = boostRest > 0 ? 'rgba(43,45,66,0.65)' : 'rgba(43,45,66,0.3)';
+      ctx.beginPath(); ctx.roundRect(W - 70, H - 48, 64, 40, 10); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('🔥×' + boostRest, W - 38, H - 23);
+
+      // HUD: Rempler, Stil-Punkte, Fortschritt, Rest-Kilometer & Tacho
       ctx.fillStyle = 'rgba(43,45,66,0.72)';
       ctx.fillRect(0, 0, W, 26);
       ctx.fillStyle = '#f5f0e6';
-      ctx.fillRect(46, 10, W - 158, 6);
+      ctx.fillRect(88, 10, W - 200, 6);
       ctx.fillStyle = '#f4a261';
-      ctx.fillRect(46, 10, (W - 158) * fortschritt, 6);
+      ctx.fillRect(88, 10, (W - 200) * fortschritt, 6);
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'left'; ctx.fillText('💥 ' + treffer, 6, 18);
+      ctx.textAlign = 'left';
+      ctx.fillText('💥 ' + treffer, 6, 18);
+      ctx.fillStyle = '#ffd166';
+      ctx.fillText('🏎️ ' + stil, 42, 18);
+      ctx.fillStyle = '#fff';
       ctx.textAlign = 'right';
       ctx.fillText('🏁 ' + Math.max(0, Math.ceil(GESAMT_KM * (1 - fortschritt))) + ' km · ' +
         Math.round(tempo * 92) + ' km/h', W - 6, 18);
@@ -566,7 +636,7 @@ const UI = (() => {
         ctx.fillText('🏁 ' + zielName + ' erreicht!', W / 2, H / 2);
         piep(660, 150, 'square'); setTimeout(() => piep(880, 250, 'square'), 160);
 
-        const ergebnis = Game.fahrtBewerten(treffer);
+        const ergebnis = Game.fahrtBewerten(treffer, stil);
         $('#fahrt-log').appendChild(el('div', 'flug-zeile sichtbar',
           `<span class="flug-zeile-icon">${ergebnis.icon}</span><div>${esc(ergebnis.text)}` +
           (ergebnis.chips.length ? '<div class="flug-chips">' + ergebnis.chips.map(c => `<span class="chip">${esc(c)}</span>`).join('') + '</div>' : '') +
@@ -598,18 +668,18 @@ const UI = (() => {
     $('#kino-overlay').classList.add('versteckt');
   }
 
-  function zeigeKino(motiv, titel, untertitel, weiterCb) {
+  function zeigeKino(motiv, titel, untertitel, weiterCb, fotoNeu) {
     const videoP = BILDER.videoHole(motiv);   // parallel zur Bildsuche starten
     Promise.race([BILDER.hole(motiv), wartezeit(1800)]).then(bild => {
       if (!bild) {
         // Kein Bild? Vielleicht gibt es wenigstens ein Video.
         Promise.race([videoP, wartezeit(2200)]).then(video => {
-          if (video) kinoOeffnen(motiv, null, video, titel, untertitel, weiterCb);
+          if (video) kinoOeffnen(motiv, null, video, titel, untertitel, weiterCb, fotoNeu);
           else weiterCb();
         });
         return;
       }
-      kinoOeffnen(motiv, bild, null, titel, untertitel, weiterCb);
+      kinoOeffnen(motiv, bild, null, titel, untertitel, weiterCb, fotoNeu);
       // Video nachladen und einblenden, sobald es bereit ist
       Promise.race([videoP, wartezeit(8000)]).then(video => {
         const overlay = $('#kino-overlay');
@@ -619,7 +689,53 @@ const UI = (() => {
     });
   }
 
-  function kinoOeffnen(motiv, bild, video, titel, untertitel, weiterCb) {
+  // Foto-Auslöser: Der Fokus wandert – wer im richtigen Moment auslöst,
+  // bekommt das perfekte Foto samt Bonus. Danach erscheinen die Knöpfe.
+  function kinoFokusStarten(buttons) {
+    const alt = document.querySelector('.kino-fokus');
+    if (alt) alt.remove();
+    const fokus = el('div', 'kino-fokus',
+      '<div class="fokus-hinweis">Fang den Moment ein – löse im grünen Bereich aus!</div>' +
+      '<div class="fokus-balken"><div class="fokus-ziel"></div><div class="fokus-marke"></div></div>');
+    const ausloeser = el('button', 'btn btn-primary', '📸 Auslösen!');
+    ausloeser.id = 'kino-ausloeser';
+    fokus.appendChild(ausloeser);
+    buttons.parentNode.insertBefore(fokus, buttons);
+    buttons.classList.add('versteckt');
+
+    const marke = fokus.querySelector('.fokus-marke');
+    const startzeit = performance.now();
+    let aktiv = true;
+    (function pendel(now) {
+      if (!aktiv || !marke.isConnected) return;
+      const pos = (Math.sin((now - startzeit) / 240) + 1) / 2 * 100;
+      marke.style.left = pos + '%';
+      requestAnimationFrame(pendel);
+    })(startzeit);
+
+    const aufloesen = getroffen => {
+      if (!aktiv) return;
+      aktiv = false;
+      if (getroffen) {
+        Game.fotoPerfekt();
+        fokus.innerHTML = '<div class="fokus-ergebnis">✨ Perfekter Schnappschuss! <span class="chip">⭐ +5</span> <span class="chip">😊 +2</span></div>';
+      } else {
+        fokus.innerHTML = '<div class="fokus-ergebnis">📷 Im Kasten – beim nächsten Mal triffst du den Moment!</div>';
+      }
+      buttons.classList.remove('versteckt');
+      setTimeout(() => fokus.remove(), 2600);
+      if (Game.run) renderStats();
+    };
+
+    ausloeser.addEventListener('click', () => {
+      const pos = parseFloat(marke.style.left) || 0;
+      aufloesen(Math.abs(pos - 50) <= 13);
+    });
+    // Wer nicht reagiert, bekommt das Foto trotzdem (ohne Bonus)
+    setTimeout(() => { if (aktiv) aufloesen(false); }, 7000);
+  }
+
+  function kinoOeffnen(motiv, bild, video, titel, untertitel, weiterCb, fotoNeu) {
     const overlay = $('#kino-overlay');
     overlay.dataset.motiv = motiv;
     const img = $('#kino-bild');
@@ -647,6 +763,7 @@ const UI = (() => {
       buttons.appendChild(quelle);
     }
     overlay.classList.remove('versteckt');
+    if (fotoNeu) kinoFokusStarten(buttons);
     if (video) kinoVideoStarten(video);
   }
 
@@ -733,8 +850,8 @@ const UI = (() => {
       cfg.region, id => { cfg.region = id; }));
 
     inhalt.appendChild(optionsGruppe('🏨 Wie residierst du?',
-      'Dein Reisestil bestimmt das Gesamtbudget – und wie gut du dich nachts erholst.',
-      Object.entries(DATA.HOTELS).map(([id, h]) =>
+      'Echte Häuser deiner Region: Dein Reisestil bestimmt das Gesamtbudget – und wie gut du dich nachts erholst.',
+      Object.entries(DATA.HOTELS[cfg.region]).map(([id, h]) =>
         ({ id, icon: id === 'spar' ? '🛏️' : id === 'komfort' ? '🏨' : '🏰',
            name: `${h.name} ${h.sterne}`, detail: `Budget: ${h.budgetProTag} €/Tag`, desc: h.desc })),
       cfg.hotel, id => { cfg.hotel = id; }));
@@ -765,7 +882,7 @@ const UI = (() => {
     inhalt.appendChild(gepaeck);
 
     // Budgetvorschau
-    const hotel = DATA.HOTELS[cfg.hotel];
+    const hotel = DATA.HOTELS[cfg.region][cfg.hotel];
     let budget = hotel.budgetProTag * cfg.dauer;
     const posten = [`Reisekasse: ${budget} €`];
     if (cfg.transport === 'mietwagen') {
@@ -786,7 +903,7 @@ const UI = (() => {
 
     // Kopfzeile
     const slotName = D.SLOT_NAMEN[run.slot];
-    const hotel = D.HOTELS[run.hotel];
+    const hotel = D.HOTELS[run.region][run.hotel];
     const zimmerInfo = run.flags.zimmerSchoen ? ' · 🌅 Zimmer mit Meerblick'
       : run.flags.zimmerLaut ? ' · 🔊 Zimmer zum Parkplatz' : '';
     $('#spiel-kopf').innerHTML = `
@@ -968,7 +1085,7 @@ const UI = (() => {
 
     if (kinoMotiv) {
       const titel = res.fotoNeu ? DATA.FOTOS[res.fotoNeu].name : res.act.name;
-      zeigeKino(kinoMotiv, titel, `Teneriffa · Tag ${Game.run.tag}`, modalZeigen);
+      zeigeKino(kinoMotiv, titel, `Teneriffa · Tag ${Game.run.tag}`, modalZeigen, !!res.fotoNeu);
     } else modalZeigen();
   }
 

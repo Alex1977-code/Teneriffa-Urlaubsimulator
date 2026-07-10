@@ -69,16 +69,30 @@ const DATA = (() => {
             desc: 'Grün, authentisch, kanarische Altstadt – dafür wechselhafteres Wetter.' },
   };
 
+  // Hotels je Region – im Norden u. a. das Bahía Príncipe San Felipe
   const HOTELS = {
-    spar:    { name: 'Pension Casa Lola', sterne: '★★', budgetProTag: 85,
-               regen: 0,  erholungNacht: 0,
-               desc: 'Einfach, sauber, familiär. Mehr Budget für Ausflüge.' },
-    komfort: { name: 'Hotel Playa Azul', sterne: '★★★★', budgetProTag: 130,
-               regen: 6,  erholungNacht: 1,
-               desc: 'Pool, Buffet, Meerblick gegen Aufpreis. Der solide Mittelweg.' },
-    deluxe:  { name: 'Palacio del Sol', sterne: '★★★★★', budgetProTag: 210,
-               regen: 12, erholungNacht: 2,
-               desc: 'Spa, Infinity-Pool, Zimmerservice. Erholung ab der ersten Nacht.' },
+    sued: {
+      spar:    { name: 'Pensión Casa Lola', sterne: '★★', budgetProTag: 85,
+                 regen: 0,  erholungNacht: 0,
+                 desc: 'Einfach, sauber, familiär – zwei Gassen vom Strand. Mehr Budget für Ausflüge.' },
+      komfort: { name: 'Hotel Playa Azul', sterne: '★★★★', budgetProTag: 130,
+                 regen: 6,  erholungNacht: 1,
+                 desc: 'Pool-Landschaft, Buffet, Meerblick gegen Aufpreis. Der solide Klassiker der Costa Adeje.' },
+      deluxe:  { name: 'Gran Hotel Bahía del Duque', sterne: '★★★★★', budgetProTag: 210,
+                 regen: 12, erholungNacht: 2,
+                 desc: 'Die Grande Dame der Costa Adeje: Palmengärten, Privatstrand, Spa. Erholung ab Nacht eins.' },
+    },
+    nord: {
+      spar:    { name: 'Pensión Los Geranios', sterne: '★★', budgetProTag: 85,
+                 regen: 0,  erholungNacht: 0,
+                 desc: 'Kanarisches Stadthaus in der Altstadt von Puerto – Holzbalkon und Blumentöpfe inklusive.' },
+      komfort: { name: 'Hotel Bahía Príncipe San Felipe', sterne: '★★★★', budgetProTag: 130,
+                 regen: 6,  erholungNacht: 1,
+                 desc: 'Die Hochhaus-Ikone an der Playa Martiánez: Meerblick-Zimmer, große Poolterrasse, Abendshows.' },
+      deluxe:  { name: 'Hotel Botánico & Oriental Spa', sterne: '★★★★★', budgetProTag: 210,
+                 regen: 12, erholungNacht: 2,
+                 desc: 'Herrschaftlich über Puerto de la Cruz, mit einem der besten Spas Spaniens. Teide-Blick vom Balkon.' },
+    },
   };
 
   // ---------------------------------------------------------------- Gepäck
@@ -164,6 +178,15 @@ const DATA = (() => {
       sonne: 1, outdoor: 3, blockiertBei: ['windig', 'regen'], tags: ['action'],
       foto: 'paragliding', minLevel: 4,
       desc: 'Vom Ifonche-Plateau über die Küste segeln. Teneriffa aus der Bussard-Perspektive.' },
+    { id: 'tejita', name: 'Playa La Tejita & Montaña Roja', icon: '🏜️', zone: 'sued',
+      slots: [0, 1], dauer: 1, kosten: 5, energie: -14, erholung: +14, stimmung: +10, erlebnis: 14,
+      stress: -5, sonne: 3, outdoor: 3, blockiertBei: ['regen', 'windig'], tags: ['strand', 'natur'],
+      foto: 'tejita',
+      desc: 'Einer der längsten Naturstrände der Insel, überragt vom roten Vulkankegel. Wild und wunderbar leer.' },
+    { id: 'karting', name: 'Kartbahn Teneriffa Süd', icon: '🏎️', zone: 'sued',
+      slots: [0, 1], dauer: 1, kosten: 30, energie: -18, erholung: 0, stimmung: +18, erlebnis: 20,
+      sonne: 1, outdoor: 2, blockiertBei: ['regen'], tags: ['action'],
+      desc: 'Vollgas auf einer der besten Kartbahnen Europas – hier testet sogar mancher Profi im Winter.' },
 
     // ————— Westküste & Teno —————
     { id: 'masca', name: 'Masca-Schlucht-Wanderung (Ganztag)', icon: '🏞️', zone: 'west',
@@ -187,6 +210,11 @@ const DATA = (() => {
       slots: [0, 1], dauer: 1, kosten: 4, energie: -12, erholung: +8, stimmung: +8, erlebnis: 14,
       sonne: 2, outdoor: 2, blockiertBei: ['windig'], tags: ['natur'], foto: 'teno',
       desc: 'Der westlichste Punkt der Insel. Die Straße dorthin klebt spektakulär am Fels.' },
+    { id: 'chinyero', name: 'Chinyero-Vulkanrunde', icon: '🌑', zone: 'west',
+      slots: [0, 1], dauer: 1, kosten: 0, energie: -22, energieMitSchuhen: -16,
+      erholung: +8, stimmung: +10, erlebnis: 18,
+      sonne: 2, outdoor: 3, tags: ['wandern', 'natur'], foto: 'chinyero',
+      desc: 'Rund um den jüngsten Vulkan der Insel (Ausbruch 1909): schwarze Lava, Kiefern, große Stille.' },
     { id: 'cueva', name: 'Lavatunnel Cueva del Viento', icon: '🕳️', zone: 'west',
       slots: [0, 1], dauer: 1, kosten: 20, energie: -15, erholung: +2, stimmung: +10, erlebnis: 22,
       sonne: 0, outdoor: 0, tags: ['natur', 'action'], foto: 'lavatunnel',
@@ -235,6 +263,10 @@ const DATA = (() => {
       slots: [0, 1], dauer: 1, kosten: 6, energie: -10, erholung: +5, stimmung: +8, erlebnis: 14,
       stress: -4, sonne: 1, outdoor: 1, tags: ['kultur'], foto: 'orotava',
       desc: 'Die Casa de los Balcones und steile Gassen voller Kolonialpracht – das schönste Dorf des Nordens.' },
+    { id: 'bodega', name: 'Weinprobe in Tacoronte', icon: '🍇', zone: 'nord',
+      slots: [0, 1], dauer: 1, kosten: 22, energie: -8, erholung: +8, stimmung: +12, erlebnis: 16,
+      stress: -6, sonne: 0, outdoor: 0, tags: ['kultur'],
+      desc: 'Kanarischer Wein von Vulkanhängen – die Reben wachsen hier seit 500 Jahren. Verkostung inklusive.' },
     { id: 'guachinche', name: 'Guachinche-Abend', icon: '🍷', zone: 'nord',
       slots: [2], dauer: 1, kosten: 16, energie: -6, erholung: +12, stimmung: +16, erlebnis: 18,
       stress: -6, sonne: 0, outdoor: 0, tags: ['restaurant', 'geheim'], versteckt: true, foto: 'papas',
@@ -262,6 +294,22 @@ const DATA = (() => {
       slots: [0, 1], dauer: 1, kosten: 4, energie: -8, erholung: +6, stimmung: +6, erlebnis: 12,
       sonne: 1, outdoor: 1, tags: ['kultur'], foto: 'candelaria',
       desc: 'Wallfahrtsort mit der Schwarzen Madonna – davor wachen die Bronzestatuen der neun Guanchen-Könige.' },
+    { id: 'guimar', name: 'Pyramiden von Güímar', icon: '🔺', zone: 'anaga',
+      slots: [0, 1], dauer: 1, kosten: 14, energie: -10, erholung: +4, stimmung: +8, erlebnis: 16,
+      sonne: 2, outdoor: 2, tags: ['kultur'], foto: 'guimar',
+      desc: 'Sechs rätselhafte Stufenpyramiden aus Lavagestein – Thor Heyerdahl persönlich hat hier geforscht.' },
+    { id: 'palmetum', name: 'Palmetum von Santa Cruz', icon: '🌴', zone: 'anaga',
+      slots: [0, 1], dauer: 1, kosten: 6, energie: -8, erholung: +10, stimmung: +6, erlebnis: 12,
+      stress: -5, sonne: 2, outdoor: 3, tags: ['natur', 'kultur'],
+      desc: 'Aus einer Mülldeponie wurde die größte Palmensammlung Europas – mit Blick über Hafen und Berge.' },
+    { id: 'sanandres', name: 'San Andrés & frischer Fisch', icon: '🐟', zone: 'anaga',
+      slots: [0, 1], dauer: 1, kosten: 24, energie: -8, erholung: +8, stimmung: +12, erlebnis: 14,
+      stress: -4, sonne: 1, outdoor: 1, tags: ['kultur', 'restaurant'],
+      desc: 'Das Fischerdorf neben den Teresitas: Wachsamer Uhrturm, enge Gassen und der beste Pulpo weit und breit.' },
+    { id: 'auditorio', name: 'Konzertabend im Auditorio', icon: '🎻', zone: 'anaga',
+      slots: [2], dauer: 1, kosten: 35, energie: -8, erholung: +6, stimmung: +14, erlebnis: 20,
+      stress: -6, sonne: 0, outdoor: 0, tags: ['kultur'], foto: 'auditorio',
+      desc: 'Calatravas weiße Welle über dem Meer – innen spielt das Sinfonieorchester von Teneriffa.' },
     { id: 'benijo', name: 'Playa de Benijo (Geheimstrand)', icon: '🖤', zone: 'anaga',
       slots: [0, 1], dauer: 1, kosten: 4, energie: -16, erholung: +14, stimmung: +12, erlebnis: 18,
       stress: -6, sonne: 3, outdoor: 3, blockiertBei: ['windig', 'regen'], tags: ['strand', 'geheim'],
@@ -299,6 +347,10 @@ const DATA = (() => {
     'barranco':        { name: 'Wasserfall der Höllenschlucht', icon: '🏜️', hinweis: 'Den Barranco del Infierno durchwandern.' },
     'lavatunnel':      { name: 'Im Bauch des Vulkans', icon: '🕳️', hinweis: 'Die Cueva del Viento erkunden.' },
     'urlaubsflirt':    { name: 'Sonnenuntergang zu zweit', icon: '💞', hinweis: 'Manche Begegnungen macht nur der Urlaub möglich …' },
+    'tejita':          { name: 'Montaña Roja über La Tejita', icon: '🏜️', hinweis: 'Den wilden Naturstrand im Süden besuchen.' },
+    'chinyero':        { name: 'Lavafeld des Chinyero', icon: '🌑', hinweis: 'Den jüngsten Vulkan der Insel umrunden.' },
+    'guimar':          { name: 'Pyramiden von Güímar', icon: '🔺', hinweis: 'Das Rätsel der Stufenpyramiden besichtigen.' },
+    'auditorio':       { name: 'Calatravas weiße Welle', icon: '🎻', hinweis: 'Einen Konzertabend im Auditorio erleben.' },
   };
 
   // ------------------------------------------------------------- Ereignisse
@@ -370,8 +422,42 @@ const DATA = (() => {
       wahl: [
         { text: 'Souvenir kaufen (12 €)', effekte: { budget: -12, souvenir: 1, stimmung: 3 },
           antwort: 'Sorgfältig eingepackt wandert es in deine Tasche. Zuhause wird man sich freuen.' },
+        { text: 'Feilschen versuchen', zufall: [
+          { p: 0.5, effekte: { budget: -7, souvenir: 1, stimmung: 5, erlebnis: 4 },
+            antwort: '„Für dich: sieben Euro.“ Handschlag, Grinsen – du hast das Feilschen drauf!' },
+          { p: 0.5, effekte: { stimmung: -2 },
+            antwort: 'Der Händler verschränkt die Arme: „Das ist Handarbeit, amigo.“ Du ziehst ohne Souvenir ab.' },
+        ] },
         { text: 'Nur schauen', effekte: { stimmung: 1 },
           antwort: 'Vielleicht ein andermal. Der Ladenbesitzer winkt dir freundlich nach.' },
+      ] },
+
+    { id: 'abkuerzung', icon: '🥾', gewicht: 2,
+      text: 'Ein schmaler Trampelpfad zweigt ab – laut einem verblichenen Schild eine Abkürzung. Die Karte kennt ihn nicht.',
+      bedingung: c => c.act.tags.includes('wandern'),
+      wahl: [
+        { text: 'Abkürzung riskieren', zufall: [
+          { p: 0.6, effekte: { energie: 8, erlebnis: 6, stimmung: 4 },
+            antwort: 'Der Pfad führt durch einen verwunschenen Kiefernhain direkt ans Ziel – Abenteuer geglückt!' },
+          { p: 0.4, effekte: { energie: -10, stress: 6, stimmung: -3 },
+            antwort: 'Nach zwanzig Minuten endet der Pfad im Gestrüpp. Zurück bleibt nur der Rückweg – und dein Stolz.' },
+        ] },
+        { text: 'Auf dem Wanderweg bleiben', effekte: { stimmung: 1 },
+          antwort: 'Sicher ist sicher – und der offizielle Weg ist ja auch schön.' },
+      ] },
+
+    { id: 'klippensprung', icon: '🪨', gewicht: 2,
+      text: 'Ein paar Einheimische springen von einem Felsvorsprung ins tiefblaue Becken. Einer winkt dir zu: „¡Venga!“',
+      bedingung: c => c.act.id === 'garachico' || c.act.id === 'benijo',
+      wahl: [
+        { text: 'Springen!', zufall: [
+          { p: 0.75, effekte: { stimmung: 10, erlebnis: 10, stress: -4 },
+            antwort: 'Drei Sekunden Flug, ein sauberer Eintauchpunkt – die Locals klatschen. Was für ein Gefühl!' },
+          { p: 0.25, effekte: { stimmung: -3, stress: 3, erlebnis: 4 },
+            antwort: 'Bauchklatscher. Es klatscht doppelt – das Wasser und der Applaus. Autsch, aber eine Geschichte fürs Leben.' },
+        ] },
+        { text: 'Lieber zuschauen', effekte: { stimmung: 2 },
+          antwort: 'Auch vom Beckenrand ist das Spektakel großartig.' },
       ] },
 
     { id: 'oma-rezept', icon: '👵', gewicht: 3,
@@ -581,6 +667,10 @@ const DATA = (() => {
       check: r => r.flirtStufe >= 3 },
     { id: 'rennfahrer', name: 'Wie ein Einheimischer', icon: '🏁', desc: 'Meistere eine Fahrt am Steuer ohne einen einzigen Rempler.',
       check: (r, m) => m.perfekteFahrt },
+    { id: 'inselracer', name: 'Insel-Racer', icon: '🏎️', desc: 'Sammle 150 Fahrstil-Punkte in einer einzigen Fahrt (Überholen & knappe Manöver).',
+      check: r => (r.fahrstil || 0) >= 150 },
+    { id: 'fotokuenstler', name: 'Der perfekte Moment', icon: '📸', desc: 'Triff beim Fotografieren den perfekten Auslöse-Zeitpunkt.',
+      check: (r, m) => m.perfektesFoto },
   ];
 
   // ---------------------------------------------------------------- Levels

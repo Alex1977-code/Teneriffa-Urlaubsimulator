@@ -424,6 +424,39 @@ button { font: inherit; cursor: pointer; }
 #kino-buttons .btn { border-color: rgba(255,255,255,0.25); }
 #kino-buttons .btn:not(.btn-primary) { background: rgba(255,255,255,0.12); color: #fff; }
 
+/* Foto-Auslöser-Minispiel */
+.kino-fokus { max-width: 420px; margin: 0 auto 6px; }
+.fokus-hinweis { font-size: 0.85rem; opacity: 0.85; margin-bottom: 8px; }
+
+.fokus-balken {
+  position: relative;
+  height: 16px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.fokus-ziel {
+  position: absolute; left: 37%; width: 26%; top: 0; bottom: 0;
+  background: rgba(42,157,143,0.75);
+  border-radius: 8px;
+}
+
+.fokus-marke {
+  position: absolute; top: -2px; bottom: -2px; width: 5px; left: 0;
+  margin-left: -2px;
+  background: #fff;
+  border-radius: 3px;
+  box-shadow: 0 0 8px rgba(255,255,255,0.9);
+}
+
+.fokus-ergebnis {
+  font-size: 1rem; font-weight: 600; padding: 10px 0;
+  animation: fotoauf 0.4s ease;
+}
+.fokus-ergebnis .chip { background: rgba(255,255,255,0.2); color: #ffd166; }
+
 /* ------------------------------------------------------------------ Spiel */
 #spiel-kopf {
   background: linear-gradient(135deg, var(--ozean), var(--ozean-dunkel));

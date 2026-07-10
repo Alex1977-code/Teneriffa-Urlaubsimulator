@@ -97,9 +97,16 @@ for (const a of DATA.AKTIVITAETEN) {
   pruefe(DATA.ZONEN[a.zone], `Aktivität ${a.id} hat unbekannte Zone '${a.zone}'`);
 }
 for (const e of DATA.EREIGNISSE) {
-  const effekteListe = e.wahl ? e.wahl.map(w => w.effekte) : [e.effekte];
-  for (const eff of effekteListe)
-    if (eff.foto) pruefe(DATA.FOTOS[eff.foto], `Ereignis ${e.id} referenziert unbekanntes Foto '${eff.foto}'`);
+  const effekteListe = e.wahl
+    ? e.wahl.flatMap(w => w.zufall ? w.zufall.map(z => z.effekte) : [w.effekte])
+    : [e.effekte];
+  for (const eff of effekteListe) {
+    pruefe(eff, `Ereignis ${e.id} hat eine Wahl ohne Effekte`);
+    if (eff && eff.foto) pruefe(DATA.FOTOS[eff.foto], `Ereignis ${e.id} referenziert unbekanntes Foto '${eff.foto}'`);
+  }
+  if (e.wahl) for (const w of e.wahl)
+    if (w.zufall) pruefe(Math.abs(w.zufall.reduce((s, z) => s + z.p, 0) - 1) < 0.01,
+      `Ereignis ${e.id}: Zufallswahrscheinlichkeiten summieren nicht zu 1`);
 }
 
 const schnitt = Math.round(scores.reduce((s, x) => s + x, 0) / scores.length);

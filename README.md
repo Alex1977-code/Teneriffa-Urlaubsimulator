@@ -28,10 +28,11 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
 - **Die Anreise als Echtzeit-Flug** – Boarding, Getränkeservice (mit Eiswürfeln, obwohl du
   „ohne“ gesagt hast …), mit Glück der Teide aus dem Fenster – mit Pech Verspätung, ein
   verlorener Koffer, der erst an Tag 3 nachgeliefert wird, oder das laute Zimmer zum Parkplatz.
-- **37 Aktivitäten an echten Orten** – von der Masca-Schlucht über die Teide-Seilbahn,
-  den Siam Park, Brunelli’s Steakhouse über der Brandung von Punta Brava, La Orotava,
-  den Barranco del Infierno und die Cueva del Viento bis zur Guachinche, die dir erst
-  ein Einheimischer verraten muss.
+- **45 Aktivitäten an echten Orten** – von der Masca-Schlucht über die Teide-Seilbahn,
+  den Siam Park, Brunelli’s Steakhouse, die Pyramiden von Güímar, das Auditorio de
+  Tenerife, La Tejita, den Chinyero und die Kartbahn im Süden bis zur Guachinche,
+  die dir erst ein Einheimischer verraten muss. Gewohnt wird in echten Häusern der
+  Region – im Norden z. B. im Bahía Príncipe San Felipe oder im Hotel Botánico.
 - **Realistisches Wetter** – der Süden ist sonnenverwöhnt, der Norden wechselhaft
   (Passatwolken!), am Teide herrscht Höhenwetter. Und manchmal kommt Calima.
 - **Ressourcen-Management** – Budget, Energie, Stimmung, Erholung, **Stress** und
@@ -45,14 +46,17 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Abreisetag bleibt nur der Vormittag.
 - **Unterwegs auf der Insel** – Ausflüge in andere Regionen laufen als Reise-Sequenz mit
   animierter Route auf der Inselkarte ab: Staus, Ziegenherden, Miradore, Barraquito-Stopps.
-  Mit dem Mietwagen kannst du **selbst ans Steuer** – eine Pseudo-3D-Fahrt mit Lenkung,
-  Gas und Bremse, Hügelkuppen, Kurven-Warnschildern, Gegenverkehr und Ortsschild am Ziel.
-  Die Landschaft passt zur echten Route (Lavaland Richtung Teide, grüner Norden), und bei
-  Regen wird die Straße rutschig. Fehlerfreie Fahrten entspannen, Rempler kosten Nerven.
+  Mit dem Mietwagen kannst du **selbst ans Steuer** – eine Pseudo-3D-Fahrt im Arcade-Racer-Stil:
+  Lenkung, Gas, Bremse und Turbo-Boost, langsamer Verkehr zum Überholen (Fahrstil-Punkte
+  für Überholmanöver und knappe Ausweicher!), Hügelkuppen, Kurven-Warnschilder,
+  Gegenverkehr und Ortsschild am Ziel. Die Landschaft passt zur echten Route (Lavaland
+  Richtung Teide, grüner Norden), bei Regen wird die Straße rutschig.
 - **Echte Fotos & Videos – direkt im Spiel** – die Aktivitäten zeigen fotorealistische
   Bilder der echten Orte, Highlights laufen als Vollbild-Kino-Moment. Gibt es ein passendes
-  freies Video, spielt es direkt im Spiel ab (optional mit Ton). Fotos und Videos kommen
-  live von Wikipedia/Wikimedia Commons; Quelle-Links führen zu Autor- und Lizenzangaben.
+  freies Video, spielt es direkt im Spiel ab (optional mit Ton). Bei jedem neuen Fotomotiv
+  läuft der **Foto-Auslöser**: Wer den richtigen Moment trifft, bekommt den perfekten
+  Schnappschuss samt Bonus. Fotos und Videos kommen live von Wikipedia/Wikimedia Commons;
+  Quelle-Links führen zu Autor- und Lizenzangaben.
 - **Urlaubsflirt** – eine kleine Geschichte in drei Akten: Kennenlernen am Strand,
   Wiedersehen, Sonnenuntergangs-Date. Wer sich traut, wird mit Erinnerungen belohnt.
 
@@ -62,7 +66,7 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   abzüglich deines Stresslevels bei der Abreise – wiederholte Aktivitäten verlieren an
   Neuigkeitswert, Abwechslung wird belohnt.
 - **3 zufällige Urlaubsziele** pro Durchgang (à 40 Bonuspunkte) machen jeden Urlaub anders.
-- **Fotoalbum mit 28 Motiven** und **19 Erfolge**, die über alle Urlaube hinweg erhalten bleiben.
+- **Fotoalbum mit 32 Motiven** und **21 Erfolge**, die über alle Urlaube hinweg erhalten bleiben.
 - **10 Inselkenner-Level** mit Titeln vom „Neuankömmling“ bis zum „Geist der Guanchen“ –
   ab Level 2/3/4 schaltest du Geheimstrand, Tauchausflug und Paragliding frei.
 - **Lokale Bestenliste** – und die Messlatte für „Traumurlaub“ wächst mit der Urlaubsdauer.
