@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teneriffa Urlaubssimulator</title>
+  <meta name="description" content="Simuliere deinen Traumurlaub auf Teneriffa – realistisch, mit echten Orten, Wetter, Budget und Suchtfaktor.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌴</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ————— Startbildschirm ————— -->
+  <section id="screen-start" class="screen aktiv">
+    <div class="hero">
+      <div class="hero-sonne"></div>
+      <h1>🌴 Teneriffa<br><span>Urlaubssimulator</span></h1>
+      <p class="untertitel">Die Insel des ewigen Frühlings – wann immer du willst.</p>
+    </div>
+    <div class="start-menue">
+      <div id="start-profil" class="profil-karte"></div>
+      <button id="btn-fortsetzen" class="btn btn-primary btn-gross versteckt">🧳 Urlaub fortsetzen</button>
+      <button id="btn-neu" class="btn btn-primary btn-gross">✈️ Neuen Urlaub buchen</button>
+      <div class="start-reihe">
+        <button id="btn-album" class="btn">📸 Fotoalbum</button>
+        <button id="btn-besten" class="btn">🏆 Bestenliste</button>
+        <button id="btn-hilfe" class="btn">❓ Anleitung</button>
+      </div>
+    </div>
+    <footer class="start-fusszeile">Ein Spiel über die schönste Insel des Atlantiks · Spielstand wird lokal gespeichert</footer>
+  </section>
+
+  <!-- ————— Reisebüro / Setup ————— -->
+  <section id="screen-setup" class="screen">
+    <header class="seiten-kopf">
+      <button class="btn btn-zurueck" data-ziel="start">‹ Zurück</button>
+      <h2>✈️ Dein Urlaub, deine Entscheidungen</h2>
+    </header>
+    <div id="setup-inhalt" class="setup-raster"></div>
+    <div class="setup-fuss">
+      <div id="setup-budget" class="budget-vorschau"></div>
+      <button id="btn-abflug" class="btn btn-primary btn-gross">🛫 Abflug!</button>
+    </div>
+  </section>
+
+  <!-- ————— Hauptspiel ————— -->
+  <section id="screen-spiel" class="screen">
+    <header id="spiel-kopf"></header>
+    <div class="spiel-layout">
+      <main id="spiel-haupt">
+        <div id="wetter-leiste"></div>
+        <h3 id="aktivitaeten-titel"></h3>
+        <div id="aktivitaeten-raster"></div>
+      </main>
+      <aside id="spiel-seite">
+        <div id="stats-panel" class="panel"></div>
+        <div id="quest-panel" class="panel"></div>
+        <div id="inventar-panel" class="panel"></div>
+        <div id="log-panel" class="panel"></div>
+        <button id="btn-abbrechen" class="btn btn-klein btn-gefahr">Urlaub abbrechen</button>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ————— Urlaubsende ————— -->
+  <section id="screen-ende" class="screen">
+    <div id="ende-inhalt"></div>
+  </section>
+
+  <!-- ————— Fotoalbum ————— -->
+  <section id="screen-album" class="screen">
+    <header class="seiten-kopf">
+      <button class="btn btn-zurueck" data-ziel="start">‹ Zurück</button>
+      <h2>📸 Dein Teneriffa-Album</h2>
+    </header>
+    <div id="album-inhalt"></div>
+  </section>
+
+  <!-- ————— Bestenliste ————— -->
+  <section id="screen-besten" class="screen">
+    <header class="seiten-kopf">
+      <button class="btn btn-zurueck" data-ziel="start">‹ Zurück</button>
+      <h2>🏆 Bestenliste</h2>
+    </header>
+    <div id="besten-inhalt"></div>
+  </section>
+
+  <!-- ————— Anleitung ————— -->
+  <section id="screen-hilfe" class="screen">
+    <header class="seiten-kopf">
+      <button class="btn btn-zurueck" data-ziel="start">‹ Zurück</button>
+      <h2>❓ So funktioniert dein Urlaub</h2>
+    </header>
+    <div id="hilfe-inhalt" class="hilfe-text">
+      <div class="panel">
+        <h3>🎯 Das Ziel</h3>
+        <p>Du hast eine begrenzte Zahl an Urlaubstagen auf Teneriffa. Erhole dich, erlebe die Insel und sammle
+        Erinnerungen – am Ende zählt dein <strong>Urlaubsscore</strong> aus Erholung, Erlebnissen, Stimmung,
+        Fotos und erreichten Urlaubszielen.</p>
+      </div>
+      <div class="panel">
+        <h3>📅 Der Tagesablauf</h3>
+        <p>Jeder Tag hat drei Zeitfenster: <strong>Vormittag, Nachmittag und Abend</strong>. Pro Zeitfenster wählst du
+        eine Aktivität. Große Ausflüge (z.&nbsp;B. die Masca-Schlucht oder der Siam Park) dauern den ganzen Tag.
+        Am Anreisetag bist du erst mittags im Hotel, am Abreisetag bleibt nur der Vormittag.</p>
+      </div>
+      <div class="panel">
+        <h3>🔋 Deine Werte</h3>
+        <p><strong>Budget</strong> – Jede Aktivität und jede Anfahrt kostet Geld. Ist es leer, bleiben nur Gratis-Aktivitäten.<br>
+        <strong>Energie</strong> – Ausflüge machen müde, Schlaf, Pool und Siesta machen fit. Wer erschöpft loszieht, hat nur halb so viel vom Tag.<br>
+        <strong>Stimmung</strong> – Steigt bei schönen Erlebnissen, leidet unter Stress, Staus und Sonnenbrand.<br>
+        <strong>Erholung</strong> – Der Kern deines Urlaubs. Strand, Pool und schöne Abende füllen sie langsam auf.</p>
+      </div>
+      <div class="panel">
+        <h3>🌦️ Das Wetter</h3>
+        <p>Teneriffa hat Mikroklimata – wie im echten Leben: Der <strong>Süden</strong> ist fast immer sonnig, der
+        <strong>Norden</strong> grüner und wechselhafter, am <strong>Teide</strong> herrscht Höhenwetter. Plane deine Ausflüge
+        nach dem Wetterbericht! Und wenn <strong>Calima</strong> (Saharastaub) aufzieht, hilft nur: ruhig machen.</p>
+      </div>
+      <div class="panel">
+        <h3>🧴 Gepäck &amp; Geheimtipps</h3>
+        <p>Sonnencreme schützt vor Sonnenbrand, Wanderschuhe sparen auf Wanderungen viel Energie, mit dem Schnorchelset
+        triffst du vielleicht eine Meeresschildkröte – und der Reiseführer verrät dir von Anfang an, wo die
+        Einheimischen essen. Auch Gespräche mit Einheimischen können Geheimtipps freischalten.</p>
+      </div>
+      <div class="panel">
+        <h3>📈 Suchtfaktor: Sammeln &amp; Aufsteigen</h3>
+        <p>Jeder Urlaub bringt <strong>Erfahrungspunkte</strong>. Mit steigendem Inselkenner-Level schaltest du neue
+        Aktivitäten frei (Geheimstrand, Tauchen, Paragliding). Dein <strong>Fotoalbum</strong> und die
+        <strong>Erfolge</strong> bleiben über alle Urlaube erhalten – schaffst du das komplette Album?</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ————— Modals & Toasts ————— -->
+  <div id="modal-hintergrund" class="versteckt">
+    <div id="modal-box" role="dialog" aria-modal="true"></div>
+  </div>
+  <div id="toasts"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

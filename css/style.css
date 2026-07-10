@@ -1,0 +1,587 @@
+/* ==========================================================================
+   Teneriffa Urlaubssimulator – Stylesheet
+   Farbwelt: Atlantikblau, Vulkansand, Kanarensonne
+   ========================================================================== */
+
+:root {
+  --ozean: #0077b6;
+  --ozean-dunkel: #023e8a;
+  --ozean-hell: #90e0ef;
+  --sonne: #f4a261;
+  --sonne-dunkel: #e76f51;
+  --sand: #faf4e8;
+  --sand-dunkel: #f0e6d2;
+  --vulkan: #2b2d42;
+  --gruen: #2a9d8f;
+  --rot: #e63946;
+  --karte: #ffffff;
+  --schatten: 0 4px 16px rgba(43, 45, 66, 0.10);
+  --schatten-gross: 0 10px 32px rgba(43, 45, 66, 0.16);
+  --radius: 16px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  background: var(--sand);
+  color: var(--vulkan);
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+button { font: inherit; cursor: pointer; }
+
+.versteckt { display: none !important; }
+.hint { color: #8a8d9c; font-size: 0.85rem; }
+
+/* ---------------------------------------------------------------- Screens */
+.screen { display: none; min-height: 100vh; animation: einblenden 0.35s ease; }
+.screen.aktiv { display: block; }
+
+@keyframes einblenden {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------------------ Start */
+.hero {
+  position: relative;
+  background: linear-gradient(180deg, #0a9396 0%, var(--ozean) 45%, var(--ozean-dunkel) 100%);
+  color: #fff;
+  text-align: center;
+  padding: 72px 20px 56px;
+  overflow: hidden;
+  border-radius: 0 0 40px 40px;
+  box-shadow: var(--schatten-gross);
+}
+
+.hero-sonne {
+  position: absolute; top: -70px; right: -70px;
+  width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(circle, #ffe8a3 0%, #f4a261 55%, transparent 72%);
+  opacity: 0.85;
+  animation: pulsieren 5s ease-in-out infinite;
+}
+
+@keyframes pulsieren {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+.hero h1 {
+  font-size: clamp(2.2rem, 6vw, 3.6rem);
+  line-height: 1.1;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.25);
+}
+
+.hero h1 span { font-weight: 300; letter-spacing: 0.04em; }
+
+.untertitel { margin-top: 14px; font-size: 1.1rem; opacity: 0.92; }
+
+.start-menue {
+  max-width: 520px;
+  margin: -28px auto 0;
+  padding: 0 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+
+.profil-karte {
+  background: var(--karte);
+  border-radius: var(--radius);
+  box-shadow: var(--schatten);
+  padding: 18px 20px;
+  margin-bottom: 8px;
+}
+
+.profil-level { font-size: 1.05rem; }
+.profil-details { font-size: 0.85rem; color: #6c6f80; margin-top: 6px; }
+
+.xp-balken {
+  height: 8px; border-radius: 4px; background: var(--sand-dunkel);
+  margin-top: 8px; overflow: hidden;
+}
+
+.xp-fuellung {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--sonne), var(--sonne-dunkel));
+  transition: width 0.6s ease;
+}
+
+.start-reihe { display: flex; gap: 10px; }
+.start-reihe .btn { flex: 1; }
+
+.start-fusszeile {
+  text-align: center; color: #a0a3b1; font-size: 0.8rem; padding: 0 20px 28px;
+}
+
+/* ----------------------------------------------------------------- Buttons */
+.btn {
+  background: var(--karte);
+  border: 2px solid var(--sand-dunkel);
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-weight: 600;
+  color: var(--vulkan);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s;
+}
+
+.btn:hover { transform: translateY(-2px); box-shadow: var(--schatten); border-color: var(--ozean-hell); }
+.btn:active { transform: none; }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--ozean), var(--ozean-dunkel));
+  color: #fff;
+  border: none;
+}
+
+.btn-primary:hover { box-shadow: 0 6px 20px rgba(0, 119, 182, 0.4); }
+
+.btn-gross { padding: 16px 24px; font-size: 1.1rem; border-radius: 14px; }
+.btn-klein { padding: 8px 14px; font-size: 0.85rem; }
+.btn-gefahr { color: var(--rot); border-color: #f5c6cb; }
+.btn-gefahr:hover { border-color: var(--rot); }
+.btn-zurueck { padding: 8px 16px; }
+
+/* ------------------------------------------------------------- Seitenkopf */
+.seiten-kopf {
+  display: flex; align-items: center; gap: 16px;
+  padding: 20px; max-width: 1100px; margin: 0 auto;
+}
+
+.seiten-kopf h2 { font-size: 1.4rem; }
+
+/* -------------------------------------------------------------------- Setup */
+.setup-raster {
+  max-width: 1100px; margin: 0 auto; padding: 0 20px 20px;
+  display: flex; flex-direction: column; gap: 22px;
+}
+
+.setup-gruppe h3 { margin-bottom: 4px; }
+.setup-hinweis { color: #6c6f80; font-size: 0.88rem; margin-bottom: 10px; }
+
+.options-reihe {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.option-karte {
+  background: var(--karte);
+  border: 2px solid var(--sand-dunkel);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: left;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: border-color 0.15s, transform 0.12s, box-shadow 0.15s;
+}
+
+.option-karte:hover { transform: translateY(-2px); box-shadow: var(--schatten); }
+
+.option-karte.gewaehlt {
+  border-color: var(--ozean);
+  background: linear-gradient(180deg, #f0faff, #ffffff);
+  box-shadow: 0 0 0 3px rgba(0, 119, 182, 0.15);
+}
+
+.option-icon { font-size: 1.8rem; }
+.option-name { font-weight: 700; }
+.option-detail { color: var(--ozean-dunkel); font-size: 0.85rem; font-weight: 600; }
+.option-desc { color: #6c6f80; font-size: 0.83rem; }
+
+.setup-fuss {
+  position: sticky; bottom: 0;
+  background: linear-gradient(180deg, transparent, var(--sand) 30%);
+  padding: 18px 20px 22px;
+  display: flex; align-items: center; justify-content: center; gap: 20px;
+  flex-wrap: wrap;
+}
+
+.budget-vorschau {
+  background: var(--karte); border-radius: var(--radius);
+  box-shadow: var(--schatten); padding: 12px 20px; text-align: center;
+}
+
+.budget-posten { font-size: 0.78rem; color: #8a8d9c; }
+.budget-summe { font-size: 1.15rem; margin-top: 2px; }
+
+/* ------------------------------------------------------------------ Spiel */
+#spiel-kopf {
+  background: linear-gradient(135deg, var(--ozean), var(--ozean-dunkel));
+  color: #fff;
+  padding: 16px 22px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
+  border-radius: 0 0 22px 22px;
+  box-shadow: var(--schatten);
+}
+
+.kopf-tag { font-size: 1.15rem; }
+.kopf-ort { font-size: 0.85rem; opacity: 0.85; margin-top: 2px; }
+.kopf-budget { font-size: 1.3rem; font-weight: 700; background: rgba(255,255,255,0.14); padding: 8px 16px; border-radius: 12px; }
+
+.spiel-layout {
+  max-width: 1200px; margin: 0 auto; padding: 20px;
+  display: grid; grid-template-columns: 1fr 320px; gap: 20px;
+  align-items: start;
+}
+
+#wetter-leiste {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.wetter-label { font-size: 0.88rem; color: #6c6f80; font-weight: 600; }
+
+.wetter-chip {
+  background: var(--karte); border-radius: 999px;
+  padding: 6px 14px; box-shadow: var(--schatten);
+  font-size: 0.9rem; display: flex; gap: 6px; align-items: center;
+}
+
+.wetter-chip span { font-size: 0.82rem; color: #6c6f80; }
+
+.calima-warnung {
+  flex-basis: 100%;
+  background: #fdf0d5; border: 1px solid #f4a261; border-radius: 12px;
+  padding: 10px 14px; font-size: 0.88rem;
+}
+
+#aktivitaeten-titel { margin-bottom: 14px; font-size: 1.25rem; }
+
+#aktivitaeten-raster {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.akt-karte {
+  background: var(--karte);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  box-shadow: var(--schatten);
+  padding: 16px;
+  text-align: left;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: transform 0.12s ease, box-shadow 0.15s, border-color 0.15s;
+}
+
+.akt-karte:not(.gesperrt):hover {
+  transform: translateY(-3px);
+  box-shadow: var(--schatten-gross);
+  border-color: var(--ozean-hell);
+}
+
+.akt-karte.gesperrt { opacity: 0.55; cursor: not-allowed; }
+
+.akt-kopf { display: flex; gap: 12px; align-items: flex-start; }
+.akt-icon { font-size: 2rem; line-height: 1; }
+.akt-name { font-weight: 700; }
+.akt-ort { font-size: 0.78rem; color: #8a8d9c; margin-top: 2px; }
+.akt-desc { font-size: 0.85rem; color: #55586a; }
+
+.akt-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+
+.chip {
+  background: var(--sand-dunkel); border-radius: 999px;
+  padding: 3px 10px; font-size: 0.75rem; font-weight: 600; color: #55586a;
+}
+
+.chip-gruen { background: #d8f3ee; color: var(--gruen); }
+.chip-blau { background: #e0f4fb; color: var(--ozean-dunkel); }
+.chip-foto { background: #fdeedc; color: var(--sonne-dunkel); }
+.chip-warn { background: #fde2e4; color: var(--rot); }
+.chip-tag { background: #ece8fd; color: #5f4bb6; }
+
+.akt-sperre { font-size: 0.8rem; color: var(--rot); font-weight: 600; }
+
+/* --------------------------------------------------------------- Seitenleiste */
+#spiel-seite { display: flex; flex-direction: column; gap: 14px; }
+
+.panel {
+  background: var(--karte);
+  border-radius: var(--radius);
+  box-shadow: var(--schatten);
+  padding: 16px 18px;
+}
+
+.panel h4 { margin-bottom: 10px; font-size: 0.95rem; }
+.panel h3 { margin-bottom: 10px; }
+
+.stat { margin-bottom: 10px; }
+.stat-zeile { display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 600; }
+.stat-zeile.klein { margin-top: 6px; }
+
+.stat-balken {
+  height: 10px; background: var(--sand-dunkel); border-radius: 5px;
+  overflow: hidden; margin-top: 3px;
+}
+
+.stat-fuellung { height: 100%; border-radius: 5px; transition: width 0.5s ease; }
+.stat-fuellung.gruen { background: linear-gradient(90deg, #52b788, #2a9d8f); }
+.stat-fuellung.gelb { background: linear-gradient(90deg, #ffd166, #f4a261); }
+.stat-fuellung.blau { background: linear-gradient(90deg, #90e0ef, #0077b6); }
+.stat-fuellung.rot { background: linear-gradient(90deg, #f08080, #e63946); }
+.stat-fuellung.orange { background: linear-gradient(90deg, #f4a261, #e76f51); }
+
+.quest {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 8px 0; font-size: 0.85rem;
+  border-bottom: 1px solid var(--sand-dunkel);
+}
+
+.quest:last-child { border-bottom: none; }
+.quest.geschafft { opacity: 0.75; }
+.quest.geschafft strong { text-decoration: line-through; }
+.quest-icon { font-size: 1.2rem; }
+
+.inventar-reihe { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.inventar-item {
+  font-size: 1.5rem; background: var(--sand);
+  border-radius: 10px; padding: 6px 10px;
+}
+
+.log-eintrag {
+  font-size: 0.8rem; padding: 5px 0; color: #55586a;
+  border-bottom: 1px dashed var(--sand-dunkel);
+}
+
+.log-eintrag:last-child { border-bottom: none; }
+.log-eintrag small { color: #a0a3b1; }
+
+/* ------------------------------------------------------------------ Modals */
+#modal-hintergrund {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(23, 25, 40, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  animation: einblenden 0.2s ease;
+}
+
+#modal-box {
+  background: var(--karte);
+  border-radius: 20px;
+  box-shadow: var(--schatten-gross);
+  max-width: 480px; width: 100%;
+  max-height: 85vh; overflow-y: auto;
+  padding: 28px;
+  text-align: center;
+  animation: modalauf 0.25s ease;
+}
+
+@keyframes modalauf {
+  from { opacity: 0; transform: scale(0.92) translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+.modal-icon { font-size: 3rem; margin-bottom: 8px; }
+.modal-titel { margin-bottom: 12px; }
+.modal-inhalt { text-align: left; font-size: 0.92rem; }
+
+.modal-buttons {
+  display: flex; gap: 10px; justify-content: center;
+  margin-top: 20px; flex-wrap: wrap;
+}
+
+.effekt-liste { list-style: none; margin: 10px 0; }
+
+.effekt-liste li {
+  padding: 5px 0; border-bottom: 1px dashed var(--sand-dunkel);
+  display: flex; gap: 8px; font-size: 0.9rem;
+}
+
+.effekt-liste li:last-child { border-bottom: none; }
+
+.foto-banner {
+  background: linear-gradient(135deg, #fdeedc, #fdf0d5);
+  border: 2px solid var(--sonne);
+  border-radius: 12px;
+  padding: 12px 16px; margin-top: 12px;
+  text-align: center;
+  animation: fotoauf 0.5s ease;
+}
+
+@keyframes fotoauf {
+  0% { transform: scale(0.85); opacity: 0; }
+  60% { transform: scale(1.04); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.foto-name { font-size: 1.05rem; }
+
+.warn-banner {
+  background: #fde2e4; border: 1px solid #f08080; border-radius: 12px;
+  padding: 10px 14px; margin-top: 12px; font-size: 0.88rem; text-align: left;
+}
+
+.warn-text { color: var(--sonne-dunkel); font-weight: 600; margin-top: 8px; font-size: 0.88rem; }
+
+.prognose { margin-top: 14px; font-size: 0.9rem; }
+.prognose-reihe { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
+/* ------------------------------------------------------------------ Toasts */
+#toasts {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 200; display: flex; flex-direction: column; gap: 8px;
+  width: min(440px, calc(100vw - 40px));
+}
+
+.toast {
+  background: var(--vulkan); color: #fff;
+  border-radius: 12px; padding: 12px 18px;
+  box-shadow: var(--schatten-gross);
+  font-size: 0.9rem; text-align: center;
+  opacity: 0; transform: translateY(12px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.toast.sichtbar { opacity: 1; transform: none; }
+
+/* ------------------------------------------------------------- Urlaubsende */
+#ende-inhalt {
+  max-width: 720px; margin: 0 auto; padding: 30px 20px 50px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+.ende-kopf {
+  text-align: center;
+  background: linear-gradient(180deg, #0a9396, var(--ozean-dunkel));
+  color: #fff; border-radius: 24px;
+  padding: 36px 24px;
+  box-shadow: var(--schatten-gross);
+}
+
+.ende-icon { font-size: 4rem; }
+.ende-kopf h2 { margin: 8px 0 6px; }
+.ende-kopf p { opacity: 0.9; max-width: 480px; margin: 0 auto; }
+
+.ende-score {
+  font-size: 3rem; font-weight: 800; margin-top: 14px;
+  text-shadow: 0 3px 10px rgba(0,0,0,0.3);
+}
+
+.ende-score span { font-size: 1rem; font-weight: 400; opacity: 0.85; }
+
+.platz-badge {
+  display: inline-block; margin-top: 12px;
+  background: rgba(255, 209, 102, 0.25); border: 1px solid #ffd166;
+  border-radius: 999px; padding: 6px 18px; font-weight: 600;
+}
+
+.score-tabelle { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.score-tabelle td { padding: 7px 4px; border-bottom: 1px dashed var(--sand-dunkel); }
+.score-tabelle .detail { color: #8a8d9c; font-size: 0.82rem; }
+.score-tabelle .punkte { text-align: right; font-weight: 700; }
+.score-tabelle .summe td { border-bottom: none; border-top: 2px solid var(--vulkan); font-weight: 800; font-size: 1.05rem; }
+
+.quest.verpasst { opacity: 0.6; }
+
+.erfolg-zeile { padding: 6px 0; font-size: 0.9rem; }
+
+.levelup {
+  background: linear-gradient(135deg, #fdeedc, #fdf0d5);
+  border: 2px solid var(--sonne); border-radius: 12px;
+  padding: 14px 18px; font-size: 0.95rem;
+}
+
+.xp-info { color: #55586a; font-size: 0.9rem; }
+
+.ende-buttons {
+  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px;
+}
+
+.ende-fortschritt { text-align: center; }
+
+/* ------------------------------------------------------------------- Album */
+#album-inhalt, #besten-inhalt, .hilfe-text {
+  max-width: 1100px; margin: 0 auto; padding: 0 20px 50px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+.album-raster {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px; margin-top: 10px;
+}
+
+.album-raster.klein { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+
+.album-foto {
+  background: var(--sand);
+  border-radius: 12px; padding: 16px 12px;
+  text-align: center;
+  display: flex; flex-direction: column; gap: 4px;
+  border: 2px solid var(--sand-dunkel);
+  position: relative;
+}
+
+.album-foto:not(.gesperrt) {
+  background: linear-gradient(180deg, #fff, var(--sand));
+  border-color: var(--ozean-hell);
+}
+
+.album-foto.gesperrt { opacity: 0.65; }
+.album-foto.neu { border-color: var(--sonne); }
+
+.album-icon { font-size: 2rem; }
+.album-name { font-weight: 700; font-size: 0.85rem; }
+.album-hinweis { font-size: 0.75rem; color: #8a8d9c; }
+
+.neu-badge {
+  position: absolute; top: 8px; right: 8px;
+  background: var(--sonne-dunkel); color: #fff;
+  font-size: 0.65rem; font-weight: 800;
+  border-radius: 999px; padding: 2px 8px;
+}
+
+.erfolge-raster {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px; margin-top: 10px;
+}
+
+.erfolg-karte {
+  display: flex; gap: 12px; align-items: center;
+  background: var(--sand); border-radius: 12px; padding: 12px 14px;
+  font-size: 0.85rem;
+  border: 2px solid var(--sand-dunkel);
+}
+
+.erfolg-karte:not(.gesperrt) { background: linear-gradient(180deg, #fff, var(--sand)); border-color: var(--sonne); }
+.erfolg-karte.gesperrt { opacity: 0.6; }
+.erfolg-icon { font-size: 1.6rem; }
+
+/* -------------------------------------------------------------- Bestenliste */
+.besten-tabelle { width: 100%; border-collapse: collapse; }
+.besten-tabelle th { text-align: left; font-size: 0.8rem; color: #8a8d9c; padding: 6px 8px; }
+.besten-tabelle td { padding: 10px 8px; border-top: 1px solid var(--sand-dunkel); }
+.besten-tabelle .punkte { font-weight: 800; color: var(--ozean-dunkel); }
+.besten-tabelle .detail { color: #8a8d9c; font-size: 0.85rem; }
+
+/* --------------------------------------------------------------- Anleitung */
+.hilfe-text p { font-size: 0.92rem; color: #45485a; }
+.hilfe-text h3 { margin-bottom: 6px; }
+
+/* ---------------------------------------------------------------- Responsiv */
+@media (max-width: 900px) {
+  .spiel-layout { grid-template-columns: 1fr; }
+  #spiel-seite { order: -1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  #stats-panel { grid-column: 1 / -1; }
+  #log-panel { grid-column: 1 / -1; }
+  #btn-abbrechen { grid-column: 1 / -1; }
+}
+
+@media (max-width: 560px) {
+  #spiel-seite { grid-template-columns: 1fr; }
+  #aktivitaeten-raster { grid-template-columns: 1fr; }
+  .kopf-budget { font-size: 1.05rem; }
+  #modal-box { padding: 20px; }
+}
