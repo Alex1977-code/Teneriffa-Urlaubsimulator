@@ -159,6 +159,27 @@
         Einheimischen essen. Auch Gespräche mit Einheimischen können Geheimtipps freischalten.</p>
       </div>
       <div class="panel">
+        <h3>🚗 Unterwegs auf der Insel</h3>
+        <p>Ausflüge in andere Regionen laufen als kleine Reise ab – mit Route auf der Inselkarte und
+        Ereignissen unterwegs: Staus, Ziegenherden, Miradore, Barraquito-Stopps. Mit dem <strong>Mietwagen</strong>
+        kannst du auch <strong>selbst ans Steuer</strong>: Lenke mit den Pfeiltasten (oder per Tippen) über die
+        Serpentinen und weiche Hindernissen aus. Eine fehlerfreie Fahrt entspannt – Rempler kosten Nerven.</p>
+      </div>
+      <div class="panel">
+        <h3>💞 Begegnungen</h3>
+        <p>Der Urlaub steckt voller Geschichten: ein Gruß aus der Küche, ein Gespräch am Pool …
+        und vielleicht sogar ein <strong>Urlaubsflirt</strong>, der sich über mehrere Tage zu einem
+        Sonnenuntergangs-Date entwickelt. Halte am Strand, in Bars und beim Bummeln die Augen offen.</p>
+      </div>
+      <div class="panel">
+        <h3>📷 Echte Fotos &amp; Videos</h3>
+        <p>Die Aktivitäten zeigen echte Fotos der Orte. Sie werden live von
+        <strong>Wikipedia/Wikimedia Commons</strong> geladen – ein Klick auf ein großes Bild öffnet die Quellseite
+        mit Autor- und Lizenzangaben. Highlights feiert das Spiel mit einem Kino-Moment; über den
+        🎬-Button findest du echte Videos des Ortes auf YouTube. Ohne Internetverbindung erscheint
+        stattdessen der klassische Look.</p>
+      </div>
+      <div class="panel">
         <h3>📈 Suchtfaktor: Sammeln &amp; Aufsteigen</h3>
         <p>Jeder Urlaub bringt <strong>Erfahrungspunkte</strong>. Mit steigendem Inselkenner-Level schaltest du neue
         Aktivitäten frei (Geheimstrand, Tauchen, Paragliding). Dein <strong>Fotoalbum</strong> und die
@@ -166,6 +187,30 @@
       </div>
     </div>
   </section>
+
+  <!-- ————— Inselfahrt ————— -->
+  <div id="fahrt-overlay" class="versteckt">
+    <div class="fahrt-karte">
+      <h3 id="fahrt-titel"></h3>
+      <div id="fahrt-inselkarte"></div>
+      <div id="fahrspiel-wrap" class="versteckt">
+        <canvas id="fahrspiel-canvas"></canvas>
+        <div id="fahrspiel-hilfe">← → lenken (oder links/rechts tippen) · weiche Ziegen, Schlaglöchern &amp; Gegenverkehr aus!</div>
+      </div>
+      <div id="fahrt-log"></div>
+      <div id="fahrt-buttons" class="modal-buttons"></div>
+    </div>
+  </div>
+
+  <!-- ————— Kino-Moment (Highlights) ————— -->
+  <div id="kino-overlay" class="versteckt">
+    <div id="kino-bildwrap"><img id="kino-bild" alt=""></div>
+    <div id="kino-text">
+      <div id="kino-untertitel"></div>
+      <h2 id="kino-titel"></h2>
+      <div id="kino-buttons" class="modal-buttons"></div>
+    </div>
+  </div>
 
   <!-- ————— Modals & Toasts ————— -->
   <div id="modal-hintergrund" class="versteckt">
@@ -175,6 +220,7 @@
 
   <script src="js/data.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/bilder.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
 </body>

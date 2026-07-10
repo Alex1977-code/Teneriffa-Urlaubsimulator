@@ -298,6 +298,7 @@ const DATA = (() => {
     'paisaje-lunar':   { name: 'Mondlandschaft von Vilaflor', icon: '🌕', hinweis: 'Die Paisaje-Lunar-Wanderung schaffen.' },
     'barranco':        { name: 'Wasserfall der Höllenschlucht', icon: '🏜️', hinweis: 'Den Barranco del Infierno durchwandern.' },
     'lavatunnel':      { name: 'Im Bauch des Vulkans', icon: '🕳️', hinweis: 'Die Cueva del Viento erkunden.' },
+    'urlaubsflirt':    { name: 'Sonnenuntergang zu zweit', icon: '💞', hinweis: 'Manche Begegnungen macht nur der Urlaub möglich …' },
   };
 
   // ------------------------------------------------------------- Ereignisse
@@ -337,16 +338,6 @@ const DATA = (() => {
         { text: 'Kurz lauschen und weitergehen', effekte: { stimmung: 2 },
           antwort: 'Die Melodie begleitet dich noch eine Weile durch die Gassen.' },
       ] },
-
-    { id: 'stau', icon: '🚗', gewicht: 2,
-      text: 'Stau auf der TF-1! Ein Blechlawinen-Klassiker zwischen den Ausfahrten. Du stehst und stehst.',
-      bedingung: c => c.run.transport === 'mietwagen' && c.hops >= 2,
-      effekte: { stimmung: -6, energie: -4 } },
-
-    { id: 'busverspaetung', icon: '🚌', gewicht: 2,
-      text: 'Der TITSA-Bus kommt 25 Minuten zu spät. Der Fahrplan ist hier eher eine grobe Empfehlung.',
-      bedingung: c => c.run.transport === 'bus' && c.hops >= 1,
-      effekte: { stimmung: -5, energie: -4 } },
 
     { id: 'happyhour', icon: '🍹', gewicht: 2,
       text: 'Happy Hour! Alle Cocktails zum halben Preis – der Kellner zwinkert und bringt gleich zwei.',
@@ -434,10 +425,95 @@ const DATA = (() => {
       effekte: { stimmung: 8, erlebnis: 6 } },
 
     { id: 'brunellis-fenster', icon: '🌅', gewicht: 3,
-      text: 'Ihr bekommt den Fenstertisch direkt über der Brandung – während das Steak brutzelt, versinkt die Sonne im Atlantik.',
+      text: 'Du bekommst den Fensterplatz direkt über der Brandung – während das Steak brutzelt, versinkt die Sonne im Atlantik. Und dann schickt der Küchenchef auch noch einen Gruß aus der Küche!',
       bedingung: c => c.act.id === 'brunellis',
-      effekte: { stimmung: 8, erholung: 4 } },
+      effekte: { stimmung: 10, erholung: 4, erlebnis: 8 } },
+
+    { id: 'gruss-kueche', icon: '👨‍🍳', gewicht: 2,
+      text: 'Ein kleiner Teller, den niemand bestellt hat: „Gruß aus der Küche!“ Der Kellner zwinkert – heute mag man dich hier besonders.',
+      bedingung: c => c.act.tags.includes('restaurant'),
+      effekte: { stimmung: 6, erlebnis: 6 } },
+
+    // ————— Urlaubsflirt: eine kleine Geschichte in drei Akten —————
+    { id: 'flirt-kennenlernen', icon: '💬', gewicht: 2,
+      text: 'Du kommst mit %NAME% ins Gespräch – ihr lacht über dieselben Dinge, und die Zeit vergeht wie im Flug.',
+      bedingung: c => c.run.flirt.stufe === 0 &&
+        (c.act.tags.includes('strand') || c.act.tags.includes('party') ||
+         c.act.tags.includes('bummeln') || c.act.id === 'pool'),
+      wahl: [
+        { text: 'Nummern austauschen', effekte: { stimmung: 6, erlebnis: 4, flirt: 1 },
+          antwort: 'Ihr verabredet euch lose für die nächsten Tage. Du grinst noch eine Weile vor dich hin.' },
+        { text: 'Nur nett plaudern', effekte: { stimmung: 3 },
+          antwort: 'Ein schöner Moment – vielleicht läuft man sich ja nochmal über den Weg.' },
+      ] },
+
+    { id: 'flirt-wiedersehen', icon: '👋', gewicht: 4,
+      text: 'Was für ein Zufall: %NAME% winkt dir von der anderen Straßenseite zu. „Na, wie wär’s – unternehmen wir was?“',
+      bedingung: c => c.run.flirt.stufe === 1,
+      wahl: [
+        { text: 'Auf einen Cocktail einladen (12 €)', effekte: { budget: -12, stimmung: 10, erlebnis: 8, flirt: 2 },
+          antwort: 'Ihr redet, bis die Eiswürfel geschmolzen sind. Für morgen Abend ist ein richtiges Date ausgemacht.' },
+        { text: 'Heute lieber nicht', effekte: { stimmung: 1 },
+          antwort: '„Schade – dann vielleicht ein andermal!“' },
+      ] },
+
+    { id: 'flirt-date', icon: '💞', gewicht: 5,
+      text: 'Sonnenuntergangs-Date mit %NAME%: Ihr sitzt auf der Mole, teilt euch eine Tüte gebrannte Mandeln und redet, bis die Sterne rauskommen.',
+      bedingung: c => c.run.flirt.stufe === 2 && c.run.slot === 2,
+      effekte: { stimmung: 12, erholung: 6, erlebnis: 12, stress: -6, foto: 'urlaubsflirt', flirt: 3 } },
   ];
+
+  const FLIRT_NAMEN = ['Marta aus Sevilla', 'Jonas aus Hamburg', 'Lucía aus La Laguna',
+    'Ben aus Rotterdam', 'Aroa von der Nachbarinsel', 'Milo aus Wien'];
+
+  // ------------------------------------------------------------ Inselfahrt
+  // Anfahrten in andere Regionen laufen als kleine Reise-Sequenz ab.
+  const FAHRT_BASIS = {
+    mietwagen: [
+      'Die TF-1 rollt – links das Meer, rechts der Vulkan.',
+      'Durch Bananenplantagen und über Serpentinen …',
+      'Das Navi sagt 40 Minuten. Die Aussicht sagt: nimm dir länger.',
+    ],
+    bus: [
+      'Der grüne TITSA schaukelt gemütlich die Küstenstraße entlang.',
+      'Fensterplatz im Linienbus – die Insel zieht wie ein Film vorbei.',
+      'Der Busfahrer grüßt jeden zweiten Fußgänger. Man kennt sich.',
+    ],
+  };
+
+  const FAHRT_EREIGNISSE = {
+    mietwagen: [
+      { id: 'stau', icon: '🚗', gewicht: 3,
+        text: 'Stau auf der TF-1! Ein Blechlawinen-Klassiker zwischen den Ausfahrten.',
+        effekte: { stress: 6, stimmung: -4, energie: -3 } },
+      { id: 'ziegen', icon: '🐐', gewicht: 2,
+        text: 'Eine Ziegenherde quert gemächlich die Straße – der Hirte grüßt lässig mit dem Stock.',
+        effekte: { stimmung: 5, erlebnis: 3 } },
+      { id: 'mirador', icon: '🌄', gewicht: 3,
+        text: 'Spontaner Stopp an einem Mirador – unfassbarer Blick über Küste und Wolkenmeer.',
+        effekte: { stimmung: 5, erlebnis: 5 } },
+      { id: 'serpentinen', icon: '🌀', gewicht: 2,
+        text: 'Serpentinen ohne Ende – dem inneren Beifahrer wird leicht flau.',
+        effekte: { stress: 3, energie: -4 } },
+      { id: 'tankstellen-barraquito', icon: '☕', gewicht: 2,
+        text: 'Kurzer Stopp an der Tankstellenbar: ein Barraquito im Stehen. Beste Entscheidung des Tages.',
+        effekte: { energie: 5, stimmung: 3 } },
+    ],
+    bus: [
+      { id: 'busverspaetung', icon: '🚌', gewicht: 3,
+        text: 'Der Bus kommt 25 Minuten zu spät. Der Fahrplan ist hier eher eine grobe Empfehlung.',
+        effekte: { stress: 5, stimmung: -3, energie: -3 } },
+      { id: 'senora', icon: '👵', gewicht: 2,
+        text: 'Die Señora neben dir erzählt von früher – halb auf Spanisch, halb mit den Händen. Du verstehst alles.',
+        effekte: { stimmung: 5, erlebnis: 4 } },
+      { id: 'bananen-blick', icon: '🍌', gewicht: 3,
+        text: 'Hinter der Kurve öffnet sich der Blick über endlose Bananenplantagen bis zum Meer.',
+        effekte: { stimmung: 4, erlebnis: 3 } },
+      { id: 'klimaanlage', icon: '🥶', gewicht: 1,
+        text: 'Die Klimaanlage ist auf „Arktis“ eingestellt. Du wechselst zwei Reihen nach hinten.',
+        effekte: { stress: 3 } },
+    ],
+  };
 
   // ---------------------------------------------------------------- Quests
   const QUESTS = [
@@ -501,6 +577,10 @@ const DATA = (() => {
       check: r => r.kofferVerloren && r.bewertungIndex <= 2 },
     { id: 'splashzone', name: 'Klatschnass', icon: '💦', desc: 'Werde bei der Orca-Show von der Fontäne getroffen.',
       check: (r, m) => m.fotos.includes('orca-splash') },
+    { id: 'sommerliebe', name: 'Sommerliebe', icon: '💞', desc: 'Erlebe das Sonnenuntergangs-Date deines Urlaubsflirts.',
+      check: r => r.flirtStufe >= 3 },
+    { id: 'rennfahrer', name: 'Wie ein Einheimischer', icon: '🏁', desc: 'Meistere eine Fahrt am Steuer ohne einen einzigen Rempler.',
+      check: (r, m) => m.perfekteFahrt },
   ];
 
   // ---------------------------------------------------------------- Levels
@@ -539,10 +619,15 @@ const DATA = (() => {
 
   const SLOT_NAMEN = ['Vormittag', 'Nachmittag', 'Abend'];
 
+  // Highlights bekommen beim ersten Mal eine Kino-Sequenz
+  const HIGHLIGHTS = ['siampark', 'whalewatching', 'masca', 'teide', 'sterne',
+    'loroparque', 'paragliding', 'anaga', 'losgigantes', 'abades', 'paisaje', 'cueva'];
+
   return {
     WETTER, WETTER_CHANCEN, ZONEN, TRANSPORT, REGIONEN, HOTELS, ITEMS,
     AKTIVITAETEN, FOTOS, EREIGNISSE, QUESTS, ERFOLGE, LEVELS, LEVEL_UNLOCKS,
     BEWERTUNGEN, SLOT_NAMEN, hops,
+    FLIRT_NAMEN, FAHRT_BASIS, FAHRT_EREIGNISSE, HIGHLIGHTS,
   };
 })();
 

@@ -43,6 +43,16 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Hotel-Upgrades und der Barraquito, den du nie vergisst.
 - **Anreise & Abreise zählen** – am Ankunftstag bist du erst mittags im Hotel, am
   Abreisetag bleibt nur der Vormittag.
+- **Unterwegs auf der Insel** – Ausflüge in andere Regionen laufen als Reise-Sequenz mit
+  animierter Route auf der Inselkarte ab: Staus, Ziegenherden, Miradore, Barraquito-Stopps.
+  Mit dem Mietwagen kannst du **selbst ans Steuer** – ein Ausweich-Minispiel über die
+  Serpentinen (Pfeiltasten oder Touch). Fehlerfreie Fahrten entspannen, Rempler kosten Nerven.
+- **Echte Fotos & Kino-Momente** – die Aktivitäten zeigen fotorealistische Bilder der echten
+  Orte (live von Wikipedia/Wikimedia Commons geladen, Klick aufs Bild öffnet die Quellseite
+  mit Lizenzangaben). Highlights feiert das Spiel mit einer Vollbild-Kino-Sequenz samt
+  Link zu echten Videos des Ortes.
+- **Urlaubsflirt** – eine kleine Geschichte in drei Akten: Kennenlernen am Strand,
+  Wiedersehen, Sonnenuntergangs-Date. Wer sich traut, wird mit Erinnerungen belohnt.
 
 ## 🔁 Suchtfaktor
 
@@ -50,7 +60,7 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   abzüglich deines Stresslevels bei der Abreise – wiederholte Aktivitäten verlieren an
   Neuigkeitswert, Abwechslung wird belohnt.
 - **3 zufällige Urlaubsziele** pro Durchgang (à 40 Bonuspunkte) machen jeden Urlaub anders.
-- **Fotoalbum mit 27 Motiven** und **17 Erfolge**, die über alle Urlaube hinweg erhalten bleiben.
+- **Fotoalbum mit 28 Motiven** und **19 Erfolge**, die über alle Urlaube hinweg erhalten bleiben.
 - **10 Inselkenner-Level** mit Titeln vom „Neuankömmling“ bis zum „Geist der Guanchen“ –
   ab Level 2/3/4 schaltest du Geheimstrand, Tauchausflug und Paragliding frei.
 - **Lokale Bestenliste** – und die Messlatte für „Traumurlaub“ wächst mit der Urlaubsdauer.

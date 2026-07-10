@@ -75,6 +75,265 @@ const UI = (() => {
            `<span class="foto-name">${f.icon} ${esc(f.name)}</span></div>`;
   }
 
+  // Passendes Bildmotiv für eine Aktivität finden
+  function motivFuerAct(act) {
+    if (BILDER.ARTIKEL[act.id]) return act.id;
+    if (act.foto && BILDER.ARTIKEL[act.foto]) return act.foto;
+    return null;
+  }
+
+  // ------------------------------------------------------------- Inselkarte
+  // Stilisierte Teneriffa-Silhouette mit Zonenpunkten und animierter Route.
+  const KARTE_PUNKTE = {
+    sued: [100, 188], west: [48, 118], teide: [142, 122],
+    nord: [182, 62], anaga: [283, 58],
+  };
+
+  function inselSvg(von, nach, transport) {
+    const a = KARTE_PUNKTE[von] || KARTE_PUNKTE.sued;
+    const b = KARTE_PUNKTE[nach] || KARTE_PUNKTE.sued;
+    // Kontrollpunkt Richtung Inselmitte gezogen → geschwungene „Straße“
+    const cx = (a[0] + b[0]) / 2 + (160 - (a[0] + b[0]) / 2) * 0.45;
+    const cy = (a[1] + b[1]) / 2 + (120 - (a[1] + b[1]) / 2) * 0.45;
+    const punkte = Object.entries(KARTE_PUNKTE).map(([zone, [x, y]]) =>
+      `<circle cx="${x}" cy="${y}" r="4" class="karte-punkt"/>` +
+      `<text x="${x}" y="${y - 8}" class="karte-label" text-anchor="middle">${esc(DATA.ZONEN[zone].name.split(' ')[0].replace('Nordosten', 'Anaga'))}</text>`
+    ).join('');
+    return `
+      <svg viewBox="0 0 320 240" id="karte-svg" role="img" aria-label="Route über Teneriffa">
+        <path class="karte-insel" d="M300,45 Q285,38 245,52 Q210,55 185,58 Q150,63 120,72
+          Q60,84 28,98 Q22,110 38,128 Q50,152 60,170 Q80,198 110,215 Q135,214 170,190
+          Q205,165 235,128 Q258,105 272,88 Q292,66 300,45 Z"/>
+        <text x="142" y="130" class="karte-teide" text-anchor="middle">🌋</text>
+        ${punkte}
+        <path id="karte-route" class="karte-route"
+          d="M${a[0]},${a[1]} Q${cx.toFixed(0)},${cy.toFixed(0)} ${b[0]},${b[1]}"/>
+        <text id="karte-fahrzeug" class="karte-fahrzeug" x="${a[0]}" y="${a[1]}"
+          text-anchor="middle">${transport === 'bus' ? '🚌' : '🚗'}</text>
+      </svg>`;
+  }
+
+  function animiereRoute(dauerMs) {
+    const route = document.getElementById('karte-route');
+    const fahrzeug = document.getElementById('karte-fahrzeug');
+    if (!route || !fahrzeug) return;
+    const laenge = route.getTotalLength();
+    route.style.strokeDasharray = laenge;
+    route.style.strokeDashoffset = laenge;
+    const start = performance.now();
+    (function tick(now) {
+      if (!fahrzeug.isConnected) return;
+      const t = Math.min(1, (now - start) / dauerMs);
+      const p = route.getPointAtLength(laenge * t);
+      route.style.strokeDashoffset = laenge * (1 - t);
+      fahrzeug.setAttribute('x', p.x);
+      fahrzeug.setAttribute('y', p.y + 3);
+      if (t < 1) requestAnimationFrame(tick);
+    })(start);
+  }
+
+  // -------------------------------------------------------------- Inselfahrt
+  function zeigeFahrt(res, weiterCb) {
+    const fahrt = res.fahrt;
+    const overlay = $('#fahrt-overlay');
+    overlay.classList.remove('versteckt');
+    $('#fahrt-titel').textContent =
+      `${fahrt.transport === 'bus' ? '🚌' : '🚗'} Fahrt: ${DATA.ZONEN[fahrt.von].name} → ${DATA.ZONEN[fahrt.nach].name}`;
+    $('#fahrt-inselkarte').innerHTML = inselSvg(fahrt.von, fahrt.nach, fahrt.transport);
+    $('#fahrspiel-wrap').classList.add('versteckt');
+    $('#fahrt-inselkarte').classList.remove('versteckt');
+
+    const log = $('#fahrt-log');
+    log.innerHTML = '';
+    fahrt.zeilen.forEach((zeile, i) => {
+      setTimeout(() => {
+        if (!overlay.isConnected || overlay.classList.contains('versteckt')) return;
+        log.appendChild(el('div', 'flug-zeile sichtbar',
+          `<span class="flug-zeile-icon">${zeile.icon}</span><div>${esc(zeile.text)}` +
+          (zeile.chips.length ? '<div class="flug-chips">' + zeile.chips.map(c => `<span class="chip">${esc(c)}</span>`).join('') + '</div>' : '') +
+          '</div>'));
+      }, 600 + i * 1500);
+    });
+    animiereRoute(4200);
+
+    const buttons = $('#fahrt-buttons');
+    buttons.innerHTML = '';
+    const schliessen = () => { overlay.classList.add('versteckt'); weiterCb(); };
+
+    if (fahrt.transport === 'mietwagen') {
+      const selbst = el('button', 'btn btn-primary', '🎮 Selbst ans Steuer');
+      selbst.addEventListener('click', () => starteFahrspiel(schliessen));
+      buttons.appendChild(selbst);
+      const chill = el('button', 'btn', '⏩ Entspannt ankommen');
+      chill.addEventListener('click', schliessen);
+      buttons.appendChild(chill);
+    } else {
+      const weiter = el('button', 'btn btn-primary', 'Ankommen');
+      weiter.addEventListener('click', schliessen);
+      buttons.appendChild(weiter);
+    }
+  }
+
+  // ------------------------------------------------- Selbstfahren (Minispiel)
+  function starteFahrspiel(fertigCb) {
+    $('#fahrt-inselkarte').classList.add('versteckt');
+    $('#fahrspiel-wrap').classList.remove('versteckt');
+    $('#fahrt-buttons').innerHTML = '';
+
+    const canvas = $('#fahrspiel-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = 340, H = canvas.height = 400;
+    const DAUER = window.FAHRSPIEL_DAUER || 14000;
+    const HALB = 72;
+    const zentrum = d => W / 2 + 58 * Math.sin(d * 0.004) + 26 * Math.sin(d * 0.0011 + 2);
+
+    let dist = 0, carX = W / 2, richtung = 0, treffer = 0;
+    let hindernisse = [], spawnIn = 900, offroadZeit = 0, blitz = 0, vorbei = false;
+    const start = performance.now();
+    let letztes = start;
+
+    const ICONS = ['🐐', '🕳️', '🚌', '🚗'];
+
+    function tasteRunter(e) {
+      if (e.key === 'ArrowLeft' || e.key === 'a') { richtung = -1; e.preventDefault(); }
+      if (e.key === 'ArrowRight' || e.key === 'd') { richtung = 1; e.preventDefault(); }
+    }
+    function tasteHoch(e) {
+      if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) richtung = 0;
+    }
+    function zeigerRunter(e) {
+      const box = canvas.getBoundingClientRect();
+      richtung = (e.clientX - box.left) < box.width / 2 ? -1 : 1;
+      e.preventDefault();
+    }
+    const zeigerHoch = () => { richtung = 0; };
+
+    document.addEventListener('keydown', tasteRunter);
+    document.addEventListener('keyup', tasteHoch);
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    document.addEventListener('pointerup', zeigerHoch);
+
+    function aufraeumen() {
+      document.removeEventListener('keydown', tasteRunter);
+      document.removeEventListener('keyup', tasteHoch);
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+      document.removeEventListener('pointerup', zeigerHoch);
+    }
+
+    function schleife(now) {
+      if (vorbei) return;
+      const dt = Math.min(50, now - letztes);
+      letztes = now;
+      const tempo = 0.22 + 0.06 * ((now - start) / DAUER);
+      dist += tempo * dt;
+      carX = Math.max(20, Math.min(W - 20, carX + richtung * 0.3 * dt));
+
+      // Hindernisse
+      spawnIn -= dt;
+      if (spawnIn <= 0) {
+        spawnIn = 700 + Math.random() * 700;
+        hindernisse.push({
+          welt: dist + H + 60,
+          off: (Math.random() * 2 - 1) * (HALB - 26),
+          icon: ICONS[Math.floor(Math.random() * ICONS.length)],
+        });
+      }
+      for (const h of hindernisse) {
+        const y = H - 46 - (h.welt - dist);
+        const x = zentrum(h.welt) + h.off;
+        if (!h.getroffen && Math.abs(x - carX) < 24 && Math.abs(y - (H - 52)) < 24) {
+          h.getroffen = true; treffer++; blitz = 260;
+        }
+      }
+      hindernisse = hindernisse.filter(h => (H - 46 - (h.welt - dist)) < H + 40);
+
+      // Neben der Straße?
+      if (Math.abs(carX - zentrum(dist + 40)) > HALB - 14) {
+        offroadZeit += dt;
+        if (offroadZeit > 800) { treffer++; blitz = 260; offroadZeit = 0; }
+      } else offroadZeit = 0;
+
+      // Zeichnen
+      ctx.fillStyle = '#e8d9b8'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#6b6d76';
+      for (let y = 0; y < H; y += 6) {
+        const cx = zentrum(dist + (H - y));
+        ctx.fillRect(cx - HALB, y, HALB * 2, 6);
+      }
+      ctx.fillStyle = '#f5f0e6';
+      for (let y = 0; y < H; y += 6) {
+        const welt = dist + (H - y);
+        if (Math.floor(welt / 30) % 2 === 0) ctx.fillRect(zentrum(welt) - 2, y, 4, 6);
+      }
+      ctx.font = '24px serif'; ctx.textAlign = 'center';
+      for (const h of hindernisse) {
+        const y = H - 46 - (h.welt - dist);
+        if (y > -20 && !h.getroffen) ctx.fillText(h.icon, zentrum(h.welt) + h.off, y);
+      }
+      ctx.font = '26px serif';
+      ctx.fillText('🚙', carX, H - 40);
+      if (blitz > 0) {
+        blitz -= dt;
+        ctx.fillStyle = 'rgba(230,57,70,0.25)'; ctx.fillRect(0, 0, W, H);
+      }
+      const rest = Math.max(0, Math.ceil((DAUER - (now - start)) / 1000));
+      ctx.fillStyle = '#2b2d42'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(`⏱ ${rest}s`, 10, 20);
+      ctx.fillText(`💥 ${treffer}`, 10, 40);
+
+      if (now - start >= DAUER) {
+        vorbei = true;
+        aufraeumen();
+        const ergebnis = Game.fahrtBewerten(treffer);
+        $('#fahrt-log').appendChild(el('div', 'flug-zeile sichtbar',
+          `<span class="flug-zeile-icon">${ergebnis.icon}</span><div>${esc(ergebnis.text)}` +
+          (ergebnis.chips.length ? '<div class="flug-chips">' + ergebnis.chips.map(c => `<span class="chip">${esc(c)}</span>`).join('') + '</div>' : '') +
+          '</div>'));
+        const weiter = el('button', 'btn btn-primary', 'Weiter');
+        weiter.addEventListener('click', () => { $('#fahrt-overlay').classList.add('versteckt'); fertigCb(); });
+        $('#fahrt-buttons').appendChild(weiter);
+        renderStats();
+        return;
+      }
+      requestAnimationFrame(schleife);
+    }
+
+    requestAnimationFrame(schleife);
+  }
+
+  // ------------------------------------------------------------ Kino-Moment
+  function zeigeKino(motiv, titel, untertitel, suchbegriff, weiterCb) {
+    Promise.race([
+      BILDER.hole(motiv),
+      new Promise(r => setTimeout(() => r(null), 1800)),
+    ]).then(bild => {
+      if (!bild) { weiterCb(); return; }
+      const overlay = $('#kino-overlay');
+      const img = $('#kino-bild');
+      img.classList.remove('kino-anim');
+      img.src = bild.url;
+      img.dataset.quelle = bild.artikelUrl;
+      requestAnimationFrame(() => img.classList.add('kino-anim'));
+      $('#kino-titel').textContent = titel;
+      $('#kino-untertitel').textContent = untertitel;
+      const buttons = $('#kino-buttons');
+      buttons.innerHTML = '';
+      const weiter = el('button', 'btn btn-primary', '▶ Weiter');
+      weiter.addEventListener('click', () => { overlay.classList.add('versteckt'); weiterCb(); });
+      buttons.appendChild(weiter);
+      const video = el('button', 'btn', '🎬 Echtes Video ansehen');
+      video.addEventListener('click', () => {
+        window.open('https://www.youtube.com/results?search_query=' +
+          encodeURIComponent(suchbegriff + ' Teneriffa'), '_blank', 'noopener');
+      });
+      buttons.appendChild(video);
+      const quelle = el('button', 'btn btn-klein', '📷 Bildquelle');
+      quelle.addEventListener('click', () => window.open(bild.artikelUrl, '_blank', 'noopener'));
+      buttons.appendChild(quelle);
+      overlay.classList.remove('versteckt');
+    });
+  }
+
   // ------------------------------------------------------------------- Start
   function renderStart() {
     const m = Game.meta;
@@ -306,7 +565,9 @@ const UI = (() => {
       if (act.foto && !Game.run.fotosRun.includes(act.foto)) chips.push('<span class="chip chip-foto">📸 Fotomotiv</span>');
       if (e.erschoepft && !e.gesperrt) chips.push('<span class="chip chip-warn">🥵 zu erschöpft?</span>');
 
+      const motiv = motivFuerAct(act);
       karte.innerHTML = `
+        ${motiv ? `<div class="akt-foto"><img data-motiv="${esc(motiv)}" alt="" loading="lazy"></div>` : ''}
         <div class="akt-kopf"><span class="akt-icon">${act.icon}</span>
           <div><div class="akt-name">${esc(act.name)}</div>
           <div class="akt-ort">${zone.icon} ${esc(zone.name)} · ${w.icon} ${esc(w.name)}</div></div>
@@ -314,6 +575,9 @@ const UI = (() => {
         <p class="akt-desc">${esc(act.desc)}</p>
         <div class="akt-chips">${chips.join('')}</div>
         ${e.gesperrt ? `<div class="akt-sperre">🚫 ${esc(e.gesperrt)}</div>` : ''}`;
+
+      const img = karte.querySelector('img[data-motiv]');
+      if (img) BILDER.anzeigen(img, motiv, true);
 
       if (!e.gesperrt) karte.addEventListener('click', () => aktivitaetWaehlen(act.id));
       else karte.disabled = true;
@@ -325,18 +589,40 @@ const UI = (() => {
   function aktivitaetWaehlen(id) {
     const res = Game.aktivitaetAusfuehren(id);
     if (!res) return;
+    if (res.fahrt) zeigeFahrt(res, () => ergebnisZeigen(res));
+    else ergebnisZeigen(res);
+  }
 
-    let html = effekteHtml(res.effekte);
-    if (res.fotoNeu) html += fotoBanner(res.fotoNeu);
-    if (res.warnung) html += `<div class="warn-banner">🥵 ${esc(res.warnung)}</div>`;
+  function ergebnisZeigen(res) {
+    // Highlights & neue Fotos bekommen zuerst ihren Kino-Moment
+    const erstesMal = Game.run && Game.run.aktZaehler[res.act.id] === 1;
+    const kinoMotiv = res.fotoNeu && BILDER.ARTIKEL[res.fotoNeu] ? res.fotoNeu
+      : (DATA.HIGHLIGHTS.includes(res.act.id) && erstesMal ? motivFuerAct(res.act) : null);
 
-    zeigeModal({
-      icon: res.act.icon, titel: res.act.name, html,
-      buttons: [{ text: 'Weiter', cb: () => {
-        if (res.ereignis) zeigeEreignis(res.ereignis);
-        else weiter();
-      } }],
-    });
+    const modalZeigen = () => {
+      let html = '';
+      const motiv = motivFuerAct(res.act);
+      if (motiv) html += `<div class="modal-foto"><img data-motiv="${esc(motiv)}" alt=""></div>`;
+      html += effekteHtml(res.effekte);
+      if (res.fotoNeu) html += fotoBanner(res.fotoNeu);
+      if (res.warnung) html += `<div class="warn-banner">🥵 ${esc(res.warnung)}</div>`;
+
+      zeigeModal({
+        icon: res.act.icon, titel: res.act.name, html,
+        buttons: [{ text: 'Weiter', cb: () => {
+          if (res.ereignis) zeigeEreignis(res.ereignis);
+          else weiter();
+        } }],
+      });
+      const img = $('#modal-box img[data-motiv]');
+      if (img) BILDER.anzeigen(img, img.dataset.motiv, false);
+    };
+
+    if (kinoMotiv) {
+      const titel = res.fotoNeu ? DATA.FOTOS[res.fotoNeu].name : res.act.name;
+      zeigeKino(kinoMotiv, titel, `Teneriffa · Tag ${Game.run.tag}`,
+        res.fotoNeu ? DATA.FOTOS[res.fotoNeu].name : res.act.name, modalZeigen);
+    } else modalZeigen();
   }
 
   function zeigeEreignis(ereignis) {
@@ -444,12 +730,14 @@ const UI = (() => {
       <div class="album-raster">`;
     for (const [id, f] of Object.entries(DATA.FOTOS)) {
       const hat = m.fotos.includes(id);
+      const mitBild = hat && BILDER.ARTIKEL[id];
       html += `<div class="album-foto ${hat ? '' : 'gesperrt'}">
+        ${mitBild ? `<div class="album-echtfoto"><img data-motiv="${esc(id)}" alt="" loading="lazy"></div>` : ''}
         <span class="album-icon">${hat ? f.icon : '❔'}</span>
         <span class="album-name">${hat ? esc(f.name) : '???'}</span>
         <span class="album-hinweis">${esc(f.hinweis)}</span></div>`;
     }
-    html += '</div></div>';
+    html += '</div><p class="hint">📷 Echte Fotos: Wikipedia/Wikimedia Commons – Klick auf ein Foto öffnet die Quellseite mit Lizenzangaben.</p></div>';
 
     html += `<div class="panel"><h3>🏅 Erfolge (${m.erfolge.length}/${DATA.ERFOLGE.length})</h3><div class="erfolge-raster">`;
     for (const e of DATA.ERFOLGE) {
@@ -460,6 +748,8 @@ const UI = (() => {
     }
     html += '</div></div>';
     $('#album-inhalt').innerHTML = html;
+    document.querySelectorAll('#album-inhalt img[data-motiv]').forEach(img =>
+      BILDER.anzeigen(img, img.dataset.motiv, true));
   }
 
   // -------------------------------------------------------------- Bestenliste
@@ -567,7 +857,11 @@ const UI = (() => {
     // Der Spielstand wurde mitten in einer Auflösung gespeichert – sauber weiterspielen
     if (run.pending.typ === 'ereignis') {
       const e = DATA.EREIGNISSE.find(x => x.id === run.pending.id);
-      if (e) { zeigeEreignis({ id: e.id, icon: e.icon, text: e.text, wahl: e.wahl ? e.wahl.map(w => w.text) : null }); return; }
+      if (e) {
+        zeigeEreignis({ id: e.id, icon: e.icon, text: run.pending.text || e.text,
+                        wahl: e.wahl ? e.wahl.map(w => w.text) : null });
+        return;
+      }
       run.pending.typ = 'weiter';
     }
     weiter();
@@ -576,6 +870,16 @@ const UI = (() => {
   // ------------------------------------------------------------------- Init
   function init() {
     renderStart();
+
+    // Klick auf ein echtes Foto (außerhalb der Aktivitätskarten) öffnet die
+    // Wikipedia-Quellseite mit Autor- und Lizenzangaben.
+    document.addEventListener('click', ev => {
+      const img = ev.target.closest ? ev.target.closest('img[data-quelle]') : null;
+      if (img && !img.closest('.akt-karte')) {
+        window.open(img.dataset.quelle, '_blank', 'noopener');
+        ev.stopPropagation();
+      }
+    }, true);
 
     $('#btn-neu').addEventListener('click', () => {
       if (Game.run) {

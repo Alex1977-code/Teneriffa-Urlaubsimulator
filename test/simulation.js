@@ -56,6 +56,16 @@ for (let n = 0; n < DURCHLAEUFE; n++) {
     pruefe(res !== null, `Ausführung fehlgeschlagen: ${wahl.act.id}`);
     if (!res) break;
 
+    if (res.fahrt) {
+      pruefe(res.fahrt.zeilen.length >= 1, 'Fahrt ohne Zeilen');
+      pruefe(res.fahrt.von && res.fahrt.nach, 'Fahrt ohne Start/Ziel');
+      // Gelegentlich selbst fahren (Minispiel-Ergebnis simulieren)
+      if (res.fahrt.transport === 'mietwagen' && Math.random() < 0.5) {
+        const ergebnis = Game.fahrtBewerten(Math.floor(Math.random() * 5));
+        pruefe(ergebnis && ergebnis.text, 'Fahrtbewertung ohne Ergebnis');
+      }
+    }
+
     if (res.ereignis) {
       const anzahlWahlen = res.ereignis.wahl ? res.ereignis.wahl.length : 1;
       const eRes = Game.ereignisEntscheiden(Math.floor(Math.random() * anzahlWahlen));

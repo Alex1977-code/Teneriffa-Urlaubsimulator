@@ -188,6 +188,61 @@ const Game = (() => {
     return !!run && run.items.includes(id) && !run.kofferWeg;
   }
 
+  // ------------------------------------------------------------- Inselfahrt
+  // Wendet ein Effekt-Objekt an und liefert lesbare Chips für die UI.
+  function effekteAnwenden(effekte) {
+    const chips = [];
+    if (!effekte) return chips;
+    if (effekte.budget) { run.budget = Math.max(0, run.budget + effekte.budget);
+      chips.push(`💶 ${effekte.budget > 0 ? '+' : ''}${effekte.budget} €`); }
+    if (effekte.energie) { run.energie = clamp(run.energie + effekte.energie, 0, 100);
+      chips.push(`🔋 ${effekte.energie > 0 ? '+' : ''}${effekte.energie}`); }
+    if (effekte.stimmung) { run.stimmung = clamp(run.stimmung + effekte.stimmung, 0, 100);
+      chips.push(`😊 ${effekte.stimmung > 0 ? '+' : ''}${effekte.stimmung}`); }
+    if (effekte.erholung) { run.erholung = clamp(run.erholung + effekte.erholung, 0, 100);
+      chips.push(`🧘 ${effekte.erholung > 0 ? '+' : ''}${effekte.erholung}`); }
+    if (effekte.stress) { run.stress = clamp(run.stress + effekte.stress, 0, 100);
+      chips.push(`😰 Stress ${effekte.stress > 0 ? '+' : ''}${effekte.stress}`); }
+    if (effekte.erlebnis) { run.erlebnis += effekte.erlebnis; chips.push(`⭐ +${effekte.erlebnis}`); }
+    return chips;
+  }
+
+  function fahrtGenerieren(zielZone, anzahlHops) {
+    const pool = D.FAHRT_EREIGNISSE[run.transport];
+    const zeilen = [{
+      icon: D.TRANSPORT[run.transport].icon,
+      text: zufall(D.FAHRT_BASIS[run.transport]),
+      chips: [],
+    }];
+    if (Math.random() < 0.55) {
+      const id = gewichtet(pool.map(e => [e.id, e.gewicht || 1]));
+      const ereignis = pool.find(e => e.id === id);
+      if (ereignis)
+        zeilen.push({ icon: ereignis.icon, text: ereignis.text, chips: effekteAnwenden(ereignis.effekte) });
+    }
+    return { von: run.region, nach: zielZone, transport: run.transport, hops: anzahlHops, zeilen };
+  }
+
+  // Ergebnis des Selbstfahr-Minispiels (nur Mietwagen). treffer = Rempler.
+  function fahrtBewerten(treffer) {
+    if (!run) return null;
+    let icon, text, effekte;
+    if (treffer === 0) {
+      icon = '🏁'; text = 'Keine Schrecksekunde, jede Kurve gesessen – du fährst wie ein Einheimischer!';
+      effekte = { stimmung: 5, stress: -4, erlebnis: 5 };
+      meta.perfekteFahrt = true; metaSpeichern();
+    } else if (treffer <= 2) {
+      icon = '🚗'; text = 'Gut angekommen – mit ein, zwei Schrecksekunden und einem entschuldigenden Winken.';
+      effekte = { stress: 2 };
+    } else {
+      icon = '😅'; text = 'Wilde Fahrt! Die Felgen haben Bordstein-Bekanntschaft gemacht. Das bleibt unter uns.';
+      effekte = { stress: 7, stimmung: -4, energie: -4 };
+    }
+    const chips = effekteAnwenden(effekte);
+    runSpeichern();
+    return { icon, text, chips };
+  }
+
   // ------------------------------------------------------------ Neuer Lauf
   function neuerUrlaub(cfg) {
     const hotel = D.HOTELS[cfg.hotel];
@@ -214,6 +269,7 @@ const Game = (() => {
       tag: 1, slot: 1, // Tag 1: Ankunft am Mittag – der Vormittag geht für die Anreise drauf
       budget, energie: 65, stimmung: 70, erholung: 10, erlebnis: 0, sonnenbrand: 0,
       stress: 15, kofferWeg: false, kofferTag: 0, kofferVerloren: false,
+      flirt: { stufe: 0, name: null },
       items, souvenirs: 0, quests,
       wetter: wetterGenerieren(dauer),
       flags: { guachincheEntdeckt: items.includes('reisefuehrer'), hotelUpgrade: false,
@@ -279,6 +335,7 @@ const Game = (() => {
 
   // ------------------------------------------------------ Aktivität ausführen
   function aktivitaetAusfuehren(actId) {
+    if (run.pending) return null;   // erst die laufende Auflösung abschließen
     const eintrag = aktivitaetenListe().find(e => e.act.id === actId);
     if (!eintrag || eintrag.gesperrt) return null;
     const { act, wetterId, hops: anzahlHops, reiseKosten, reiseEnergie, faktor } = eintrag;
@@ -286,11 +343,13 @@ const Game = (() => {
     const effekte = [];
     const vorher = { energie: run.energie };
 
-    // Kosten & Anreise
+    // Kosten & Anreise – längere Strecken werden zur kleinen Reise-Sequenz
     run.budget -= act.kosten + reiseKosten;
     if (reiseEnergie) run.energie = clamp(run.energie - reiseEnergie, 0, 100);
+    let fahrt = null;
     if (anzahlHops > 0) {
       const t = D.TRANSPORT[run.transport];
+      fahrt = fahrtGenerieren(act.zone, anzahlHops);
       effekte.push({ icon: t.icon, text: `Anfahrt in die Region ${D.ZONEN[act.zone].name} (${reiseKosten ? reiseKosten + ' €, ' : ''}${reiseEnergie} Energie)` });
     }
 
@@ -398,15 +457,19 @@ const Game = (() => {
         const gewichte = passende.map(e => [e.id, e.gewicht || 1]);
         const id = gewichtet(gewichte);
         ereignis = passende.find(e => e.id === id);
-        run.pending = { typ: 'ereignis', id: ereignis.id, dauer: act.dauer };
+        // Der Urlaubsflirt bekommt beim Kennenlernen einen Namen
+        if (ereignis.text.includes('%NAME%') && !run.flirt.name)
+          run.flirt.name = zufall(D.FLIRT_NAMEN);
+        run.pending = { typ: 'ereignis', id: ereignis.id, dauer: act.dauer,
+                        text: ereignis.text.replace(/%NAME%/g, run.flirt.name || '') };
       }
     }
     if (!run.pending) run.pending = { typ: 'weiter', dauer: act.dauer };
 
     runSpeichern();
     return {
-      act, effekte, fotoNeu, warnung,
-      ereignis: ereignis ? { id: ereignis.id, icon: ereignis.icon, text: ereignis.text,
+      act, effekte, fotoNeu, warnung, fahrt,
+      ereignis: ereignis ? { id: ereignis.id, icon: ereignis.icon, text: run.pending.text,
                              wahl: ereignis.wahl ? ereignis.wahl.map(w => w.text) : null } : null,
     };
   }
@@ -442,11 +505,18 @@ const Game = (() => {
     if (effekte.souvenir) { run.souvenirs += effekte.souvenir;
       zeilen.push({ icon: '🎁', text: 'Souvenir eingepackt' }); }
     if (effekte.flag) run.flags[effekte.flag] = true;
+    if (effekte.flirt) {
+      run.flirt.stufe = Math.max(run.flirt.stufe, effekte.flirt);
+      zeilen.push({ icon: '💞', text: effekte.flirt >= 3
+        ? `Diesen Abend mit ${run.flirt.name} vergisst du nicht.`
+        : `Du und ${run.flirt.name} – das könnte was werden.` });
+    }
     if (effekte.foto && !run.fotosRun.includes(effekte.foto)) {
       run.fotosRun.push(effekte.foto); fotoNeu = effekte.foto;
     }
 
-    logEintrag(ereignis.icon, ereignis.text.slice(0, 60) + (ereignis.text.length > 60 ? '…' : ''));
+    const logText = (run.pending.text || ereignis.text).replace(/%NAME%/g, run.flirt.name || '');
+    logEintrag(ereignis.icon, logText.slice(0, 60) + (logText.length > 60 ? '…' : ''));
     run.pending.typ = 'weiter';
     runSpeichern();
     return { zeilen, antwort, fotoNeu,
@@ -544,6 +614,7 @@ const Game = (() => {
       actionZahl: run.actionZahl, guachincheBesucht: !!run.guachincheBesucht,
       souvenirs: run.souvenirs, dauer: run.dauer,
       stress: run.stress, kofferVerloren: run.kofferVerloren,
+      flirtStufe: run.flirt.stufe,
     };
 
     // Quests auswerten
@@ -628,7 +699,7 @@ const Game = (() => {
     titelFuerLevel: levelTitel,
     neuerUrlaub, aktivitaetenListe, aktivitaetAusfuehren,
     ereignisEntscheiden, fortfahren, urlaubAbbrechen,
-    wetterFuerZone, flugBestaetigen, hatItem,
+    wetterFuerZone, flugBestaetigen, hatItem, fahrtBewerten,
     _reset() { meta = metaNeu(); run = null; metaSpeichern(); runSpeichern(); },
   };
 })();
