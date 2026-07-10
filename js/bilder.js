@@ -128,6 +128,104 @@ const BILDER = (() => {
     return laufend[motiv];
   }
 
+  // ---------------------------------------------------------------- Videos
+  // Frei lizenzierte Kurzvideos direkt aus Wikimedia Commons – als kleine,
+  // transkodierte Web-Dateien. Suche zur Laufzeit, Ergebnis wird gecacht.
+  const VIDEO_SUCHE = {
+    'teide':           'Teide Tenerife',
+    'teide-gipfel':    'Teide Tenerife',
+    'teide-anflug':    'Tenerife aerial',
+    'masca':           'Masca Tenerife',
+    'siampark':        'water slide',
+    'whalewatching':   'pilot whales',
+    'wal':             'pilot whales',
+    'delfine':         'dolphins bow riding',
+    'loroparque':      'Loro Parque',
+    'orca-splash':     'orca surface',
+    'sterne':          'milky way timelapse',
+    'anaga':           'Anaga Tenerife',
+    'losgigantes':     'Los Gigantes Tenerife',
+    'klippen':         'Los Gigantes Tenerife',
+    'abades':          'green sea turtle swimming',
+    'schildkroete':    'green sea turtle swimming',
+    'paragliding':     'paragliding',
+    'cueva':           'lava tube',
+    'lavatunnel':      'lava tube',
+    'teresitas':       'Las Teresitas',
+    'garachico':       'Garachico',
+    'caleton':         'Garachico',
+    'surfkurs':        'surfing wave ocean',
+    'benijo':          'Tenerife beach waves',
+    'playa-americas':  'Tenerife beach waves',
+    'puerto':          'Puerto de la Cruz Tenerife',
+    'sonnenuntergang': 'ocean sunset timelapse',
+    'urlaubsflirt':    'ocean sunset timelapse',
+    'paisaje':         'Tenerife landscape',
+    'paisaje-lunar':   'Tenerife landscape',
+  };
+
+  const VIDEO_CACHE_KEY = 'tus_videos_v1';
+  let videoCache = {};
+  try {
+    if (typeof localStorage !== 'undefined')
+      videoCache = JSON.parse(localStorage.getItem(VIDEO_CACHE_KEY) || '{}');
+  } catch (e) { videoCache = {}; }
+  const videoFehlgeschlagen = new Set();
+  const videoLaufend = {};
+
+  function videoCacheSpeichern() {
+    try {
+      if (typeof localStorage !== 'undefined')
+        localStorage.setItem(VIDEO_CACHE_KEY, JSON.stringify(videoCache));
+    } catch (e) { /* egal */ }
+  }
+
+  async function videoSuchen(suchbegriff) {
+    const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*' +
+      '&generator=search&gsrnamespace=6&gsrlimit=6' +
+      '&gsrsearch=' + encodeURIComponent('filetype:video ' + suchbegriff) +
+      '&prop=videoinfo&viprop=url|size|derivatives';
+    const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    const seiten = json.query && json.query.pages ? Object.values(json.query.pages) : [];
+    seiten.sort((a, b) => (a.index || 99) - (b.index || 99));
+    for (const seite of seiten) {
+      const vi = seite.videoinfo && seite.videoinfo[0];
+      if (!vi) continue;
+      const dauer = vi.duration || 0;
+      if (dauer && (dauer < 4 || dauer > 300)) continue;   // zu kurz/lang fürs Kino
+      const ableitungen = (vi.derivatives || []).filter(d =>
+        d.src && /video\/(webm|mp4)/.test(d.type || '') && d.height && d.height <= 720);
+      if (!ableitungen.length) continue;
+      ableitungen.sort((a, b) => b.height - a.height);     // beste Qualität ≤ 720p
+      return {
+        url: ableitungen[0].src,
+        quelle: vi.descriptionurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(seite.title)),
+        titel: seite.title.replace(/^File:/, '').replace(/\.\w+$/, ''),
+      };
+    }
+    return null;
+  }
+
+  /** Liefert ein Promise auf {url, quelle, titel} oder null. */
+  function videoHole(motiv) {
+    if (videoCache[motiv]) return Promise.resolve(videoCache[motiv]);
+    if (videoFehlgeschlagen.has(motiv) || !VIDEO_SUCHE[motiv]) return Promise.resolve(null);
+    if (videoLaufend[motiv]) return videoLaufend[motiv];
+    if (typeof fetch === 'undefined') return Promise.resolve(null);
+
+    videoLaufend[motiv] = (async () => {
+      try {
+        const video = await videoSuchen(VIDEO_SUCHE[motiv]);
+        if (video) { videoCache[motiv] = video; videoCacheSpeichern(); return video; }
+      } catch (e) { /* offline → Bild-Fallback */ }
+      videoFehlgeschlagen.add(motiv);
+      return null;
+    })();
+    return videoLaufend[motiv];
+  }
+
   /** Hängt ein Bild an ein <img>-Element, sobald es verfügbar ist. */
   function anzeigen(img, motiv, klein) {
     hole(motiv).then(bild => {
@@ -141,7 +239,7 @@ const BILDER = (() => {
     });
   }
 
-  return { hole, anzeigen, ARTIKEL };
+  return { hole, anzeigen, videoHole, ARTIKEL, VIDEO_SUCHE };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = BILDER;

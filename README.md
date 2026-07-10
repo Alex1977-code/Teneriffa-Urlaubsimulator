@@ -45,12 +45,14 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Abreisetag bleibt nur der Vormittag.
 - **Unterwegs auf der Insel** – Ausflüge in andere Regionen laufen als Reise-Sequenz mit
   animierter Route auf der Inselkarte ab: Staus, Ziegenherden, Miradore, Barraquito-Stopps.
-  Mit dem Mietwagen kannst du **selbst ans Steuer** – ein Ausweich-Minispiel über die
-  Serpentinen (Pfeiltasten oder Touch). Fehlerfreie Fahrten entspannen, Rempler kosten Nerven.
-- **Echte Fotos & Kino-Momente** – die Aktivitäten zeigen fotorealistische Bilder der echten
-  Orte (live von Wikipedia/Wikimedia Commons geladen, Klick aufs Bild öffnet die Quellseite
-  mit Lizenzangaben). Highlights feiert das Spiel mit einer Vollbild-Kino-Sequenz samt
-  Link zu echten Videos des Ortes.
+  Mit dem Mietwagen kannst du **selbst ans Steuer** – eine Pseudo-3D-Fahrt mit Lenkung,
+  Gas und Bremse, Hügelkuppen, Kurven-Warnschildern, Gegenverkehr und Ortsschild am Ziel.
+  Die Landschaft passt zur echten Route (Lavaland Richtung Teide, grüner Norden), und bei
+  Regen wird die Straße rutschig. Fehlerfreie Fahrten entspannen, Rempler kosten Nerven.
+- **Echte Fotos & Videos – direkt im Spiel** – die Aktivitäten zeigen fotorealistische
+  Bilder der echten Orte, Highlights laufen als Vollbild-Kino-Moment. Gibt es ein passendes
+  freies Video, spielt es direkt im Spiel ab (optional mit Ton). Fotos und Videos kommen
+  live von Wikipedia/Wikimedia Commons; Quelle-Links führen zu Autor- und Lizenzangaben.
 - **Urlaubsflirt** – eine kleine Geschichte in drei Akten: Kennenlernen am Strand,
   Wiedersehen, Sonnenuntergangs-Date. Wer sich traut, wird mit Erinnerungen belohnt.
 

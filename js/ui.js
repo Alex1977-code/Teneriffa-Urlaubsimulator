@@ -162,7 +162,7 @@ const UI = (() => {
 
     if (fahrt.transport === 'mietwagen') {
       const selbst = el('button', 'btn btn-primary', '🎮 Selbst ans Steuer');
-      selbst.addEventListener('click', () => starteFahrspiel(schliessen));
+      selbst.addEventListener('click', () => starteFahrspiel(fahrt, schliessen));
       buttons.appendChild(selbst);
       const chill = el('button', 'btn', '⏩ Entspannt ankommen');
       chill.addEventListener('click', schliessen);
@@ -193,7 +193,7 @@ const UI = (() => {
     } catch (e) { /* kein Ton verfügbar – halb so wild */ }
   }
 
-  function starteFahrspiel(fertigCb) {
+  function starteFahrspiel(fahrt, fertigCb) {
     $('#fahrt-inselkarte').classList.add('versteckt');
     $('#fahrspiel-wrap').classList.remove('versteckt');
     $('#fahrt-buttons').innerHTML = '';
@@ -206,34 +206,99 @@ const UI = (() => {
     canvas.style.width = 'min(340px, 100%)';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const DAUER = window.FAHRSPIEL_DAUER || 16000;
     const COUNTDOWN = 2000;
-    const HOR = 128;                       // Horizontlinie
+    const HOR = 128;                       // Basis-Horizontlinie
     const TIEFE = 90;                      // Projektionskonstante (Weltlänge einer Bildzeile)
 
-    // Streckenverlauf: sanfte, sich abwechselnde Kurven
-    const kurveBei = d => Math.sin(d * 0.00115) * 1.0 + Math.sin(d * 0.00043 + 1.7) * 0.65;
+    // Streckenlänge nach echter Entfernung; Gas geben verkürzt die Fahrzeit
+    const hops = (fahrt && fahrt.hops) || 1;
+    const STRECKE = window.FAHRSPIEL_DAUER
+      ? (window.FAHRSPIEL_DAUER / 1000) * 255
+      : 3400 + hops * 900;
+    const GESAMT_KM = 16 + hops * 17;
 
-    let dist = 0, px = 0, lenkung = 0, tempo = 0;
+    // Umgebung passend zur echten Route: Lavaland Richtung Teide, grüner Norden …
+    const zielZone = fahrt ? (fahrt.nach === 'hotel' ? Game.run.region : fahrt.nach) : 'sued';
+    const THEMEN = {
+      sued:  { boden: ['#e5d3a8', '#dcc794'], deko: ['🌵', '🌴', '🌵'], himmel: ['#4ea8de', '#bde6f5'] },
+      west:  { boden: ['#dcc794', '#cdb27f'], deko: ['🌵', '🌴', '🪨'], himmel: ['#4ea8de', '#bde6f5'] },
+      teide: { boden: ['#9b7d63', '#8a6f52'], deko: ['🌲', '🪨', '🌲'], himmel: ['#3d7fb8', '#a9d2e8'] },
+      nord:  { boden: ['#a9c47f', '#98b56e'], deko: ['🌴', '🌳', '🍌'], himmel: ['#5aa5cf', '#c9e6f0'] },
+      anaga: { boden: ['#8fb56e', '#7ea55f'], deko: ['🌳', '🌿', '🌲'], himmel: ['#5aa5cf', '#c9e6f0'] },
+    };
+    const thema = THEMEN[zielZone] || THEMEN.sued;
+    let wetterId = 'sonnig';
+    try { wetterId = Game.wetterFuerZone(zielZone, Game.run.tag); } catch (e) { /* egal */ }
+    const regnet = wetterId === 'regen';
+    const truebe = ['bedeckt', 'wolkig', 'windig'].includes(wetterId);
+    const calima = wetterId === 'calima';
+    const himmelFarben = regnet ? ['#5d6b7a', '#9aa7b2']
+      : truebe ? ['#7d95a8', '#c2cfd8']
+      : calima ? ['#c9a86a', '#e8d5a8'] : thema.himmel;
+
+    // Kurven & Hügel der Strecke
+    const kurveBei = d => Math.sin(d * 0.00115) * 1.0 + Math.sin(d * 0.00043 + 1.7) * 0.65;
+    const huegelBei = d => Math.sin(d * 0.00058) * 1.0 + Math.sin(d * 0.00021 + 0.8) * 0.7;
+
+    let dist = 0, px = 0, lenkung = 0, lenkIst = 0, tempo = 0, gas = 0;
     let treffer = 0, blitz = 0, offroadZeit = 0, vorbei = false;
     let countdownPiep = 3;
     const start = performance.now();
     let letztes = start;
 
-    // Randbegrünung & Hindernisse (Weltkoordinaten, off in Fahrbahnbreiten)
+    // Randbegrünung, Kurven-Warnschilder & Ortsschild am Ziel
     const deko = [];
-    for (let d = 300; d < 60000; d += 140 + Math.random() * 180)
+    for (let d = 300; d < STRECKE + 3000; d += 140 + Math.random() * 180)
       deko.push({ welt: d, off: (Math.random() < 0.5 ? -1 : 1) * (1.7 + Math.random() * 1.1),
-                  icon: Math.random() < 0.65 ? '🌴' : '🌵' });
+                  icon: thema.deko[Math.floor(Math.random() * thema.deko.length)] });
+    let letztesSchild = 0;
+    for (let d = 700; d < STRECKE + 1500; d += 200) {
+      const k = kurveBei(d + 450);
+      if (Math.abs(k) > 1.15 && d - letztesSchild > 1000) {
+        deko.push({ welt: d, off: -Math.sign(k) * 1.45, icon: '⚠️' });
+        letztesSchild = d;
+      }
+    }
+    const zielName = fahrt ? DATA.ZONEN[fahrt.nach].name.split(' ')[0].replace('Nordosten', 'Anaga') : 'Ziel';
+    deko.push({ welt: STRECKE + 60, off: 1.5, schild: zielName });
+
     let hindernisse = [], spawnIn = 1600;
     const ICONS = ['🐐', '🕳️', '🚧', '🐐'];
+
+    // Motorgeräusch: dezentes Brummen, Tonhöhe folgt dem Tempo
+    let motor = null;
+    function motorStart() {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const filter = audioCtx.createBiquadFilter();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth'; osc.frequency.value = 50;
+        filter.type = 'lowpass'; filter.frequency.value = 220;
+        gain.gain.value = 0.028;
+        osc.connect(filter).connect(gain).connect(audioCtx.destination);
+        osc.start();
+        motor = { osc, gain };
+      } catch (e) { motor = null; }
+    }
+    function motorStopp() {
+      if (!motor) return;
+      try {
+        motor.gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+        motor.osc.stop(audioCtx.currentTime + 0.45);
+      } catch (e) { /* egal */ }
+      motor = null;
+    }
 
     function tasteRunter(e) {
       if (e.key === 'ArrowLeft' || e.key === 'a') { lenkung = -1; e.preventDefault(); }
       if (e.key === 'ArrowRight' || e.key === 'd') { lenkung = 1; e.preventDefault(); }
+      if (e.key === 'ArrowUp' || e.key === 'w') { gas = 1; e.preventDefault(); }
+      if (e.key === 'ArrowDown' || e.key === 's') { gas = -1; e.preventDefault(); }
     }
     function tasteHoch(e) {
       if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) lenkung = 0;
+      if (['ArrowUp', 'ArrowDown', 'w', 's'].includes(e.key)) gas = 0;
     }
     function zeigerRunter(e) {
       const box = canvas.getBoundingClientRect();
@@ -248,14 +313,17 @@ const UI = (() => {
     document.addEventListener('pointerup', zeigerHoch);
 
     function aufraeumen() {
+      motorStopp();
       document.removeEventListener('keydown', tasteRunter);
       document.removeEventListener('keyup', tasteHoch);
       canvas.removeEventListener('pointerdown', zeigerRunter);
       document.removeEventListener('pointerup', zeigerHoch);
     }
 
-    // Projektion: Bildzeile y → Anteil p (1 = vorne, 0 = Horizont) → Weltposition
-    const pBei = y => (y - HOR) / (H - HOR);
+    // Projektion: Bildzeile y → Anteil p (1 = vorne, 0 = Horizont) → Weltposition.
+    // Der Horizont wandert mit den Hügelkuppen auf und ab.
+    let hor = HOR;
+    const pBei = y => (y - hor) / (H - hor);
     const weltBei = p => dist + TIEFE / Math.max(0.045, p);
     const halbBreite = p => 12 + 158 * p;
 
@@ -292,8 +360,7 @@ const UI = (() => {
       const dt = Math.min(50, now - letztes) / 1000;
       letztes = now;
       const seitStart = now - start;
-      const fahrZeit = Math.max(0, seitStart - COUNTDOWN);
-      const fortschritt = Math.min(1, fahrZeit / DAUER);
+      const fortschritt = Math.min(1, dist / STRECKE);
 
       // Countdown-Töne
       if (seitStart < COUNTDOWN) {
@@ -301,14 +368,21 @@ const UI = (() => {
         if (rest < countdownPiep) { countdownPiep = rest; piep(440, 120, 'square'); }
         tempo = 0;
       } else {
-        if (countdownPiep > 0) { countdownPiep = 0; piep(880, 220, 'square'); }
-        tempo = Math.min(1, tempo + dt * 0.7) * (Math.abs(px) > 1.05 ? 0.994 : 1);
+        if (countdownPiep > 0) { countdownPiep = 0; piep(880, 220, 'square'); motorStart(); }
+        // Gas & Bremse: ↑ beschleunigt (riskant), ↓ bremst (kostet Zeit)
+        const tempoZiel = gas > 0 ? 1.22 : gas < 0 ? 0.32 : 0.85;
+        tempo += (tempoZiel - tempo) * dt * (gas < 0 ? 3.2 : 1.1);
+        if (Math.abs(px) > 1.05) tempo *= 0.992;   // Schotter bremst
       }
+      if (motor) { try { motor.osc.frequency.value = 45 + tempo * 75; } catch (e) { /* egal */ } }
 
-      // Physik: Lenken + Fliehkraft der Kurve
+      // Physik: weiche Lenkung, Fliehkraft, bei Regen rutschig
       dist += 300 * tempo * dt;
-      px += lenkung * 1.7 * dt * (0.4 + 0.6 * tempo);
-      px += kurveBei(dist) * 0.5 * dt * tempo;
+      lenkIst += (lenkung - lenkIst) * Math.min(1, dt * 7);
+      const griff = regnet ? 0.82 : 1;
+      px += lenkIst * 1.75 * dt * (0.4 + 0.6 * tempo) * griff;
+      px += kurveBei(dist) * 0.52 * dt * tempo;
+      if (regnet && tempo > 0.6) px += (Math.random() - 0.5) * 0.9 * dt;
       px = Math.max(-1.45, Math.min(1.45, px));
 
       // Abseits der Fahrbahn: Gerumpel
@@ -319,7 +393,7 @@ const UI = (() => {
 
       // Hindernisse erzeugen
       spawnIn -= dt * 1000;
-      if (spawnIn <= 0 && tempo > 0.5) {
+      if (spawnIn <= 0 && tempo > 0.5 && fortschritt < 0.93) {
         spawnIn = 1050 + Math.random() * 1000;
         const gegenverkehr = Math.random() < 0.3;
         hindernisse.push({
@@ -340,28 +414,40 @@ const UI = (() => {
       hindernisse = hindernisse.filter(h => h.welt - dist > -10);
 
       // ————— Zeichnen —————
-      // Himmel, Meer am Horizont, Teide
-      const himmel = ctx.createLinearGradient(0, 0, 0, HOR);
-      himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
-      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, HOR);
-      ctx.fillStyle = '#ffe8a3';
-      ctx.beginPath(); ctx.arc(W - 60, 38, 16, 0, Math.PI * 2); ctx.fill();
+      // Hügel: Horizont hebt und senkt sich mit der Strecke
+      hor = HOR + huegelBei(dist) * 20;
+
+      // Himmel, Sonne, Teide-Silhouette
+      const himmel = ctx.createLinearGradient(0, 0, 0, hor);
+      himmel.addColorStop(0, himmelFarben[0]); himmel.addColorStop(1, himmelFarben[1]);
+      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, hor + 1);
+      if (!regnet && !truebe) {
+        ctx.fillStyle = calima ? '#f0d9a0' : '#ffe8a3';
+        ctx.beginPath(); ctx.arc(W - 60, 38, 16, 0, Math.PI * 2); ctx.fill();
+      }
       const teideX = W / 2 - kurveBei(dist + 2200) * 90;
-      ctx.fillStyle = '#8a7f8d';
+      const teideGroesse = zielZone === 'teide' ? 1.5 : 1;
+      ctx.fillStyle = truebe || regnet ? '#6e7887' : '#8a7f8d';
       ctx.beginPath();
-      ctx.moveTo(teideX - 85, HOR); ctx.lineTo(teideX, HOR - 52); ctx.lineTo(teideX + 85, HOR);
+      ctx.moveTo(teideX - 85 * teideGroesse, hor);
+      ctx.lineTo(teideX, hor - 52 * teideGroesse);
+      ctx.lineTo(teideX + 85 * teideGroesse, hor);
       ctx.closePath(); ctx.fill();
       ctx.fillStyle = '#f5f0e6';
       ctx.beginPath();
-      ctx.moveTo(teideX - 18, HOR - 41); ctx.lineTo(teideX, HOR - 52); ctx.lineTo(teideX + 18, HOR - 41);
-      ctx.lineTo(teideX + 10, HOR - 36); ctx.lineTo(teideX - 10, HOR - 36);
+      ctx.moveTo(teideX - 18 * teideGroesse, hor - 41 * teideGroesse);
+      ctx.lineTo(teideX, hor - 52 * teideGroesse);
+      ctx.lineTo(teideX + 18 * teideGroesse, hor - 41 * teideGroesse);
+      ctx.lineTo(teideX + 10 * teideGroesse, hor - 36 * teideGroesse);
+      ctx.lineTo(teideX - 10 * teideGroesse, hor - 36 * teideGroesse);
       ctx.closePath(); ctx.fill();
 
       // Straße zeilenweise mit Kurvenversatz (klassische Pseudo-3D-Technik)
+      const horZeile = Math.max(0, Math.round(hor));
       const zentren = new Float32Array(H);
       let cx = W / 2 - px * halbBreite(1) * 0.9;
       let dx = -kurveBei(dist) * 0.35;
-      for (let y = H - 1; y >= HOR; y--) {
+      for (let y = H - 1; y >= horZeile; y--) {
         const p = pBei(y);
         const welt = weltBei(p);
         dx += kurveBei(welt) * 0.011;
@@ -370,14 +456,14 @@ const UI = (() => {
         const halb = halbBreite(p);
         const streifen = Math.floor(welt / 55) % 2 === 0;
         // Landschaft
-        ctx.fillStyle = streifen ? '#e5d3a8' : '#dcc794';
+        ctx.fillStyle = streifen ? thema.boden[0] : thema.boden[1];
         ctx.fillRect(0, y, W, 1);
         // Randstreifen (rot-weiß)
         ctx.fillStyle = streifen ? '#e63946' : '#f5f0e6';
         ctx.fillRect(cx - halb - 5 * p - 2, y, 5 * p + 2, 1);
         ctx.fillRect(cx + halb, y, 5 * p + 2, 1);
-        // Asphalt
-        ctx.fillStyle = streifen ? '#6b6d76' : '#63656e';
+        // Asphalt (bei Regen dunkler und glänzend)
+        ctx.fillStyle = regnet ? (streifen ? '#4e5058' : '#484a52') : (streifen ? '#6b6d76' : '#63656e');
         ctx.fillRect(cx - halb, y, halb * 2, 1);
         // Mittellinie
         if (Math.floor(welt / 28) % 2 === 0) {
@@ -401,16 +487,43 @@ const UI = (() => {
       for (const o of objekte) {
         const p = TIEFE / (o.welt - dist);
         if (p < 0.045 || p > 1.15) continue;
-        const y = HOR + p * (H - HOR);
-        const zeile = Math.min(H - 1, Math.max(HOR, Math.round(y)));
+        const y = hor + p * (H - hor);
+        const zeile = Math.min(H - 1, Math.max(horZeile, Math.round(y)));
         const x = zentren[zeile] + o.off * halbBreite(p);
-        ctx.font = Math.round(7 + 30 * p) + 'px serif';
-        ctx.fillText(o.icon, x, y);
+        if (o.schild) {
+          // Ortsschild am Ziel
+          const sw = 150 * p, sh = 44 * p;
+          ctx.fillStyle = '#fff';
+          ctx.strokeStyle = '#2b2d42'; ctx.lineWidth = Math.max(1, 3 * p);
+          ctx.beginPath(); ctx.roundRect(x - sw / 2, y - sh, sw, sh, 4 * p); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = '#2b2d42';
+          ctx.font = 'bold ' + Math.round(5 + 15 * p) + 'px sans-serif';
+          ctx.fillText(o.schild, x, y - sh / 2 + 5 * p);
+          ctx.fillStyle = '#8a8d9c';
+          ctx.fillRect(x - 2 * p, y, 4 * p, 14 * p);
+        } else {
+          ctx.font = Math.round(7 + 30 * p) + 'px serif';
+          ctx.fillText(o.icon, x, y);
+        }
       }
 
       // Auto (leichtes Wackeln abseits der Straße)
       const ruettel = Math.abs(px) > 1.05 && tempo > 0.3 ? (Math.random() - 0.5) * 4 : 0;
-      zeichneAuto(W / 2 + ruettel, H - 52 + ruettel * 0.5, lenkung + kurveBei(dist) * 0.4);
+      zeichneAuto(W / 2 + ruettel, H - 52 + ruettel * 0.5, lenkIst + kurveBei(dist) * 0.4);
+
+      // Regenschlieren
+      if (regnet) {
+        ctx.strokeStyle = 'rgba(210,228,245,0.4)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 34; i++) {
+          const rx = Math.random() * W, ry = Math.random() * H;
+          ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 2, ry + 11); ctx.stroke();
+        }
+      }
+      if (calima) {
+        ctx.fillStyle = 'rgba(222,190,120,0.15)';
+        ctx.fillRect(0, 0, W, H);
+      }
 
       // Kollisions-Blitz
       if (blitz > 0) {
@@ -419,20 +532,19 @@ const UI = (() => {
         ctx.fillRect(0, 0, W, H);
       }
 
-      // HUD: Fortschritt, Tacho, Rempler
+      // HUD: Rempler, Fortschritt, Rest-Kilometer & Tacho
       ctx.fillStyle = 'rgba(43,45,66,0.72)';
       ctx.fillRect(0, 0, W, 26);
       ctx.fillStyle = '#f5f0e6';
-      ctx.fillRect(52, 10, W - 120, 6);
+      ctx.fillRect(46, 10, W - 158, 6);
       ctx.fillStyle = '#f4a261';
-      ctx.fillRect(52, 10, (W - 120) * fortschritt, 6);
+      ctx.fillRect(46, 10, (W - 158) * fortschritt, 6);
       ctx.fillStyle = '#fff';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.textAlign = 'left'; ctx.fillText('🚗', 34, 18);
-      ctx.textAlign = 'right'; ctx.fillText('🏁', W - 52, 18);
-      ctx.fillText(Math.round(tempo * (68 + 26 * fortschritt)) + ' km/h', W - 8, 18);
-      ctx.textAlign = 'left';
-      ctx.fillText('💥 ' + treffer, 6, 18);
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'left'; ctx.fillText('💥 ' + treffer, 6, 18);
+      ctx.textAlign = 'right';
+      ctx.fillText('🏁 ' + Math.max(0, Math.ceil(GESAMT_KM * (1 - fortschritt))) + ' km · ' +
+        Math.round(tempo * 92) + ' km/h', W - 6, 18);
 
       // Countdown-Anzeige
       if (seitStart < COUNTDOWN) {
@@ -440,18 +552,18 @@ const UI = (() => {
         ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
         ctx.font = 'bold 64px sans-serif';
         ctx.fillText(String(Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3))), W / 2, H / 2);
-        ctx.font = 'bold 16px sans-serif';
-        ctx.fillText('Bereit machen …', W / 2, H / 2 + 34);
+        ctx.font = 'bold 15px sans-serif';
+        ctx.fillText('Fahrt nach ' + zielName + ' – bereit machen …', W / 2, H / 2 + 34);
       }
 
       // Ziel erreicht?
-      if (fahrZeit >= DAUER) {
+      if (dist >= STRECKE) {
         vorbei = true;
         aufraeumen();
         ctx.fillStyle = 'rgba(43,45,66,0.55)'; ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-        ctx.font = 'bold 34px sans-serif';
-        ctx.fillText('🏁 Angekommen!', W / 2, H / 2);
+        ctx.font = 'bold 30px sans-serif';
+        ctx.fillText('🏁 ' + zielName + ' erreicht!', W / 2, H / 2);
         piep(660, 150, 'square'); setTimeout(() => piep(880, 250, 'square'), 160);
 
         const ergebnis = Game.fahrtBewerten(treffer);
@@ -472,38 +584,102 @@ const UI = (() => {
   }
 
   // ------------------------------------------------------------ Kino-Moment
-  function zeigeKino(motiv, titel, untertitel, suchbegriff, weiterCb) {
-    Promise.race([
-      BILDER.hole(motiv),
-      new Promise(r => setTimeout(() => r(null), 1800)),
-    ]).then(bild => {
-      if (!bild) { weiterCb(); return; }
-      const overlay = $('#kino-overlay');
-      const img = $('#kino-bild');
-      img.classList.remove('kino-anim');
+  // Vollbild-Moment mit echtem Foto – und wenn Wikimedia Commons ein passendes
+  // freies Video hat, wird es direkt im Spiel abgespielt (kein YouTube).
+  const wartezeit = ms => new Promise(r => setTimeout(() => r(null), ms));
+
+  function kinoSchliessen() {
+    const video = $('#kino-video');
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    video.classList.add('versteckt');
+    $('#kino-bild').classList.remove('versteckt');
+    $('#kino-overlay').classList.add('versteckt');
+  }
+
+  function zeigeKino(motiv, titel, untertitel, weiterCb) {
+    const videoP = BILDER.videoHole(motiv);   // parallel zur Bildsuche starten
+    Promise.race([BILDER.hole(motiv), wartezeit(1800)]).then(bild => {
+      if (!bild) {
+        // Kein Bild? Vielleicht gibt es wenigstens ein Video.
+        Promise.race([videoP, wartezeit(2200)]).then(video => {
+          if (video) kinoOeffnen(motiv, null, video, titel, untertitel, weiterCb);
+          else weiterCb();
+        });
+        return;
+      }
+      kinoOeffnen(motiv, bild, null, titel, untertitel, weiterCb);
+      // Video nachladen und einblenden, sobald es bereit ist
+      Promise.race([videoP, wartezeit(8000)]).then(video => {
+        const overlay = $('#kino-overlay');
+        if (video && !overlay.classList.contains('versteckt') && overlay.dataset.motiv === motiv)
+          kinoVideoStarten(video);
+      });
+    });
+  }
+
+  function kinoOeffnen(motiv, bild, video, titel, untertitel, weiterCb) {
+    const overlay = $('#kino-overlay');
+    overlay.dataset.motiv = motiv;
+    const img = $('#kino-bild');
+    img.classList.remove('kino-anim');
+    if (bild) {
       img.src = bild.url;
       img.dataset.quelle = bild.artikelUrl;
+      img.classList.remove('versteckt');
       requestAnimationFrame(() => img.classList.add('kino-anim'));
-      $('#kino-titel').textContent = titel;
-      $('#kino-untertitel').textContent = untertitel;
-      const buttons = $('#kino-buttons');
-      buttons.innerHTML = '';
-      const weiter = el('button', 'btn btn-primary', '▶ Weiter');
-      weiter.addEventListener('click', () => { overlay.classList.add('versteckt'); weiterCb(); });
-      buttons.appendChild(weiter);
-      // Echte Links statt window.open: öffnen zuverlässig einen NEUEN Tab –
-      // das Spiel bleibt geöffnet und wartet hier weiter.
-      const video = el('a', 'btn', '🎬 Echtes Video ansehen');
-      video.href = 'https://www.youtube.com/results?search_query=' +
-        encodeURIComponent(suchbegriff + ' Teneriffa');
-      video.target = '_blank'; video.rel = 'noopener';
-      buttons.appendChild(video);
-      const quelle = el('a', 'btn btn-klein', '📷 Bildquelle');
-      quelle.href = bild.artikelUrl;
-      quelle.target = '_blank'; quelle.rel = 'noopener';
+    } else {
+      img.classList.add('versteckt');
+    }
+    $('#kino-titel').textContent = titel;
+    $('#kino-untertitel').textContent = untertitel;
+
+    const buttons = $('#kino-buttons');
+    buttons.innerHTML = '';
+    const weiter = el('button', 'btn btn-primary', '▶ Weiter');
+    weiter.addEventListener('click', () => { kinoSchliessen(); weiterCb(); });
+    buttons.appendChild(weiter);
+    if (bild) {
+      const quelle = el('a', 'btn btn-klein', '📷 Quelle');
+      quelle.href = bild.artikelUrl; quelle.target = '_blank'; quelle.rel = 'noopener';
+      quelle.id = 'kino-quelle';
       buttons.appendChild(quelle);
-      overlay.classList.remove('versteckt');
+    }
+    overlay.classList.remove('versteckt');
+    if (video) kinoVideoStarten(video);
+  }
+
+  function kinoVideoStarten(video) {
+    const vid = $('#kino-video');
+    vid.src = video.url;
+    vid.muted = true;
+    vid.addEventListener('canplay', function einblenden() {
+      vid.removeEventListener('canplay', einblenden);
+      if ($('#kino-overlay').classList.contains('versteckt')) return;
+      vid.classList.remove('versteckt');
+      $('#kino-bild').classList.add('versteckt');
+      // Ton-Schalter & Quellenlink fürs Video
+      const buttons = $('#kino-buttons');
+      if (!$('#kino-ton')) {
+        const ton = el('button', 'btn btn-klein', '🔊 Ton an');
+        ton.id = 'kino-ton';
+        ton.addEventListener('click', () => {
+          vid.muted = !vid.muted;
+          ton.textContent = vid.muted ? '🔊 Ton an' : '🔇 Ton aus';
+        });
+        buttons.appendChild(ton);
+      }
+      const quelle = $('#kino-quelle');
+      if (quelle) { quelle.href = video.quelle; quelle.textContent = '🎥 Quelle'; }
+      else {
+        const neu = el('a', 'btn btn-klein', '🎥 Quelle');
+        neu.href = video.quelle; neu.target = '_blank'; neu.rel = 'noopener';
+        neu.id = 'kino-quelle';
+        buttons.appendChild(neu);
+      }
     });
+    vid.play().catch(() => { /* Autoplay verweigert → Bild bleibt */ });
   }
 
   // ------------------------------------------------------------------- Start
@@ -792,8 +968,7 @@ const UI = (() => {
 
     if (kinoMotiv) {
       const titel = res.fotoNeu ? DATA.FOTOS[res.fotoNeu].name : res.act.name;
-      zeigeKino(kinoMotiv, titel, `Teneriffa · Tag ${Game.run.tag}`,
-        res.fotoNeu ? DATA.FOTOS[res.fotoNeu].name : res.act.name, modalZeigen);
+      zeigeKino(kinoMotiv, titel, `Teneriffa · Tag ${Game.run.tag}`, modalZeigen);
     } else modalZeigen();
   }
 
