@@ -70,7 +70,8 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Bananen und Schock-Blitz, Boost-Pfeile, Platzierung gegen drei Rivalen mit
   Gummiband-KI), Koffer-Schnappen am Gepäckband, die Straßenüberquerung mit
   temperamentvoller spanischer Fahrweise, der Zumo-Balance-Lauf und der morgendliche
-  Wettlauf um die besten Poolliegen, die Parkplatzsuche mit dem Mietwagen, das
+  Wettlauf um die Poolliegen – mit echter Männchensteuerung (Tippen/Ziehen oder
+  Pfeiltasten), nur drei freien Liegen und rennenden Rivalen, die Parkplatzsuche mit dem Mietwagen, das
   Perlen-Merkspiel beim Haareflechten am Strandstand und der spontane spanische
   Tanzabend als Rhythmusspiel im Takt der Band. Dazu der buchbare **Spieleabend in
   der Hotelbar**: Farkle-Würfelduell gegen Karl (Einsen 100, Fünfen 50, Drillinge
@@ -78,7 +79,9 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Jedes Actionspiel startet mit einem **3-2-1-Countdown samt Erklärung** und lässt
   sich jederzeit mit **Taste P oder dem ⏸-Knopf pausieren**. Die Spiel-Schrift kommt
   im Open-World-Stil daher: fett, bunt und mit dicker schwarzer Umrandung.
-  Alle Spiele sind voll touch-tauglich (sichtbare Lenk-Zonen, Tipp-Steuerung).
+  Alle Spiele sind für das Handy optimiert: sichtbare Lenk-Zonen mit
+  Leucht-Feedback, Multi-Touch (Lenken + Turbo gleichzeitig), Tipp- und
+  Zieh-Steuerung und kurze Vibration bei Kollisionen.
 - **Ausflüge mit Vorschau buchen** – größere Ausflüge zeigen auf Wunsch erst ein
   echtes Foto oder Video im Kino-Modus („▶ Vorschau“) und lassen sich von dort
   direkt buchen.

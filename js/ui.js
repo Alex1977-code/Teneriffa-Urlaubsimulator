@@ -259,6 +259,11 @@ const UI = (() => {
     } catch (e) { /* kein Ton verfügbar – halb so wild */ }
   }
 
+  // Haptik: kurzes Vibrieren auf dem Handy (wo der Browser es erlaubt)
+  function brumm(ms) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* egal */ }
+  }
+
   function starteFahrspiel(fahrt, fertigCb) {
     $('#fahrt-inselkarte').classList.add('versteckt');
     $('#fahrspiel-wrap').classList.remove('versteckt');
@@ -409,7 +414,7 @@ const UI = (() => {
     let camYaw = heading, speed = 0, lenk = 0, lenkIst = 0, gas = 0;
     let roadIdx = 0, treffer = 0, stil = 0, blitz = 0, offroadZeit = 0, shake = 0;
     let boostRest = 3, boostZeit = 0, vorbei = false, countdownPiep = 3;
-    let kamModus = 'chase';
+    let kamModus = 'chase', lenkZeiger = null;
 
     // Sammelsterne entlang der Strecke (Bonus!)
     const sterne = [];
@@ -493,9 +498,12 @@ const UI = (() => {
         e.preventDefault(); return;
       }
       lenk = x < W / 2 ? -1 : 1;
+      lenkZeiger = e.pointerId;      // Multi-Touch: Boost-Finger löst das Lenken nicht
       e.preventDefault();
     }
-    const zeigerHoch = () => { lenk = 0; };
+    const zeigerHoch = e => {
+      if (lenkZeiger === null || e.pointerId === lenkZeiger) { lenk = 0; lenkZeiger = null; }
+    };
 
     document.addEventListener('keydown', tasteRunter);
     document.addEventListener('keyup', tasteHoch);
@@ -639,6 +647,7 @@ const UI = (() => {
         if (abstand < 2.3 && auto.hitCd <= 0 && speed > 4) {
           treffer++; blitz = 300; shake = 400; auto.hitCd = 2; speed *= 0.55;
           piep(110, 260, 'sawtooth', 0.14);
+          brumm(60);
         }
         const rel = auto.s - roadS;
         if (auto.prevRel > 0 && rel <= 0 && abstand >= 2.3) {
@@ -1042,7 +1051,7 @@ const UI = (() => {
       ctx.restore();
       }
 
-      zeichneTouchPfeile(ctx, W, H);
+      zeichneTouchPfeile(ctx, W, H, lenk);
 
       // Kamera-Umschalter (Taste C oder Tippen)
       ctx.fillStyle = 'rgba(43,45,66,0.55)';
@@ -1111,12 +1120,14 @@ const UI = (() => {
   // ------------------------------------------------------ Minispiel-Gerüst
   const IST_TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 
-  function zeichneTouchPfeile(ctx, W, H) {
+  function zeichneTouchPfeile(ctx, W, H, aktiv) {
     if (!IST_TOUCH) return;
-    ctx.fillStyle = 'rgba(43,45,66,0.26)';
+    // Gedrückte Seite leuchtet auf – klares Touch-Feedback
+    ctx.fillStyle = aktiv < 0 ? 'rgba(230,57,70,0.55)' : 'rgba(43,45,66,0.26)';
     ctx.beginPath(); ctx.roundRect(8, H - 48, 52, 40, 10); ctx.fill();
+    ctx.fillStyle = aktiv > 0 ? 'rgba(230,57,70,0.55)' : 'rgba(43,45,66,0.26)';
     ctx.beginPath(); ctx.roundRect(66, H - 48, 52, 40, 10); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('◀', 34, H - 21);
     ctx.fillText('▶', 92, H - 21);
@@ -1479,6 +1490,7 @@ const UI = (() => {
         for (const auto of spur.autos) {
           if (Math.abs(auto.x - W / 2) < 34) {
             schrecks++; blitz = 300; reihe = 0; unverwundbar = 1.4;
+            brumm(70);
             for (const s2 of spuren)
               s2.autos = s2.autos.filter(a => Math.abs(a.x - W / 2) > 80);
             piep(300, 120, 'square', 0.12); setTimeout(() => piep(240, 200, 'square', 0.12), 110);
@@ -1537,7 +1549,7 @@ const UI = (() => {
       '🧃 Frischer Zumo – bring ihn heil zur Liege!',
       'Halte links/rechts (oder ← →) dagegen, damit nichts überschwappt. Barfuß auf heißen Fliesen – viel Erfolg.', 320);
 
-    let theta = 0, omega = 0, input = 0, fortschritt = 0;
+    let theta = 0, omega = 0, input = 0, fortschritt = 0, inputZeiger = null;
     let boeIn = 600, vorbei = false;
     const uhr = minispielUhr(canvas, ctx, W, H,
       ['Halte links/rechts dagegen (← →)', 'Bring den Zumo heil zur Liege!']);
@@ -1555,9 +1567,12 @@ const UI = (() => {
     function zeigerRunter(e) {
       const box = canvas.getBoundingClientRect();
       input = (e.clientX - box.left) / box.width * W < W / 2 ? -1 : 1;
+      inputZeiger = e.pointerId;
       e.preventDefault();
     }
-    const zeigerHoch = () => { input = 0; };
+    const zeigerHoch = e => {
+      if (inputZeiger === null || e.pointerId === inputZeiger) { input = 0; inputZeiger = null; }
+    };
     document.addEventListener('keydown', tasteRunter);
     document.addEventListener('keyup', tasteHoch);
     canvas.addEventListener('pointerdown', zeigerRunter);
@@ -1588,6 +1603,7 @@ const UI = (() => {
       fortschritt = Math.min(1, fortschritt + dt / 9);
 
       if (Math.abs(theta) > 0.55) {
+        brumm(60);
         fertig('💦', 'Platsch – der halbe Zumo ziert jetzt Fliesen und Badelatschen. Der Barmann grinst: „¡Otra vez!“',
           { stimmung: -1, stress: 1 });
         return;
@@ -1656,7 +1672,7 @@ const UI = (() => {
       ctx.strokeStyle = 'rgba(43,45,66,0.4)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(W / 2 - 110, H - 64); ctx.lineTo(W / 2 + 110, H - 64); ctx.stroke();
 
-      zeichneTouchPfeile(ctx, W, H);
+      zeichneTouchPfeile(ctx, W, H, input);
       uhr.zeichnen();
       requestAnimationFrame(schleife);
     }
@@ -2178,6 +2194,7 @@ const UI = (() => {
         fehl++; blitz = 250;
         hinweis = { text: 'Hier ist keine Lücke!', alter: 0 };
         piep(180, 150, 'sawtooth', 0.08);
+        brumm(50);
       }
     }
     function tasteRunter(e) {
@@ -2490,95 +2507,176 @@ const UI = (() => {
   }
 
   // ----------------------------------- Minispiel: Wettlauf um die Poolliegen
-  // Morgens am Pool: Schnapp dir eine freie Liege, bevor die anderen Gäste
-  // sie erreichen – vorne am Pool liegt es sich am schönsten.
+  // Punkt neun öffnet der Pool: Du steuerst dein Männchen selbst über die
+  // Terrasse – nur wenige Liegen sind frei, und die anderen Gäste rennen auch!
   function starteLiegenSpiel(fertigCb) {
     const { canvas, ctx, W, H } = minispielFenster(
       '🏖️ Der Wettlauf um die Poolliegen',
-      'Punkt neun öffnet der Pool – und alle wollen die besten Liegen! Tippe schnell auf eine freie ' +
-      'Liege (vorne am Pool = beste Lage), bevor andere Gäste sie erreichen.', 400);
+      'Nur <strong>3 Liegen sind frei</strong> – und alle wollen sie! Tippe aufs Spielfeld (oder zieh den Finger), ' +
+      'dein Männchen läuft dorthin. Pfeiltasten/WASD gehen auch. Erobere eine Liege, bevor die anderen da sind!', 400);
 
     const REIHEN_Y = [148, 218, 288];
     const SPALTEN_X = [52, 132, 212, 292];
+    const HANDTUECHER = ['#3a6ea5', '#2a9d8f', '#b03a2e', '#7b5aa6', '#c46a2b'];
     const liegen = [];
     for (let r = 0; r < 3; r++)
       for (let c = 0; c < 4; c++)
-        liegen.push({ r, c, x: SPALTEN_X[c], y: REIHEN_Y[r],
-          belegt: Math.random() < (r === 0 ? 0.45 : 0.3) });
-    if (!liegen.some(l => !l.belegt)) liegen[5].belegt = false;
-    const gaeste = [];
-    let spawnIn = 900, meins = null, vorbei = false;
+        liegen.push({ r, c, x: SPALTEN_X[c], y: REIHEN_Y[r], belegt: true });
+    // Nur 3 Liegen sind frei – der Rest ist längst „reserviert“
+    let freiZahl = 0;
+    while (freiZahl < 3) {
+      const l = liegen[Math.floor(Math.random() * liegen.length)];
+      if (l.belegt) { l.belegt = false; freiZahl++; }
+    }
+
+    // Dein Männchen startet am Eingang unten – Rivalen stürmen aus den Ecken
+    const du = { x: W / 2, y: H - 26, schritt: 0, blick: 1, tempo: 104 };
+    let ziel = null;
+    const tasten = { l: 0, r: 0, o: 0, u: 0 };
+    const rivalen = [];
+    for (let i = 0; i < 5; i++) {
+      const links = i % 2 === 0;
+      rivalen.push({
+        x: links ? -14 - i * 6 : W + 14 + i * 6,
+        y: 122 + (i * 53) % (H - 170),
+        tempo: 56 + Math.random() * 22 + i * 4,
+        start: 0.2 + i * 0.5,
+        icon: ['🧔', '👩', '🧓', '👦', '👱‍♀️'][i],
+        ziel: null, weg: false,
+      });
+    }
+    const staub = [];
+    let meins = null, verloren = false, vorbei = false, endeIn = -1, goAlter = 0;
     const uhr = minispielUhr(canvas, ctx, W, H,
-      ['Tippe schnell eine freie Liege an!', 'Vorne am Pool = beste Lage']);
+      ['Steuere dein Männchen 🏃', 'zu einer der 3 freien Liegen!']);
 
     function fertig(icon, text, effekte, extra) {
       if (vorbei) return;
       vorbei = true; aufraeumen();
       minispielErgebnis(icon, text, effekte, extra, fertigCb);
     }
-    function zeigerRunter(e) {
-      if (vorbei || meins) return;
+    // Tippen/Ziehen: das Männchen läuft zum Finger – Pfeiltasten gehen auch
+    function zielSetzen(e) {
       const box = canvas.getBoundingClientRect();
-      const mx = (e.clientX - box.left) / box.width * W;
-      const my = (e.clientY - box.top) / box.height * H;
-      for (const l of liegen) {
-        if (l.belegt || Math.abs(mx - l.x) > 34 || Math.abs(my - l.y) > 26) continue;
-        l.belegt = true; l.du = true; meins = l;
-        piep(720, 150, 'triangle', 0.08);
-        setTimeout(() => {
-          if (l.r === 0)
-            fertig('🏖️', 'Erste Reihe, direkt am Beckenrand! Du breitest dein Handtuch aus wie eine Siegesflagge. Heute gehört der Pool dir.',
-              { erholung: 8, stimmung: 5, stress: -5 }, ['🥇 Beste Lage!']);
-          else if (l.r === 1)
-            fertig('🏖️', 'Zweite Reihe mit Blick zwischen zwei Sonnenschirmen hindurch – völlig okay. Der Zumo schmeckt trotzdem.',
-              { erholung: 5, stimmung: 3, stress: -3 });
-          else
-            fertig('🏖️', 'Hinten beim Heckenrand ist es … schattig. Immerhin: eine Liege ist eine Liege.',
-              { erholung: 3, stimmung: 2, stress: -1 });
-        }, 900);
-        return;
-      }
+      ziel = {
+        x: Math.max(12, Math.min(W - 12, (e.clientX - box.left) / box.width * W)),
+        y: Math.max(114, Math.min(H - 16, (e.clientY - box.top) / box.height * H)),
+      };
       e.preventDefault();
     }
+    function zeigerRunter(e) { if (!vorbei && !meins && !verloren) zielSetzen(e); }
+    function zeigerZieh(e) { if (!vorbei && !meins && !verloren && e.buttons) zielSetzen(e); }
+    function tasteRunter(e) {
+      const map = { ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r', ArrowUp: 'o', w: 'o', ArrowDown: 'u', s: 'u' };
+      if (map[e.key]) { tasten[map[e.key]] = 1; ziel = null; e.preventDefault(); }
+    }
+    function tasteHoch(e) {
+      const map = { ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r', ArrowUp: 'o', w: 'o', ArrowDown: 'u', s: 'u' };
+      if (map[e.key]) tasten[map[e.key]] = 0;
+    }
     canvas.addEventListener('pointerdown', zeigerRunter);
+    canvas.addEventListener('pointermove', zeigerZieh);
+    document.addEventListener('keydown', tasteRunter);
+    document.addEventListener('keyup', tasteHoch);
     function aufraeumen() {
       uhr.aufraeumen();
       canvas.removeEventListener('pointerdown', zeigerRunter);
+      canvas.removeEventListener('pointermove', zeigerZieh);
+      document.removeEventListener('keydown', tasteRunter);
+      document.removeEventListener('keyup', tasteHoch);
     }
 
-    if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('🏖️', 'Liege gesichert!', { erholung: 3, stimmung: 2 }), 700);
+    if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('🏖️', 'Liege erobert!', { erholung: 3, stimmung: 2 }), 700);
+
+    function erobert(l) {
+      l.belegt = true; l.du = true; meins = l; ziel = null;
+      endeIn = 1.1;
+      piep(720, 150, 'triangle', 0.09); setTimeout(() => piep(950, 200, 'triangle', 0.09), 140);
+      brumm(40);
+    }
 
     function schleife(now) {
       if (vorbei) return;
       const t = uhr.tick(now);
       const dt = t.dt, zeit = t.zeit;
+      if (t.laeuft) goAlter += dt;
 
-      // Neue Gäste stürmen auf freie Liegen zu
-      spawnIn -= dt * 1000;
-      if (spawnIn <= 0 && !meins) {
-        spawnIn = 950 + Math.random() * 800;
-        const freie = liegen.filter(l => !l.belegt && !gaeste.some(g => g.ziel === l));
-        if (freie.length) {
-          freie.sort((a, b) => a.r - b.r);
-          const ziel = freie[Math.random() < 0.6 ? 0 : Math.floor(Math.random() * freie.length)];
-          const links = Math.random() < 0.5;
-          gaeste.push({ x: links ? -20 : W + 20, y: ziel.y + 26, ziel,
-            tempo: 62 + Math.random() * 30, icon: ['🚶', '🚶‍♀️', '🏃'][Math.floor(Math.random() * 3)] });
+      // Dein Männchen läuft
+      if (!meins && !verloren) {
+        let vx = tasten.r - tasten.l, vy = tasten.u - tasten.o;
+        if (vx || vy) {
+          const n = Math.hypot(vx, vy);
+          vx = vx / n * du.tempo; vy = vy / n * du.tempo;
+        } else if (ziel) {
+          const dx = ziel.x - du.x, dy = ziel.y - du.y, d = Math.hypot(dx, dy);
+          if (d > 4) { vx = dx / d * du.tempo; vy = dy / d * du.tempo; }
+          else ziel = null;
+        }
+        if (vx || vy) {
+          du.x = Math.max(12, Math.min(W - 12, du.x + vx * dt));
+          du.y = Math.max(114, Math.min(H - 12, du.y + vy * dt));
+          du.schritt += Math.hypot(vx, vy) * dt;
+          if (vx) du.blick = Math.sign(vx);
+          if (Math.random() < dt * 9)
+            staub.push({ x: du.x - du.blick * 7, y: du.y + 9, alter: 0 });
+        }
+        // Liege erreicht?
+        for (const l of liegen) {
+          if (!l.belegt && Math.hypot(l.x - du.x, l.y - du.y) < 24) { erobert(l); break; }
         }
       }
-      for (let i = gaeste.length - 1; i >= 0; i--) {
-        const g = gaeste[i];
-        if (g.ziel.belegt) {          // jemand war schneller → beleidigt abdrehen
-          g.x += (g.x < W / 2 ? -1 : 1) * g.tempo * dt;
-          if (g.x < -30 || g.x > W + 30) gaeste.splice(i, 1);
-          continue;
+
+      // Rivalen rennen zur nächstgelegenen freien Liege
+      for (const riv of rivalen) {
+        if (riv.weg || zeit < riv.start) continue;
+        if (!riv.ziel || riv.ziel.belegt) {
+          const freie = liegen.filter(l => !l.belegt);
+          if (!freie.length) { riv.weg = true; continue; }
+          riv.ziel = freie.reduce((a, b) =>
+            Math.hypot(a.x - riv.x, a.y - riv.y) < Math.hypot(b.x - riv.x, b.y - riv.y) ? a : b);
         }
-        g.x += Math.sign(g.ziel.x - g.x) * g.tempo * dt;
-        if (Math.abs(g.x - g.ziel.x) < 4) {
-          g.ziel.belegt = true;
-          gaeste.splice(i, 1);
+        const dx = riv.ziel.x - riv.x, dy = riv.ziel.y - riv.y, d = Math.hypot(dx, dy);
+        riv.x += dx / d * riv.tempo * dt;
+        riv.y += dy / d * riv.tempo * dt;
+        if (d < 12) {
+          riv.ziel.belegt = true;
+          riv.ziel.handtuch = HANDTUECHER[Math.floor(Math.random() * HANDTUECHER.length)];
+          riv.weg = true;
           piep(300, 90, 'square', 0.05);
         }
+      }
+
+      // Alle Liegen weg?
+      if (!meins && !verloren && !liegen.some(l => !l.belegt)) {
+        verloren = true; endeIn = 1.1;
+        piep(180, 300, 'sawtooth', 0.1);
+        brumm(80);
+      }
+      if (endeIn > 0) {
+        endeIn -= dt;
+        if (endeIn <= 0) {
+          if (meins) {
+            const schnell = zeit < 6 ? ' Und das in Rekordzeit!' : '';
+            if (meins.r === 0)
+              fertig('🏖️', 'Erste Reihe, direkt am Beckenrand! Du wirfst dein Handtuch wie eine Siegesflagge.' + schnell,
+                { erholung: 8, stimmung: 6, stress: -5 }, ['🥇 Beste Lage!']);
+            else if (meins.r === 1)
+              fertig('🏖️', 'Mittlere Reihe erkämpft – der Rentner neben dir nickt anerkennend. Sieg ist Sieg.' + schnell,
+                { erholung: 5, stimmung: 4, stress: -3 });
+            else
+              fertig('🏖️', 'Hinten an der Hecke, aber deine! Du lässt dich fallen wie nach einem Marathon.' + schnell,
+                { erholung: 3, stimmung: 3, stress: -1 });
+          } else {
+            fertig('😤', 'Alle Liegen weg – die Handtuch-Profis waren schneller. Bleibt nur der Platz auf den warmen Fliesen.',
+              { stress: 4, stimmung: -2 });
+          }
+          return;
+        }
+      }
+      if (!meins && !verloren && zeit > 30) {
+        fertig('🤷', 'Du kreist zu lange – am Ende teilst du dir den Schatten mit einem gelangweilten Hotelkater.',
+          { stimmung: 0, stress: 2 });
+        return;
       }
 
       // ————— Pool-Szene —————
@@ -2617,38 +2715,87 @@ const UI = (() => {
         if (l.du) {
           ctx.fillStyle = '#e63946';
           ctx.beginPath(); ctx.roundRect(l.x - 24, l.y - 10, 48, 22, 4); ctx.fill();
-          ctx.font = '18px serif'; ctx.fillText('😎', l.x, l.y + 8);
+          ctx.font = '18px serif'; ctx.textAlign = 'center'; ctx.fillText('😎', l.x, l.y + 8);
         } else if (l.belegt) {
-          ctx.fillStyle = ['#3a6ea5', '#2a9d8f', '#b03a2e', '#7b5aa6'][(l.r * 4 + l.c) % 4];
+          ctx.fillStyle = l.handtuch || ['#3a6ea5', '#2a9d8f', '#b03a2e', '#7b5aa6'][(l.r * 4 + l.c) % 4];
           ctx.beginPath(); ctx.roundRect(l.x - 24, l.y - 10, 48, 22, 4); ctx.fill();
-          ctx.font = '15px serif'; ctx.fillText('🧴', l.x + 14, l.y + 8);
-        } else if (Math.floor(zeit * 2) % 2 === 0) {
-          ctx.strokeStyle = '#2a9d8f'; ctx.lineWidth = 2.4;
+          ctx.font = '15px serif'; ctx.textAlign = 'center'; ctx.fillText('🧴', l.x + 14, l.y + 8);
+        } else {
+          // Freie Liege: pulsierender grüner Rahmen + Pfeil
+          const puls = 0.6 + 0.4 * Math.sin(zeit * 5);
+          ctx.strokeStyle = 'rgba(42,157,143,' + puls.toFixed(2) + ')'; ctx.lineWidth = 3;
           ctx.beginPath(); ctx.roundRect(l.x - 31, l.y - 17, 62, 36, 8); ctx.stroke();
+          gtaText(ctx, 'FREI', l.x, l.y - 22 - Math.sin(zeit * 5) * 3, 12, '#3ddc97');
         }
       }
       // Sonnenschirme zwischen den Reihen
-      ctx.font = '22px serif';
+      ctx.font = '22px serif'; ctx.textAlign = 'center';
       ctx.fillText('⛱️', 12, 140); ctx.fillText('⛱️', W - 12, 210);
-      // Gäste
-      for (const g of gaeste) { ctx.font = '20px serif'; ctx.fillText(g.icon, g.x, g.y); }
+
+      // Staubwolken der rennenden Füße
+      for (let i = staub.length - 1; i >= 0; i--) {
+        const s = staub[i];
+        s.alter += dt;
+        if (s.alter > 0.5) { staub.splice(i, 1); continue; }
+        ctx.fillStyle = 'rgba(160,150,130,' + (0.4 * (1 - s.alter / 0.5)).toFixed(2) + ')';
+        ctx.beginPath(); ctx.arc(s.x, s.y, 2 + s.alter * 7, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Rivalen (rennen sichtbar hektisch)
+      for (const riv of rivalen) {
+        if (riv.weg || zeit < riv.start) continue;
+        ctx.save();
+        ctx.translate(riv.x, riv.y + Math.abs(Math.sin(zeit * 12 + riv.start * 9)) * -2.5);
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.beginPath(); ctx.ellipse(0, 9, 8, 3, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.font = '20px serif'; ctx.textAlign = 'center';
+        ctx.fillText(riv.icon, 0, 7);
+        ctx.restore();
+      }
+
+      // Dein Männchen (blickt in Laufrichtung, federt beim Rennen)
+      if (!meins) {
+        const huepf = Math.abs(Math.sin(du.schritt * 0.12)) * -3;
+        ctx.save();
+        ctx.translate(du.x, du.y + huepf);
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        ctx.beginPath(); ctx.ellipse(0, 10 - huepf, 9, 3.4, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.scale(-du.blick, 1);
+        ctx.font = '24px serif'; ctx.textAlign = 'center';
+        ctx.fillText('🏃', 0, 8);
+        ctx.restore();
+        // Zielmarke, zu der das Männchen läuft
+        if (ziel) {
+          const puls = 4 + Math.sin(zeit * 8) * 2;
+          ctx.strokeStyle = 'rgba(230,57,70,0.8)'; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(ziel.x, ziel.y, 8 + puls, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = 'rgba(230,57,70,0.7)';
+          ctx.beginPath(); ctx.arc(ziel.x, ziel.y, 3, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      // Startsignal & Endbanner
+      if (goAlter > 0 && goAlter < 0.8) {
+        ctx.globalAlpha = 1 - goAlter / 0.8;
+        gtaText(ctx, '¡GO!', W / 2, H / 2 - 20, 54, '#3ddc97');
+        ctx.globalAlpha = 1;
+      }
+      if (meins) {
+        ctx.fillStyle = 'rgba(20,21,31,0.35)'; ctx.fillRect(0, 0, W, H);
+        gtaText(ctx, 'LIEGE EROBERT!', W / 2, H / 2 - 6, 30, '#ffd166');
+        gtaText(ctx, meins.r === 0 ? 'Beste Lage am Pool!' : meins.r === 1 ? 'Mittlere Reihe – solide!' : 'Hinten, aber deine!',
+          W / 2, H / 2 + 24, 15, '#fff');
+      } else if (verloren) {
+        ctx.fillStyle = 'rgba(20,21,31,0.4)'; ctx.fillRect(0, 0, W, H);
+        gtaText(ctx, 'ALLE WEG!', W / 2, H / 2, 34, '#ff5b6a');
+      }
 
       // HUD
       ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
-      gtaText(ctx, '🕘 Pool öffnet – schnell!', 8, 17, 11, '#ffd166', 'left');
+      gtaText(ctx, '🕘 Pool öffnet – lauf!', 8, 17, 11, '#ffd166', 'left');
       gtaText(ctx, 'frei: ' + liegen.filter(l => !l.belegt).length, W - 8, 17, 11, '#3ddc97', 'right');
       uhr.zeichnen();
 
-      if (!meins && !liegen.some(l => !l.belegt)) {
-        fertig('😤', 'Alle Liegen weg – die Handtuch-Profis waren schneller. Bleibt nur der Handtuch-Platz auf den Fliesen.',
-          { stress: 4, stimmung: -2 });
-        return;
-      }
-      if (!meins && zeit > 25) {
-        fertig('🤷', 'Du zögerst zu lange und teilst dir am Ende eine Liege mit deinem Buch – halb sitzend. Morgen bist du schneller.',
-          { stimmung: 0, stress: 2 });
-        return;
-      }
       requestAnimationFrame(schleife);
     }
     requestAnimationFrame(schleife);
@@ -2720,7 +2867,7 @@ const UI = (() => {
     let item = null, turbo = 0, blitzZeit = 0, schleuder = 0;
 
     let px = samples[0].x, pz = samples[0].z, heading = samples[0].richtung;
-    let speed = 0, lenk = 0, lenkIst = 0, gas = 0;
+    let speed = 0, lenk = 0, lenkIst = 0, gas = 0, lenkZeiger = null;
     let roadIdx = 0, gesamtIdx = 0, runden = 0, treffer = 0, stil = 0;
     let blitz = 0, offZeit = 0, vorbei = false, countdownPiep = 3;
 
@@ -2759,9 +2906,12 @@ const UI = (() => {
       const y = (e.clientY - box.top) / box.height * H;
       if (x > W - 60 && y > 30 && y < 72) { itemBenutzen(); e.preventDefault(); return; }
       lenk = x < W / 2 ? -1 : 1;
+      lenkZeiger = e.pointerId;
       e.preventDefault();
     }
-    const zeigerHoch = () => { lenk = 0; };
+    const zeigerHoch = e => {
+      if (lenkZeiger === null || e.pointerId === lenkZeiger) { lenk = 0; lenkZeiger = null; }
+    };
     document.addEventListener('keydown', tasteRunter);
     document.addEventListener('keyup', tasteHoch);
     canvas.addEventListener('pointerdown', zeigerRunter);
@@ -2874,6 +3024,7 @@ const UI = (() => {
         if (abstand < 2 && r.hitCd <= 0 && speed > 4) {
           treffer++; blitz = 300; r.hitCd = 2; speed *= 0.5;
           piep(110, 260, 'sawtooth', 0.14);
+          brumm(60);
         }
         const vor = ((Math.floor(r.idx) - roadIdx % N) + N) % N < N / 2;
         if (r.prevVor && !vor && abstand > 2 && abstand < 15) {
@@ -3009,7 +3160,7 @@ const UI = (() => {
       ctx.font = '22px serif';
       ctx.fillStyle = '#fff';
       ctx.fillText(item ? ITEM_ICON[item] : '·', W - 33, 61);
-      zeichneTouchPfeile(ctx, W, H);
+      zeichneTouchPfeile(ctx, W, H, lenk);
 
       if (seitStart < COUNTDOWN) {
         ctx.fillStyle = 'rgba(20,21,31,0.55)'; ctx.fillRect(0, 0, W, H);

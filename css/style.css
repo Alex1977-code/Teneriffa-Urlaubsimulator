@@ -427,6 +427,20 @@ button { font: inherit; cursor: pointer; }
 
 #fahrspiel-hilfe { font-size: 0.78rem; color: #8a8d9c; margin-top: 6px; }
 
+/* Handy-Feinschliff: volle Spielfläche, kein Tipp-Blitzen, kein Textmarkieren */
+#fahrt-overlay, #kino-overlay, #fahrspiel-canvas {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@media (max-width: 520px) {
+  #fahrt-overlay, #kino-overlay { padding: 6px; }
+  .fahrt-karte { padding: 14px 10px 16px; border-radius: 14px; }
+  .fahrt-karte h3 { font-size: 1.05rem; }
+  #fahrspiel-canvas { width: 100%; }
+}
+
 /* ------------------------------------------------------------- Kino-Moment */
 #kino-overlay { z-index: 95; background: rgba(8, 10, 20, 0.92); flex-direction: column; }
 
