@@ -28,7 +28,7 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
 - **Die Anreise als Echtzeit-Flug** – Boarding, Getränkeservice (mit Eiswürfeln, obwohl du
   „ohne“ gesagt hast …), mit Glück der Teide aus dem Fenster – mit Pech Verspätung, ein
   verlorener Koffer, der erst an Tag 3 nachgeliefert wird, oder das laute Zimmer zum Parkplatz.
-- **45 Aktivitäten an echten Orten** – von der Masca-Schlucht über die Teide-Seilbahn,
+- **46 Aktivitäten an echten Orten** – von der Masca-Schlucht über die Teide-Seilbahn,
   den Siam Park, Brunelli’s Steakhouse, die Pyramiden von Güímar, das Auditorio de
   Tenerife, La Tejita, den Chinyero und die Kartbahn im Süden bis zur Guachinche,
   die dir erst ein Einheimischer verraten muss. Gewohnt wird in echten Häusern der
@@ -50,7 +50,9 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Route vom Hotelort zur echten Position des Ziels. Mit dem Mietwagen kannst du
   **selbst ans Steuer** – eine echte 3D-Fahrt mit Verfolgerkamera im Open-World-Stil
   (eigene Mini-3D-Engine), per Taste C auch in klassischer **Draufsicht**. Wolken,
-  Meer am Horizont und gezeichnete Verkehrsautos inklusive – plus **Sammelsterne**
+  Meer am Horizont, kanarische Dörfer mit Terrakotta-Dächern am Straßenrand,
+  Bremslichter, Turbo-Flammen und ein ordentlicher Rumms samt Kamera-Wackler bei
+  Kollisionen – plus **Sammelsterne**
   auf jeder Strecke und das **Bonuslevel Kart-Rennen** auf der Kartbahn:
   Lenkung, Gas, Bremse und Turbo-Boost, langsamer Verkehr zum Überholen (Fahrstil-Punkte
   für Überholmanöver und knappe Ausweicher!), Hügelkuppen, Kurven-Warnschilder,
@@ -67,12 +69,18 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
 - **Bonuslevel & Minispiele** – das Kart-Rennen im Mario-Kart-Stil (?-Boxen mit Turbo,
   Bananen und Schock-Blitz, Boost-Pfeile, Platzierung gegen drei Rivalen mit
   Gummiband-KI), Koffer-Schnappen am Gepäckband, die Straßenüberquerung mit
-  temperamentvoller spanischer Fahrweise und der Zumo-Balance-Lauf am Pool.
+  temperamentvoller spanischer Fahrweise, der Zumo-Balance-Lauf und der morgendliche
+  Wettlauf um die besten Poolliegen, die Parkplatzsuche mit dem Mietwagen, das
+  Perlen-Merkspiel beim Haareflechten am Strandstand und der spontane spanische
+  Tanzabend als Rhythmusspiel im Takt der Band. Dazu der buchbare **Spieleabend in
+  der Hotelbar**: Farkle-Würfelduell gegen Karl (Einsen 100, Fünfen 50, Drillinge
+  Augenzahl × 100 – Gier wird mit dem Farkle bestraft).
   Alle Spiele sind voll touch-tauglich (sichtbare Lenk-Zonen, Tipp-Steuerung).
-- **Video-Qualität nach Wahl** – standardmäßig freie Wikimedia-Videos (mit klügerer
-  Auswahl nach Titel, Länge und Auflösung); optional lässt sich in der Anleitung ein
-  kostenloser Pexels-API-Schlüssel hinterlegen, dann kommen durchgehend hochwertige
-  Stock-Videos direkt ins Spiel.
+- **Ausflüge mit Vorschau buchen** – größere Ausflüge zeigen auf Wunsch erst ein
+  echtes Foto oder Video im Kino-Modus („▶ Vorschau“) und lassen sich von dort
+  direkt buchen.
+- **Freie Videos mit kluger Auswahl** – Wikimedia-Clips werden nach Titel-Treffern,
+  Länge und Auflösung bewertet, statt blind den ersten Treffer zu nehmen.
 
 ## 🔁 Suchtfaktor
 

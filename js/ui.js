@@ -268,17 +268,17 @@ const UI = (() => {
 
     const canvas = $('#fahrspiel-canvas');
     const ctx = canvas.getContext('2d');
-    const W = 340, H = 420;
+    const W = 420, H = 460;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = W * dpr; canvas.height = H * dpr;
-    canvas.style.width = 'min(340px, 100%)';
+    canvas.style.width = 'min(420px, 100%)';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // ————— GTA-Stil: echte 3D-Welt mit Verfolgerkamera —————
     // Eigene Mini-3D-Engine: Punkte werden perspektivisch projiziert, die
     // Kamera hängt mit Verzögerung hinter dem Auto, das wirklich lenkt.
-    const HORIZONT = 116;
-    const F = 235;                  // Brennweite (Pixel)
+    const HORIZONT = 150;
+    const F = 300;                  // Brennweite (Pixel)
     const KAM_H = 3.4;              // Kamerahöhe (m)
     const KAM_ABSTAND = 8.5;        // Kamera hinter dem Auto (m)
     const HALB = 6.4;               // halbe Fahrbahnbreite (m)
@@ -360,6 +360,25 @@ const UI = (() => {
           icon: ['🐐', '🕳️', '🚧'][Math.floor(Math.random() * 3)], gr: 2.4 });
       }
     }
+    // Kanarische Häuser & Fincas am Straßenrand: Dörfer am Start und am Ziel,
+    // dazwischen vereinzelte Höfe – weiße Wände, Terrakotta-Dächer.
+    const haeuser = [];
+    const WAENDE = ['#f4eee0', '#f6e7c6', '#eccfa4', '#f0e3d4'];
+    const DAECHER = ['#b35a38', '#a0522d', '#c26a44'];
+    const hausSetzen = s => {
+      const p = samplesBei(s), r = rechtsVon(p);
+      const seite = Math.random() < 0.5 ? -1 : 1;
+      const abstand = 13 + Math.random() * 9;
+      haeuser.push({ x: p.x + r.x * seite * abstand, z: p.z + r.z * seite * abstand,
+        b: 5 + Math.random() * 3, h: 3.4 + Math.random() * 1.6,
+        farbe: WAENDE[Math.floor(Math.random() * WAENDE.length)],
+        dach: DAECHER[Math.floor(Math.random() * DAECHER.length)] });
+    };
+    for (let s = 12; s < Math.min(80, S_END * 0.3); s += 14 + Math.random() * 10) hausSetzen(s);
+    for (let s = Math.max(0, S_END - 80); s < S_END - 8; s += 14 + Math.random() * 10) hausSetzen(s);
+    for (let s = 110; s < S_END - 110; s += 70 + Math.random() * 60)
+      if (Math.random() < 0.45) hausSetzen(s);
+
     const zielName = fahrt ? DATA.ZONEN[fahrt.nach].name.split(' ')[0].replace('Nordosten', 'Anaga') : 'Ziel';
     const endP = samplesBei(S_END), endR = rechtsVon(endP);
     const schild = { x: endP.x + endR.x * 9, z: endP.z + endR.z * 9, text: zielName };
@@ -384,7 +403,7 @@ const UI = (() => {
     // Spielzustand
     let px = samples[0].x, pz = samples[0].z, heading = samples[0].richtung;
     let camYaw = heading, speed = 0, lenk = 0, lenkIst = 0, gas = 0;
-    let roadIdx = 0, treffer = 0, stil = 0, blitz = 0, offroadZeit = 0;
+    let roadIdx = 0, treffer = 0, stil = 0, blitz = 0, offroadZeit = 0, shake = 0;
     let boostRest = 3, boostZeit = 0, vorbei = false, countdownPiep = 3;
     let kamModus = 'chase';
 
@@ -493,24 +512,61 @@ const UI = (() => {
       return a;
     };
 
-    function zeichneAuto(x, y, neigung) {
+    function zeichneAuto(x, y, neigung, bremst, boostet) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(neigung * 0.06);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      // Turbo-Flammen hinterm Heck
+      if (boostet) {
+        const fl = 10 + Math.random() * 12;
+        const flamme = ctx.createLinearGradient(0, 14, 0, 14 + fl);
+        flamme.addColorStop(0, 'rgba(255,209,102,0.95)');
+        flamme.addColorStop(1, 'rgba(230,57,70,0)');
+        ctx.fillStyle = flamme;
+        ctx.beginPath();
+        ctx.moveTo(-14, 12); ctx.lineTo(-8, 14 + fl); ctx.lineTo(-2, 12);
+        ctx.moveTo(2, 12); ctx.lineTo(8, 14 + fl); ctx.lineTo(14, 12);
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
       ctx.beginPath(); ctx.ellipse(0, 16, 30, 7, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#1d1f2a';
-      ctx.fillRect(-26, 4, 10, 12); ctx.fillRect(16, 4, 10, 12);
-      ctx.fillStyle = '#e63946';
-      ctx.beginPath(); ctx.roundRect(-24, -6, 48, 20, 6); ctx.fill();
-      ctx.fillStyle = '#f77f8b';
-      ctx.beginPath(); ctx.roundRect(-24, -6, 48, 7, [6, 6, 0, 0]); ctx.fill();
-      ctx.fillStyle = '#2b3a55';
-      ctx.beginPath(); ctx.roundRect(-15, -16, 30, 12, 4); ctx.fill();
-      ctx.fillStyle = '#e63946';
-      ctx.fillRect(-17, -19, 34, 5);
-      ctx.fillStyle = '#ffd166';
-      ctx.fillRect(-22, 2, 6, 4); ctx.fillRect(16, 2, 6, 4);
+      ctx.fillStyle = '#15161f';
+      ctx.beginPath(); ctx.roundRect(-27, 3, 11, 14, 3); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(16, 3, 11, 14, 3); ctx.fill();
+      // Karosserie mit Lackverlauf
+      const lack = ctx.createLinearGradient(0, -8, 0, 16);
+      lack.addColorStop(0, '#f2606c'); lack.addColorStop(0.45, '#e63946'); lack.addColorStop(1, '#a12633');
+      ctx.fillStyle = lack;
+      ctx.beginPath(); ctx.roundRect(-24, -6, 48, 21, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      ctx.beginPath(); ctx.roundRect(-24, -6, 48, 6, [7, 7, 0, 0]); ctx.fill();
+      // Kabine mit Heckscheibe
+      const glas = ctx.createLinearGradient(0, -17, 0, -3);
+      glas.addColorStop(0, '#3f5a86'); glas.addColorStop(1, '#22314d');
+      ctx.fillStyle = glas;
+      ctx.beginPath(); ctx.roundRect(-15, -17, 30, 13, 5); ctx.fill();
+      ctx.fillStyle = 'rgba(200,225,245,0.35)';
+      ctx.beginPath(); ctx.roundRect(-12, -15, 24, 5, 3); ctx.fill();
+      ctx.fillStyle = '#c9303f';
+      ctx.beginPath(); ctx.roundRect(-17, -20, 34, 5, 2); ctx.fill();
+      // Heckspoiler
+      ctx.fillStyle = '#801d28';
+      ctx.fillRect(-20, -22, 40, 3);
+      ctx.fillRect(-18, -19, 3, 4); ctx.fillRect(15, -19, 3, 4);
+      // Rücklichter: glühen beim Bremsen
+      ctx.fillStyle = bremst ? '#ff5b4d' : '#ffd166';
+      ctx.beginPath(); ctx.roundRect(-23, 4, 8, 5, 2); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(15, 4, 8, 5, 2); ctx.fill();
+      if (bremst) {
+        ctx.fillStyle = 'rgba(255,80,60,0.35)';
+        ctx.beginPath(); ctx.ellipse(-19, 7, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(19, 7, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      // Nummernschild
+      ctx.fillStyle = '#f5f0e6';
+      ctx.fillRect(-7, 7, 14, 6);
+      ctx.fillStyle = '#2b2d42'; ctx.font = 'bold 5px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('TFS', 0, 12);
       ctx.restore();
     }
 
@@ -559,7 +615,7 @@ const UI = (() => {
       // Abseits: Gerumpel & Zeitstrafe
       if (abseits && speed > 6) {
         offroadZeit += dt;
-        if (offroadZeit > 1.0) { treffer++; blitz = 300; offroadZeit = 0; piep(120, 200, 'sawtooth', 0.12); }
+        if (offroadZeit > 1.0) { treffer++; blitz = 300; shake = 240; offroadZeit = 0; piep(120, 200, 'sawtooth', 0.12); }
       } else offroadZeit = 0;
 
       // Verkehr bewegen, Kollisionen & Überholmanöver
@@ -572,7 +628,7 @@ const UI = (() => {
         auto.hitCd = Math.max(0, auto.hitCd - dt);
         const abstand = Math.hypot(auto.x - px, auto.z - pz);
         if (abstand < 2.3 && auto.hitCd <= 0 && speed > 4) {
-          treffer++; blitz = 300; auto.hitCd = 2; speed *= 0.55;
+          treffer++; blitz = 300; shake = 400; auto.hitCd = 2; speed *= 0.55;
           piep(110, 260, 'sawtooth', 0.14);
         }
         const rel = auto.s - roadS;
@@ -593,7 +649,7 @@ const UI = (() => {
         if (h.erledigt) continue;
         const abstand = Math.hypot(h.x - px, h.z - pz);
         if (abstand < 2.1 && speed > 4) {
-          h.erledigt = true; treffer++; blitz = 300; piep(110, 260, 'sawtooth', 0.14);
+          h.erledigt = true; treffer++; blitz = 300; shake = 400; piep(110, 260, 'sawtooth', 0.14);
         } else if (abstand < 3.6 && speed > 15 && Math.abs(winkelNorm(Math.atan2(h.x - px, h.z - pz) - heading)) > 1.7) {
           h.erledigt = true; stil += 5;
           schweber.push({ text: 'Riskant! +5', alter: 0 });
@@ -624,6 +680,13 @@ const UI = (() => {
       };
 
       // ————— Zeichnen —————
+      // Screen-Shake nach Kollisionen: der ganze Frame wackelt kurz
+      ctx.save();
+      if (shake > 0) {
+        const st = shake / 400;
+        ctx.translate((Math.random() - 0.5) * 9 * st, (Math.random() - 0.5) * 7 * st);
+        shake = Math.max(0, shake - dt * 1000);
+      }
       if (kamModus === 'chase') {
       // Himmel, Sonne & Teide (dreht mit der Blickrichtung)
       const himmel = ctx.createLinearGradient(0, 0, 0, HORIZONT);
@@ -645,8 +708,14 @@ const UI = (() => {
       if (!regnet && !truebe) {
         const sonneRel = winkelNorm(-1.8 - camYaw);
         if (Math.abs(sonneRel) < 1.2) {
+          const sx = W / 2 + Math.tan(sonneRel) * F;
+          const glut = ctx.createRadialGradient(sx, 40, 4, sx, 40, 44);
+          glut.addColorStop(0, 'rgba(255,240,190,0.9)');
+          glut.addColorStop(1, 'rgba(255,240,190,0)');
+          ctx.fillStyle = glut;
+          ctx.beginPath(); ctx.arc(sx, 40, 44, 0, Math.PI * 2); ctx.fill();
           ctx.fillStyle = calima ? '#f0d9a0' : '#ffe8a3';
-          ctx.beginPath(); ctx.arc(W / 2 + Math.tan(sonneRel) * F, 40, 16, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(sx, 40, 16, 0, Math.PI * 2); ctx.fill();
         }
       }
       // Meer am Horizont (gegenüber dem Teide) & Wolken
@@ -726,6 +795,7 @@ const UI = (() => {
           sx: W / 2 + pr.rx * F / pr.rz, sy: HORIZONT + KAM_H * F / pr.rz });
       };
       for (const o of objekte) sammle(o, 'deko');
+      for (const hs of haeuser) sammle(hs, 'haus');
       for (const h of hindernisse) if (!h.erledigt || h.icon !== '🐐') sammle(h, 'deko');
       for (const st of sterne) if (!st.weg) sammle(st, 'deko');
       for (const auto of verkehr) sammle(auto, 'auto');
@@ -745,6 +815,30 @@ const UI = (() => {
           ctx.fillText(s.o.text, s.sx, s.sy - sh / 2 - 1.4 * F / s.rz + 0.4 * F / s.rz);
           ctx.fillStyle = '#8a8d9c';
           ctx.fillRect(s.sx - 0.08 * F / s.rz, s.sy - 1.4 * F / s.rz, 0.16 * F / s.rz, 1.4 * F / s.rz);
+        } else if (s.art === 'haus') {
+          // Kanarisches Haus: weiße Wand, Terrakotta-Dach, Fenster & Tür
+          const q = F / s.rz;
+          const bw = s.o.b * q, bh = s.o.h * q;
+          ctx.fillStyle = 'rgba(0,0,0,0.2)';
+          ctx.beginPath(); ctx.ellipse(s.sx, s.sy + 1, bw * 0.55, bw * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = s.o.farbe;
+          ctx.fillRect(s.sx - bw / 2, s.sy - bh, bw, bh);
+          ctx.fillStyle = 'rgba(0,0,0,0.08)';
+          ctx.fillRect(s.sx + bw * 0.28, s.sy - bh, bw * 0.22, bh);
+          ctx.fillStyle = s.o.dach;
+          ctx.beginPath();
+          ctx.moveTo(s.sx - bw * 0.58, s.sy - bh);
+          ctx.lineTo(s.sx - bw * 0.3, s.sy - bh * 1.38);
+          ctx.lineTo(s.sx + bw * 0.3, s.sy - bh * 1.38);
+          ctx.lineTo(s.sx + bw * 0.58, s.sy - bh);
+          ctx.closePath(); ctx.fill();
+          if (bw > 14) {
+            ctx.fillStyle = 'rgba(43,60,90,0.85)';
+            ctx.fillRect(s.sx - bw * 0.34, s.sy - bh * 0.72, bw * 0.2, bh * 0.28);
+            ctx.fillRect(s.sx + bw * 0.14, s.sy - bh * 0.72, bw * 0.2, bh * 0.28);
+            ctx.fillStyle = '#7a5230';
+            ctx.fillRect(s.sx - bw * 0.09, s.sy - bh * 0.42, bw * 0.18, bh * 0.42);
+          }
         } else if (s.art === 'auto') {
           // Verkehr als gezeichnetes Auto (Heck- bzw. Frontansicht)
           const q = F / s.rz;
@@ -779,9 +873,10 @@ const UI = (() => {
       }
 
       // Auto: hängt in Kurven sichtbar seitlich in der Kamera (Chase-Cam-Gefühl)
-      const versatz = Math.max(-46, Math.min(46, Math.sin(winkelNorm(heading - camYaw)) * 150));
+      const versatz = Math.max(-52, Math.min(52, Math.sin(winkelNorm(heading - camYaw)) * 150));
       const ruettel = abseits && speed > 6 ? (Math.random() - 0.5) * 4 : 0;
-      zeichneAuto(W / 2 + versatz + ruettel, H - 58 + ruettel * 0.5, lenkIst + winkelNorm(heading - camYaw) * 2);
+      zeichneAuto(W / 2 + versatz + ruettel, H - 62 + ruettel * 0.5,
+        lenkIst + winkelNorm(heading - camYaw) * 2, gas < 0 && speed > 5, boostZeit > 0);
 
       } else {
         // ————— Top-Down-Ansicht (klassischer Draufsicht-Look) —————
@@ -816,6 +911,19 @@ const UI = (() => {
         ctx.setLineDash([12, 12]);
         ctx.stroke(pfad);
         ctx.setLineDash([]);
+
+        // Häuser als kleine Grundrisse mit Dachfarbe
+        for (const hs of haeuser) {
+          if (Math.hypot(hs.x - px, hs.z - pz) > 110) continue;
+          const p = topP(hs.x, hs.z);
+          const g = hs.b * skala * 0.6;
+          ctx.fillStyle = 'rgba(0,0,0,0.15)';
+          ctx.fillRect(p.sx - g / 2 + 1.5, p.sy - g / 2 + 1.5, g, g);
+          ctx.fillStyle = hs.dach;
+          ctx.fillRect(p.sx - g / 2, p.sy - g / 2, g, g);
+          ctx.strokeStyle = hs.farbe; ctx.lineWidth = 1.4;
+          ctx.strokeRect(p.sx - g / 2, p.sy - g / 2, g, g);
+        }
 
         // Objekte in Sichtweite
         ctx.textAlign = 'center';
@@ -980,6 +1088,7 @@ const UI = (() => {
       if (roadS >= S_END - 6 || fahrZeit > ZEITLIMIT) {
         vorbei = true;
         aufraeumen();
+        ctx.restore();
         ctx.fillStyle = 'rgba(43,45,66,0.55)'; ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
         ctx.font = 'bold 30px sans-serif';
@@ -997,6 +1106,7 @@ const UI = (() => {
         renderStats();
         return;
       }
+      ctx.restore();
       requestAnimationFrame(schleife);
     }
 
@@ -1204,6 +1314,7 @@ const UI = (() => {
     ];
     const FARBEN = ['#3a6ea5', '#d8d8d8', '#454754', '#c46a2b', '#7b5aa6', '#b03a2e'];
     let reihe = 0, schrecks = 0, blitz = 0, freundlich = false, vorbei = false, letzterSchritt = 0;
+    let unverwundbar = 0;   // kurze Schonfrist nach einem Schreckmoment
     const start = performance.now();
     let letztes = start;
 
@@ -1254,16 +1365,21 @@ const UI = (() => {
             moped, farbe: FARBEN[Math.floor(Math.random() * FARBEN.length)],
           });
         }
-        for (const auto of spur.autos) auto.x += spur.richtung * auto.tempo * dt * (freundlich ? 0 : 1);
+        // Im Freundlich-Modus räumen die Autos zügig die Straße, statt einzufrieren
+        for (const auto of spur.autos) auto.x += spur.richtung * auto.tempo * dt * (freundlich ? 3 : 1);
         spur.autos = spur.autos.filter(a => a.x > -90 && a.x < W + 90);
       }
 
-      // Schreckmoment: Auto kreuzt deine Reihe
-      if (reihe >= 1 && reihe <= 4 && !freundlich) {
+      // Schreckmoment: Auto kreuzt deine Reihe (mit Schonfrist danach,
+      // und die Autos in Fußgängernähe räumen die Kreuzungsspur)
+      unverwundbar = Math.max(0, unverwundbar - dt);
+      if (reihe >= 1 && reihe <= 4 && !freundlich && unverwundbar <= 0) {
         const spur = spuren[reihe - 1];
         for (const auto of spur.autos) {
           if (Math.abs(auto.x - W / 2) < 34) {
-            schrecks++; blitz = 300; reihe = 0;
+            schrecks++; blitz = 300; reihe = 0; unverwundbar = 1.4;
+            for (const s2 of spuren)
+              s2.autos = s2.autos.filter(a => Math.abs(a.x - W / 2) > 80);
             piep(300, 120, 'square', 0.12); setTimeout(() => piep(240, 200, 'square', 0.12), 110);
             if (schrecks >= 3) freundlich = true;
             break;
@@ -1301,7 +1417,8 @@ const UI = (() => {
         ctx.fillText('🙋 Ein Fahrer hält an und winkt dich rüber!', W / 2, 88);
       }
       ctx.font = '28px serif'; ctx.textAlign = 'center';
-      ctx.fillText('🚶', W / 2, REIHEN[reihe] + 10);
+      if (unverwundbar <= 0 || Math.floor(zeit * 8) % 2 === 0)
+        ctx.fillText('🚶', W / 2, REIHEN[reihe] + 10);
       ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#55586a';
       ctx.fillText('dein Café ☕', W / 2, 34);
       if (IST_TOUCH && reihe === 0 && zeit % 1.6 < 0.9) {
@@ -1442,6 +1559,998 @@ const UI = (() => {
       ctx.beginPath(); ctx.moveTo(W / 2 - 110, H - 64); ctx.lineTo(W / 2 + 110, H - 64); ctx.stroke();
 
       zeichneTouchPfeile(ctx, W, H);
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
+
+  // --------------------------- Minispiel: Spontaner spanischer Tanzabend
+  // Rhythmusspiel: Pfeile fallen im Takt der Band – triff sie an der Linie.
+  function starteTanzSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '💃 ¡Fiesta! Spontaner Tanzabend auf der Plaza',
+      'Eine Band spielt Rumba – die Runde zieht dich auf die Tanzfläche! Triff die Pfeile, wenn sie ' +
+      'die Linie erreichen: Pfeiltasten oder Spalte antippen.', 420);
+
+    const SPALTEN = [
+      { key: 'ArrowLeft', alt: 'a', symbol: '←', x: W / 2 - 108, farbe: '#e63946' },
+      { key: 'ArrowUp', alt: 'w', symbol: '↑', x: W / 2 - 36, farbe: '#f4a261' },
+      { key: 'ArrowDown', alt: 's', symbol: '↓', x: W / 2 + 36, farbe: '#2a9d8f' },
+      { key: 'ArrowRight', alt: 'd', symbol: '→', x: W / 2 + 108, farbe: '#7b5aa6' },
+    ];
+    const LINIE_Y = H - 86, TAKT = 560, FALLZEIT = 1900;
+    const noten = [];
+    {
+      let beat = 5;
+      for (let i = 0; i < 22; i++) {
+        noten.push({ spalte: Math.floor(Math.random() * 4), zeit: beat * TAKT });
+        beat += Math.random() < 0.3 ? 2 : 1;
+      }
+    }
+    let perfekt = 0, gut = 0, daneben = 0, letzterBeat = -1;
+    let feedback = null, vorbei = false;
+    const start = performance.now();
+    let letztes = start;
+
+    function fertig(icon, text, effekte, extra) {
+      if (vorbei) return;
+      vorbei = true; aufraeumen();
+      minispielErgebnis(icon, text, effekte, extra, fertigCb);
+    }
+    function schlag(spalte) {
+      if (vorbei) return;
+      const jetzt = performance.now() - start;
+      let beste = null, besteDiff = 1e9;
+      for (const n of noten) {
+        if (n.weg || n.spalte !== spalte) continue;
+        const diff = Math.abs(n.zeit - jetzt);
+        if (diff < besteDiff) { besteDiff = diff; beste = n; }
+      }
+      if (beste && besteDiff < 250) {
+        beste.weg = true;
+        if (besteDiff < 110) { perfekt++; feedback = { text: '¡Perfecto!', farbe: '#ffd166', alter: 0 }; piep(880, 90, 'triangle', 0.08); }
+        else { gut++; feedback = { text: '¡Bien!', farbe: '#9fe3c0', alter: 0 }; piep(660, 80, 'triangle', 0.06); }
+      } else {
+        daneben++;
+        feedback = { text: 'Uups …', farbe: '#f2a0a0', alter: 0 };
+        piep(170, 130, 'sawtooth', 0.07);
+      }
+    }
+    function tasteRunter(e) {
+      const i = SPALTEN.findIndex(s => s.key === e.key || s.alt === e.key);
+      if (i >= 0) { schlag(i); e.preventDefault(); }
+    }
+    function zeigerRunter(e) {
+      const box = canvas.getBoundingClientRect();
+      const x = (e.clientX - box.left) / box.width * W;
+      schlag(Math.max(0, Math.min(3, Math.floor((x - W / 2 + 144) / 72))));
+      e.preventDefault();
+    }
+    document.addEventListener('keydown', tasteRunter);
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    function aufraeumen() {
+      document.removeEventListener('keydown', tasteRunter);
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+    }
+
+    if (window.MINISPIEL_SCHNELL)
+      setTimeout(() => fertig('💃', 'Was für ein Abend!', { stimmung: 4, stress: -2 }), 700);
+
+    function schleife(now) {
+      if (vorbei) return;
+      const dt = Math.min(50, now - letztes) / 1000;
+      letztes = now;
+      const jetzt = now - start;
+
+      // Percussion im Takt (Klatschen + Bass)
+      const beat = Math.floor(jetzt / TAKT);
+      if (beat > letzterBeat) {
+        letzterBeat = beat;
+        piep(beat % 4 === 0 ? 200 : 150, 70, 'triangle', 0.05);
+        if (beat % 2 === 1) piep(1200, 30, 'square', 0.02);
+      }
+      const puls = 1 + 0.06 * Math.max(0, 1 - (jetzt % TAKT) / 180);
+
+      // Verpasste Noten
+      for (const n of noten) {
+        if (!n.weg && jetzt - n.zeit > 250) {
+          n.weg = true; daneben++;
+          feedback = { text: '¡Ay!', farbe: '#f2a0a0', alter: 0 };
+        }
+      }
+
+      // ————— Abendliche Plaza —————
+      const nacht = ctx.createLinearGradient(0, 0, 0, H);
+      nacht.addColorStop(0, '#1c2541'); nacht.addColorStop(0.55, '#3a506b'); nacht.addColorStop(1, '#5b4a68');
+      ctx.fillStyle = nacht; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#f5f0e6';
+      ctx.beginPath(); ctx.arc(W - 50, 46, 13, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = nacht; ctx.beginPath(); ctx.arc(W - 56, 42, 11, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 14; i++) {
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + (i * 37 % 10) / 18) + ')';
+        ctx.fillRect((i * 61 + 17) % W, (i * 43 + 11) % 90, 1.6, 1.6);
+      }
+      // Lichterkette
+      ctx.strokeStyle = 'rgba(255,220,150,0.35)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(0, 96);
+      ctx.quadraticCurveTo(W / 2, 130, W, 96); ctx.stroke();
+      for (let i = 1; i < 10; i++) {
+        const t = i / 10, lx = t * W, ly = 96 + Math.sin(Math.PI * t) * 25;
+        ctx.fillStyle = i % 2 ? '#ffd166' : '#f4a261';
+        ctx.beginPath(); ctx.arc(lx, ly + 4, 2.6 * puls, 0, Math.PI * 2); ctx.fill();
+      }
+      // Tanzende Menge & Band
+      ctx.font = Math.round(20 * puls) + 'px serif'; ctx.textAlign = 'center';
+      ctx.fillText('💃', 30, 156); ctx.fillText('🕺', W - 28, 152);
+      ctx.fillText('🕺', 56, 148); ctx.fillText('💃', W - 58, 158);
+      ctx.font = '16px serif';
+      ctx.fillText('🎸', 24, 118); ctx.fillText('🥁', W - 24, 118);
+
+      // Tanzfläche mit Spalten
+      ctx.fillStyle = 'rgba(43,45,66,0.4)';
+      ctx.fillRect(W / 2 - 144, 130, 288, H - 150);
+      for (const s of SPALTEN) {
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillRect(s.x - 30, 130, 60, H - 150);
+      }
+      // Ziel-Linie & Kreise
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(W / 2 - 140, LINIE_Y); ctx.lineTo(W / 2 + 140, LINIE_Y); ctx.stroke();
+      for (const s of SPALTEN) {
+        ctx.strokeStyle = s.farbe; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(s.x, LINIE_Y, 22 * puls, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillText(s.symbol, s.x, LINIE_Y + 7);
+      }
+      // Fallende Noten
+      for (const n of noten) {
+        if (n.weg) continue;
+        const y = LINIE_Y - (n.zeit - jetzt) / FALLZEIT * (LINIE_Y - 120);
+        if (y < 120 || y > H - 30) continue;
+        const s = SPALTEN[n.spalte];
+        ctx.fillStyle = s.farbe;
+        ctx.beginPath(); ctx.arc(s.x, y, 19, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 18px sans-serif';
+        ctx.fillText(s.symbol, s.x, y + 6);
+      }
+      // Feedback & Zähler
+      if (feedback) {
+        feedback.alter += dt;
+        if (feedback.alter > 0.8) feedback = null;
+        else {
+          ctx.globalAlpha = 1 - feedback.alter / 0.8;
+          ctx.fillStyle = feedback.farbe;
+          ctx.font = 'bold 26px sans-serif';
+          ctx.fillText(feedback.text, W / 2, 200 - feedback.alter * 40);
+          ctx.globalAlpha = 1;
+        }
+      }
+      ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
+      ctx.fillStyle = '#ffd166'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('✨ ' + perfekt + '  ·  👍 ' + gut + '  ·  😅 ' + daneben, 8, 16);
+      ctx.textAlign = 'right'; ctx.fillStyle = '#fff';
+      ctx.fillText(noten.filter(n => !n.weg).length + ' Schritte übrig', W - 8, 16);
+
+      // Vorbei?
+      const letzteNote = noten[noten.length - 1];
+      if (jetzt > letzteNote.zeit + 900) {
+        const quote = (perfekt + gut) / noten.length;
+        if (quote >= 0.85)
+          fertig('💃', 'Die Runde klatscht im Takt, jemand ruft „¡Olé!“ – du tanzt, als wärst du auf der Insel geboren. Ein Abend, den du nie vergisst.',
+            { stimmung: 10, erlebnis: 12, stress: -6 }, ['✨ Perfekt: ' + perfekt]);
+        else if (quote >= 0.5)
+          fertig('🕺', 'Ein paar Drehungen sitzen, ein paar gehen daneben – aber die Band nickt dir anerkennend zu.',
+            { stimmung: 6, erlebnis: 8, stress: -3 }, ['✨ Perfekt: ' + perfekt]);
+        else
+          fertig('😅', 'Deine Füße machen nicht alles mit, aber dein Grinsen stimmt. Die Señora neben dir tanzt einfach für euch beide.',
+            { stimmung: 3, erlebnis: 5 });
+        return;
+      }
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
+
+  // ----------------------------------- Minispiel: Farkle gegen Karl (Würfel)
+  // Klassisches Würfelspiel: Einsen & Fünfen zählen, Drillinge bringen mehr.
+  // Wer nach 3 Runden vorne liegt, gewinnt den Spieleabend.
+  function starteFarkleSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '🎲 Spieleabend: Farkle gegen Karl',
+      '<strong>1</strong> = 100 · <strong>5</strong> = 50 · Drilling = Augenzahl × 100 (drei Einsen: 1000).<br>' +
+      'Würfel antippen (oder Tasten 1–6) zum Behalten, dann weiterwürfeln oder sichern. ' +
+      'Kein Treffer im Wurf = <strong>Farkle</strong>, Zugpunkte weg!', 340);
+
+    const RUNDEN = 3;
+    let runde = 1, duPunkte = 0, karlPunkte = 0;
+    let feld = [], beiseite = 0, turnPunkte = 0;
+    let phase = 'start';   // start | wahl | karl | ende
+    let meldung = 'Dein Zug, Runde 1 – wirf die Würfel!';
+    let vorbei = false;
+    const timer = [];
+
+    const buttons = $('#fahrt-buttons');
+    const rollBtn = el('button', 'btn btn-primary', '🎲 Würfeln');
+    const bankBtn = el('button', 'btn', '💰 Punkte sichern');
+    buttons.appendChild(rollBtn); buttons.appendChild(bankBtn);
+
+    function logZeile(icon, text) {
+      $('#fahrt-log').appendChild(el('div', 'flug-zeile sichtbar',
+        `<span class="flug-zeile-icon">${icon}</span><div>${esc(text)}</div>`));
+    }
+    function fertig(icon, text, effekte, extra) {
+      if (vorbei) return;
+      vorbei = true; aufraeumen();
+      buttons.innerHTML = '';
+      minispielErgebnis(icon, text, effekte, extra, fertigCb);
+    }
+    function aufraeumen() {
+      timer.forEach(clearTimeout);
+      canvas.removeEventListener('pointerdown', klick);
+      document.removeEventListener('keydown', tasteRunter);
+    }
+    function wuerfelWaehlen(w) {
+      if (!w.gewaehlt && !istWaehlbar(w.wert)) { piep(180, 90, 'sawtooth', 0.05); return; }
+      w.gewaehlt = !w.gewaehlt;
+      piep(w.gewaehlt ? 520 : 320, 50, 'triangle', 0.05);
+      malen();
+    }
+    function tasteRunter(e) {
+      const idx = ['1', '2', '3', '4', '5', '6'].indexOf(e.key);
+      if (idx < 0 || vorbei || phase !== 'wahl' || !feld[idx]) return;
+      wuerfelWaehlen(feld[idx]);
+      e.preventDefault();
+    }
+    document.addEventListener('keydown', tasteRunter);
+
+    // Auswahl bewerten: Einsen/Fünfen einzeln, Drillinge komplett
+    function auswahlWertung() {
+      const zaehl = {};
+      for (const w of feld) if (w.gewaehlt) zaehl[w.wert] = (zaehl[w.wert] || 0) + 1;
+      let punkte = 0, gueltig = false;
+      for (const [f, c] of Object.entries(zaehl)) {
+        const wert = +f;
+        gueltig = true;
+        if (c >= 3) {
+          punkte += wert === 1 ? 1000 : wert * 100;
+          const rest = c - 3;
+          if (wert === 1) punkte += rest * 100;
+          else if (wert === 5) punkte += rest * 50;
+          else if (rest > 0) return { punkte: 0, gueltig: false };
+        } else if (wert === 1) punkte += c * 100;
+        else if (wert === 5) punkte += c * 50;
+        else return { punkte: 0, gueltig: false };
+      }
+      return { punkte, gueltig: gueltig && punkte > 0 };
+    }
+    function istWaehlbar(wert) {
+      if (wert === 1 || wert === 5) return true;
+      return feld.filter(w => w.wert === wert).length >= 3;
+    }
+    function hatZug() { return feld.some(w => istWaehlbar(w.wert)); }
+
+    function werfen(anzahl) {
+      feld = Array.from({ length: anzahl }, () => ({ wert: 1 + Math.floor(Math.random() * 6), gewaehlt: false }));
+      piep(320, 60, 'triangle', 0.06);
+      setTimeout(() => piep(260, 50, 'triangle', 0.05), 80);
+      if (!hatZug()) {
+        // Farkle! Zugpunkte futsch
+        turnPunkte = 0;
+        phase = 'karl';
+        meldung = '💥 Farkle! Kein Wurf zählt – deine Zugpunkte sind weg.';
+        piep(140, 300, 'sawtooth', 0.1);
+        malen();
+        timer.push(setTimeout(karlZug, 1600));
+        return;
+      }
+      phase = 'wahl';
+      meldung = 'Tippe Würfel an, die du behalten willst.';
+      malen();
+    }
+
+    rollBtn.addEventListener('click', () => {
+      if (vorbei) return;
+      if (phase === 'start') { werfen(6); return; }
+      if (phase !== 'wahl') return;
+      const a = auswahlWertung();
+      if (!a.gueltig) return;
+      turnPunkte += a.punkte;
+      beiseite += feld.filter(w => w.gewaehlt).length;
+      const rest = 6 - beiseite;
+      if (rest <= 0) beiseite = 0;              // „Hot Dice“: alle sechs neu!
+      werfen(rest <= 0 ? 6 : rest);
+    });
+    bankBtn.addEventListener('click', () => {
+      if (vorbei || phase !== 'wahl') return;
+      const a = auswahlWertung();
+      if (!a.gueltig) return;
+      turnPunkte += a.punkte;
+      duPunkte += turnPunkte;
+      logZeile('🙂', `Du sicherst ${turnPunkte} Punkte (gesamt ${duPunkte}).`);
+      piep(660, 140, 'triangle', 0.08);
+      turnPunkte = 0; beiseite = 0; feld = [];
+      phase = 'karl';
+      meldung = 'Karl schüttelt den Würfelbecher …';
+      malen();
+      timer.push(setTimeout(karlZug, 1400));
+    });
+
+    function karlZug() {
+      if (vorbei) return;
+      // Karl spielt solide: sichern ab 300, weiterwürfeln nur mit ≥3 Würfeln
+      let punkte = 0, frei = 6, farkle = false;
+      for (let sicher = 0; sicher < 20; sicher++) {
+        const zaehl = [0, 0, 0, 0, 0, 0, 0];
+        for (let i = 0; i < frei; i++) zaehl[1 + Math.floor(Math.random() * 6)]++;
+        let wurfPunkte = 0, genutzt = 0;
+        for (let f = 1; f <= 6; f++) {
+          if (zaehl[f] >= 3) {
+            wurfPunkte += f === 1 ? 1000 : f * 100;
+            genutzt += 3; zaehl[f] -= 3;
+          }
+        }
+        wurfPunkte += zaehl[1] * 100 + zaehl[5] * 50;
+        genutzt += zaehl[1] + zaehl[5];
+        if (wurfPunkte === 0) { farkle = true; punkte = 0; break; }
+        punkte += wurfPunkte; frei -= genutzt;
+        if (frei <= 0) frei = 6;
+        if (punkte >= 300 || frei <= 2) break;
+      }
+      karlPunkte += punkte;
+      logZeile(farkle ? '💥' : '🧔', farkle
+        ? 'Karl übertreibt es – Farkle! Null Punkte für ihn.'
+        : `Karl sichert ${punkte} Punkte (gesamt ${karlPunkte}).`);
+      if (runde >= RUNDEN) {
+        phase = 'ende';
+        malen();
+        timer.push(setTimeout(() => {
+          if (duPunkte > karlPunkte && duPunkte >= 800)
+            fertig('🏆', `${duPunkte}:${karlPunkte} – Karl starrt fassungslos auf den Becher und gibt dir eine Runde Barraquitos aus. „Revanche. Morgen!“`,
+              { stimmung: 8, erlebnis: 8, stress: -6 }, ['🎲 ' + duPunkte + ' Punkte']);
+          else if (duPunkte > karlPunkte)
+            fertig('🎲', `${duPunkte}:${karlPunkte} – knapper Sieg! Karl notiert das Ergebnis in einem kleinen Buch. Er führt Buch. Natürlich führt er Buch.`,
+              { stimmung: 6, erlebnis: 6, stress: -4 }, ['🎲 ' + duPunkte + ' Punkte']);
+          else if (duPunkte === karlPunkte)
+            fertig('🤝', `${duPunkte}:${karlPunkte} – Unentschieden! Ihr einigt euch auf ein Rückspiel bei Sonnenuntergang.`,
+              { stimmung: 4, erlebnis: 5, stress: -3 });
+          else
+            fertig('🧔', `${duPunkte}:${karlPunkte} – Karl gewinnt und poliert unsichtbare Pokale. Der Abend war trotzdem herrlich.`,
+              { stimmung: 3, erlebnis: 4, stress: -2 });
+        }, 1200));
+        return;
+      }
+      runde++;
+      phase = 'start';
+      meldung = `Dein Zug, Runde ${runde} – wirf die Würfel!`;
+      malen();
+    }
+
+    function klick(e) {
+      if (vorbei || phase !== 'wahl') return;
+      const box = canvas.getBoundingClientRect();
+      const mx = (e.clientX - box.left) / box.width * W;
+      const my = (e.clientY - box.top) / box.height * H;
+      for (const w of feld) {
+        if (Math.abs(mx - w.x) < 24 && Math.abs(my - w.y) < 24) { wuerfelWaehlen(w); return; }
+      }
+    }
+    canvas.addEventListener('pointerdown', klick);
+
+    function malWuerfel(x, y, gr, wert, gewaehlt, waehlbar) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath(); ctx.roundRect(-gr / 2 + 2, -gr / 2 + 3, gr, gr, 8); ctx.fill();
+      const flaeche = ctx.createLinearGradient(-gr / 2, -gr / 2, gr / 2, gr / 2);
+      flaeche.addColorStop(0, gewaehlt ? '#fff6dd' : '#ffffff');
+      flaeche.addColorStop(1, gewaehlt ? '#f5dfa8' : '#dfe3e8');
+      ctx.fillStyle = flaeche;
+      ctx.beginPath(); ctx.roundRect(-gr / 2, -gr / 2, gr, gr, 8); ctx.fill();
+      ctx.strokeStyle = gewaehlt ? '#f4a261' : waehlbar ? 'rgba(42,157,143,0.8)' : 'rgba(43,45,66,0.25)';
+      ctx.lineWidth = gewaehlt ? 3 : 2;
+      ctx.beginPath(); ctx.roundRect(-gr / 2, -gr / 2, gr, gr, 8); ctx.stroke();
+      ctx.fillStyle = '#2b2d42';
+      const p = gr * 0.22;
+      const punkt = (px2, py2) => { ctx.beginPath(); ctx.arc(px2, py2, gr * 0.09, 0, Math.PI * 2); ctx.fill(); };
+      if (wert % 2 === 1) punkt(0, 0);
+      if (wert >= 2) { punkt(-p, -p); punkt(p, p); }
+      if (wert >= 4) { punkt(p, -p); punkt(-p, p); }
+      if (wert === 6) { punkt(-p, 0); punkt(p, 0); }
+      ctx.restore();
+    }
+
+    function malen() {
+      // Hotelbar am Abend: warmes Licht, grüner Filz
+      const bar = ctx.createLinearGradient(0, 0, 0, H);
+      bar.addColorStop(0, '#4a3427'); bar.addColorStop(1, '#241a14');
+      ctx.fillStyle = bar; ctx.fillRect(0, 0, W, H);
+      const schein = ctx.createRadialGradient(W / 2, 60, 10, W / 2, 60, 200);
+      schein.addColorStop(0, 'rgba(255,214,140,0.22)'); schein.addColorStop(1, 'rgba(255,214,140,0)');
+      ctx.fillStyle = schein; ctx.fillRect(0, 0, W, H);
+      ctx.font = '15px serif'; ctx.textAlign = 'left';
+      ctx.fillText('🍹', 10, 26); ctx.fillText('🕯️', W - 26, 26);
+      ctx.fillStyle = '#1e4d36';
+      ctx.beginPath(); ctx.roundRect(12, 78, W - 24, H - 130, 16); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.roundRect(12, 78, W - 24, H - 130, 16); ctx.stroke();
+
+      // Punktetafel
+      ctx.fillStyle = 'rgba(43,45,66,0.75)'; ctx.fillRect(0, 40, W, 28);
+      ctx.fillStyle = '#ffd166'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('Du: ' + duPunkte, 12, 59);
+      ctx.textAlign = 'right'; ctx.fillStyle = '#f5f0e6';
+      ctx.fillText('Karl: ' + karlPunkte, W - 12, 59);
+      ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+      ctx.fillText('Runde ' + Math.min(runde, RUNDEN) + '/' + RUNDEN, W / 2, 59);
+
+      // Würfel im Feld
+      const gr = 44, abstand = 52;
+      const startX = W / 2 - ((feld.length - 1) * abstand) / 2;
+      feld.forEach((w, i) => {
+        w.x = startX + i * abstand;
+        w.y = w.gewaehlt ? 128 : 182;
+        malWuerfel(w.x, w.y, gr, w.wert, w.gewaehlt, istWaehlbar(w.wert));
+      });
+      if (beiseite > 0) {
+        ctx.fillStyle = 'rgba(245,240,230,0.7)'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText('🎲 beiseitegelegt: ' + beiseite, 24, 100);
+      }
+
+      // Zug-Punkte & Auswahl
+      const a = phase === 'wahl' ? auswahlWertung() : { punkte: 0, gueltig: false };
+      ctx.fillStyle = '#ffd166'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('Zug-Punkte: ' + turnPunkte + (a.punkte ? ' + ' + a.punkte : ''), W / 2, 236);
+      ctx.fillStyle = '#f5f0e6'; ctx.font = '12px sans-serif';
+      ctx.fillText(meldung, W / 2, 262);
+      if (phase === 'wahl' && !a.gueltig) {
+        ctx.fillStyle = 'rgba(245,240,230,0.65)'; ctx.font = '11px sans-serif';
+        ctx.fillText('Wähle mindestens eine 1, 5 oder einen Drilling.', W / 2, 282);
+      }
+
+      rollBtn.disabled = !(phase === 'start' || (phase === 'wahl' && a.gueltig));
+      bankBtn.disabled = !(phase === 'wahl' && a.gueltig);
+      rollBtn.textContent = phase === 'start' ? '🎲 Würfeln' : '🎲 Weiterwürfeln';
+      bankBtn.textContent = '💰 ' + (turnPunkte + a.punkte) + ' Punkte sichern';
+    }
+
+    if (window.MINISPIEL_SCHNELL)
+      timer.push(setTimeout(() => fertig('🎲', 'Ein schneller Spieleabend!', { stimmung: 4, stress: -3 }), 700));
+
+    malen();
+  }
+
+  // ----------------------------------- Minispiel: Parkplatzsuche in der Stadt
+  // Der Wagen rollt automatisch durch die Gasse – tippe im richtigen Moment,
+  // um in eine freie Lücke zu ziehen, bevor sie ein anderer schnappt.
+  function starteParkplatzSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '🅿️ Parkplatzsuche – wie immer ist alles voll',
+      'Dein Wagen rollt von allein durch die Gasse. Tippe (oder Leertaste/↑), sobald du neben einer ' +
+      'freien Lücke bist – aber Vorsicht, die Einheimischen sind schneller!', 420);
+
+    const N = 34, RASTER = 64, AUTO_Y = H * 0.66;
+    const FARBEN = ['#3a6ea5', '#d8d8d8', '#454754', '#c46a2b', '#7b5aa6', '#b03a2e', '#2a9d8f'];
+    const reihen = [];
+    for (let i = 0; i < N; i++) {
+      reihen.push({
+        links: Math.random() < 0.82 ? { farbe: FARBEN[Math.floor(Math.random() * FARBEN.length)] } : null,
+        rechts: Math.random() < 0.82 ? { farbe: FARBEN[Math.floor(Math.random() * FARBEN.length)] } : null,
+        palme: Math.random() < 0.25,
+      });
+    }
+    let weltY = 0, tempo = 88, fehl = 0, blitz = 0, vorbei = false;
+    let hinweis = null, geparkt = null;
+    const start = performance.now();
+    let letztes = start;
+
+    function fertig(icon, text, effekte, extra) {
+      if (vorbei) return;
+      vorbei = true; aufraeumen();
+      minispielErgebnis(icon, text, effekte, extra, fertigCb);
+    }
+    function parken() {
+      if (vorbei || geparkt) return;
+      const basis = weltY / RASTER;
+      let beste = null, besteAbstand = 1e9;
+      for (let r = Math.floor(basis) - 1; r <= Math.ceil(basis) + 1; r++) {
+        const reihe = reihen[((r % N) + N) % N];
+        const screenY = AUTO_Y - (r * RASTER - weltY);
+        if (Math.abs(screenY - AUTO_Y) > 30) continue;
+        for (const seite of ['links', 'rechts']) {
+          if (!reihe[seite] && Math.abs(screenY - AUTO_Y) < besteAbstand) {
+            besteAbstand = Math.abs(screenY - AUTO_Y);
+            beste = { reihe, seite, screenY };
+          }
+        }
+      }
+      if (beste) {
+        beste.reihe[beste.seite] = { farbe: '#e63946', du: true };
+        geparkt = { zeit: (performance.now() - start) / 1000 };
+        piep(660, 150, 'triangle', 0.08);
+        setTimeout(() => {
+          const z = geparkt.zeit;
+          if (z < 14 && fehl === 0)
+            fertig('🅿️', 'Erste Lücke, sauber eingeparkt, Applaus vom Café nebenan. Der Tag kann kommen!',
+              { stimmung: 5, stress: -4, erlebnis: 3 });
+          else if (z < 30)
+            fertig('🅿️', 'Ein paar Runden, ein bisschen Hupkonzert – aber die Lücke gehört dir.',
+              { stimmung: 3, stress: -1 });
+          else
+            fertig('🅿️', 'Irgendwann klappt es immer. Der Fußweg ist länger als geplant, aber hey: geparkt ist geparkt.',
+              { stimmung: 2, stress: 2 });
+        }, 900);
+      } else {
+        fehl++; blitz = 250;
+        hinweis = { text: 'Hier ist keine Lücke!', alter: 0 };
+        piep(180, 150, 'sawtooth', 0.08);
+      }
+    }
+    function tasteRunter(e) {
+      if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'w') { parken(); e.preventDefault(); }
+    }
+    const zeigerRunter = e => { parken(); e.preventDefault(); };
+    document.addEventListener('keydown', tasteRunter);
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    function aufraeumen() {
+      document.removeEventListener('keydown', tasteRunter);
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+    }
+
+    if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('🅿️', 'Geparkt!', { stimmung: 2 }), 700);
+
+    function autoZeichnen(x, y, farbe, quer) {
+      ctx.save();
+      ctx.translate(x, y);
+      if (quer) ctx.rotate(Math.PI / 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath(); ctx.ellipse(1.5, 2, 13, 21, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = farbe;
+      ctx.beginPath(); ctx.roundRect(-11, -20, 22, 40, 6); ctx.fill();
+      ctx.fillStyle = 'rgba(210,230,240,0.9)';
+      ctx.fillRect(-8, -12, 16, 8); ctx.fillRect(-8, 5, 16, 7);
+      ctx.restore();
+    }
+
+    function schleife(now) {
+      if (vorbei) return;
+      const dt = Math.min(50, now - letztes) / 1000;
+      letztes = now;
+      const zeit = (now - start) / 1000;
+
+      if (!geparkt) weltY += tempo * dt;
+
+      // Rivalen schnappen Lücken vor dir weg
+      if (!geparkt && Math.random() < dt * 0.22) {
+        const basis = Math.floor(weltY / RASTER);
+        const r = basis + 2 + Math.floor(Math.random() * 3);
+        const reihe = reihen[((r % N) + N) % N];
+        const seite = Math.random() < 0.5 ? 'links' : 'rechts';
+        if (!reihe[seite]) {
+          reihe[seite] = { farbe: FARBEN[Math.floor(Math.random() * FARBEN.length)], frisch: 1 };
+          hinweis = { text: '😤 Weggeschnappt!', alter: 0 };
+          piep(240, 120, 'square', 0.06);
+        }
+      }
+
+      // ————— Zeichnen: Gasse mit Parkbuchten —————
+      ctx.fillStyle = '#585a62'; ctx.fillRect(0, 0, W, H);
+      // Parkbuchten-Streifen links & rechts
+      ctx.fillStyle = '#4c4e56';
+      ctx.fillRect(0, 0, 96, H); ctx.fillRect(W - 96, 0, 96, H);
+      // Gehwege ganz außen
+      ctx.fillStyle = '#e8e0cf';
+      ctx.fillRect(0, 0, 22, H); ctx.fillRect(W - 22, 0, 22, H);
+      // Mittellinie
+      ctx.strokeStyle = 'rgba(245,240,230,0.5)'; ctx.lineWidth = 2;
+      ctx.setLineDash([16, 14]); ctx.lineDashOffset = weltY % 30;
+      ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
+      ctx.setLineDash([]);
+
+      const basis = Math.floor(weltY / RASTER);
+      for (let r = basis - 4; r <= basis + 5; r++) {
+        const reihe = reihen[((r % N) + N) % N];
+        const y = AUTO_Y - (r * RASTER - weltY);
+        if (y < -70 || y > H + 70) continue;
+        // Markierungen der Buchten
+        ctx.strokeStyle = 'rgba(245,240,230,0.55)'; ctx.lineWidth = 2;
+        for (const x0 of [24, W - 96]) {
+          ctx.strokeRect(x0, y - RASTER / 2 + 5, 72, RASTER - 10);
+        }
+        if (!reihe.links) {
+          ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText('P', 60, y + 8);
+        } else autoZeichnen(60, y, reihe.links.farbe, true);
+        if (!reihe.rechts) {
+          ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText('P', W - 60, y + 8);
+        } else autoZeichnen(W - 60, y, reihe.rechts.farbe, true);
+        if (reihe.palme) { ctx.font = '20px serif'; ctx.fillText('🌴', 11, y + 6); }
+      }
+
+      // Dein Auto (in der Fahrgasse, leicht links)
+      if (!geparkt) autoZeichnen(W / 2 - 34, AUTO_Y, '#e63946', false);
+      else {
+        ctx.fillStyle = 'rgba(43,45,66,0.5)'; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('🅿️ Geparkt!', W / 2, H / 2);
+      }
+
+      if (hinweis) {
+        hinweis.alter += dt;
+        if (hinweis.alter > 1.2) hinweis = null;
+        else {
+          ctx.globalAlpha = 1 - hinweis.alter / 1.2;
+          ctx.fillStyle = '#ffd166'; ctx.font = 'bold 17px sans-serif'; ctx.textAlign = 'center';
+          ctx.strokeStyle = 'rgba(43,45,66,0.8)'; ctx.lineWidth = 3;
+          ctx.strokeText(hinweis.text, W / 2, 130);
+          ctx.fillText(hinweis.text, W / 2, 130);
+          ctx.globalAlpha = 1;
+        }
+      }
+      if (blitz > 0) { blitz -= dt * 1000; ctx.fillStyle = 'rgba(230,57,70,0.18)'; ctx.fillRect(0, 0, W, H); }
+
+      // HUD
+      ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('⏱ ' + zeit.toFixed(0) + ' s', 8, 16);
+      ctx.textAlign = 'right';
+      ctx.fillText('📢 Fehlversuche: ' + fehl, W - 8, 16);
+      if (IST_TOUCH && !geparkt && zeit % 1.6 < 0.9) {
+        ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('👆 Tippen zum Einparken', W / 2, H - 12);
+      }
+
+      if (!geparkt && zeit > 45) {
+        fertig('🚶', 'Du gibst auf und parkst drei Straßen weiter am Ortsrand. Der Spaziergang ist … unfreiwillig.',
+          { stress: 4, stimmung: -2 });
+        return;
+      }
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
+
+  // ------------------------------- Minispiel: Haareflechten am Strandstand
+  // Merkspiel: Die Flechterin zeigt eine Perlen-Reihenfolge – tippe sie nach.
+  function starteFlechtenSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '💇 Haareflechten am Strandstand',
+      'Rosalía flicht dir Strähnchen mit bunten Perlen. Merk dir die Reihenfolge, in der die Perlen ' +
+      'aufleuchten – und tippe sie nach (oder Tasten 1–4)!', 400);
+
+    const PERLEN = [
+      { farbe: '#e63946', hell: '#f77f8b', x: W / 2 - 105 },
+      { farbe: '#ffd166', hell: '#ffe8ad', x: W / 2 - 35 },
+      { farbe: '#2a9d8f', hell: '#7fd4c9', x: W / 2 + 35 },
+      { farbe: '#7b5aa6', hell: '#b39ad1', x: W / 2 + 105 },
+    ];
+    const PERLE_Y = H - 64;
+    const RUNDEN = [3, 4, 5];
+    let runde = 0, folge = [], zeigeIdx = -1, eingabeIdx = 0;
+    let phase = 'intro';    // intro | zeigen | nachmachen | ende
+    let fehler = 0, geflochten = [], leuchtet = -1, vorbei = false;
+    let statusText = 'Rosalía sortiert die Perlen …';
+    const timer = [];
+    const start = performance.now();
+    let letztes = start;
+
+    function fertig(icon, text, effekte, extra) {
+      if (vorbei) return;
+      vorbei = true;
+      timer.forEach(clearTimeout);
+      aufraeumen();
+      minispielErgebnis(icon, text, effekte, extra, fertigCb);
+    }
+    function folgeZeigen() {
+      phase = 'zeigen';
+      statusText = 'Gut aufpassen …';
+      folge.forEach((p, i) => {
+        timer.push(setTimeout(() => {
+          leuchtet = p; zeigeIdx = i;
+          piep(330 + p * 110, 160, 'triangle', 0.07);
+          timer.push(setTimeout(() => { leuchtet = -1; }, 330));
+        }, 500 + i * 520));
+      });
+      timer.push(setTimeout(() => {
+        phase = 'nachmachen'; eingabeIdx = 0;
+        statusText = 'Jetzt du – in derselben Reihenfolge!';
+      }, 500 + folge.length * 520 + 200));
+    }
+    function rundeStarten() {
+      folge = Array.from({ length: RUNDEN[runde] }, () => Math.floor(Math.random() * 4));
+      folgeZeigen();
+    }
+    function eingabe(p) {
+      if (vorbei || phase !== 'nachmachen') return;
+      leuchtet = p;
+      timer.push(setTimeout(() => { leuchtet = -1; }, 200));
+      if (p === folge[eingabeIdx]) {
+        piep(330 + p * 110, 120, 'triangle', 0.06);
+        geflochten.push(p);
+        eingabeIdx++;
+        if (eingabeIdx >= folge.length) {
+          runde++;
+          if (runde >= RUNDEN.length) {
+            phase = 'ende';
+            statusText = '¡Qué guapa! Die Zöpfe sitzen.';
+            timer.push(setTimeout(() => {
+              if (fehler === 0)
+                fertig('💇', 'Jede Perle sitzt beim ersten Versuch – Rosalía will dich glatt als Aushilfe anstellen. Im Spiegel: Urlaubsfrisur der Extraklasse!',
+                  { stimmung: 7, erlebnis: 7, stress: -4 }, ['📿 Fehlerfrei!']);
+              else
+                fertig('💇', 'Ein Perlen-Patzer, aber das Ergebnis kann sich sehen lassen. Die Zöpfchen klackern bei jedem Schritt.',
+                  { stimmung: 5, erlebnis: 5, stress: -2 });
+            }, 1200));
+            return;
+          }
+          statusText = 'Sehr gut! Nächste Strähne …';
+          timer.push(setTimeout(rundeStarten, 1100));
+        }
+      } else {
+        fehler++;
+        piep(160, 260, 'sawtooth', 0.09);
+        if (fehler >= 2) {
+          fertig('😵‍💫', 'Zu viele bunte Perlen, zu viel Sonne – Rosalía lacht und flicht einfach frei Schnauze weiter. Sieht trotzdem gut aus!',
+            { stimmung: 3, erlebnis: 4 });
+          return;
+        }
+        statusText = 'Huch, falsche Perle! Schau nochmal genau hin.';
+        timer.push(setTimeout(folgeZeigen, 900));
+      }
+    }
+    function tasteRunter(e) {
+      const i = ['1', '2', '3', '4'].indexOf(e.key);
+      if (i >= 0) { eingabe(i); e.preventDefault(); }
+    }
+    function zeigerRunter(e) {
+      const box = canvas.getBoundingClientRect();
+      const mx = (e.clientX - box.left) / box.width * W;
+      const my = (e.clientY - box.top) / box.height * H;
+      if (Math.abs(my - PERLE_Y) < 34) {
+        let beste = 0, dist = 1e9;
+        PERLEN.forEach((p, i) => { if (Math.abs(mx - p.x) < dist) { dist = Math.abs(mx - p.x); beste = i; } });
+        if (dist < 36) eingabe(beste);
+      }
+      e.preventDefault();
+    }
+    document.addEventListener('keydown', tasteRunter);
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    function aufraeumen() {
+      document.removeEventListener('keydown', tasteRunter);
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+    }
+
+    if (window.MINISPIEL_SCHNELL)
+      setTimeout(() => fertig('💇', 'Schicke Zöpfe!', { stimmung: 3 }), 700);
+    else timer.push(setTimeout(rundeStarten, 900));
+
+    function schleife(now) {
+      if (vorbei) return;
+      const dt = Math.min(50, now - letztes) / 1000;
+      letztes = now;
+      const zeit = (now - start) / 1000;
+
+      // Strandkulisse
+      const himmel = ctx.createLinearGradient(0, 0, 0, 150);
+      himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
+      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, 150);
+      ctx.fillStyle = '#7ecbe8'; ctx.fillRect(0, 150, W, 46);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(0, 152 + Math.sin(zeit * 2) * 2);
+      ctx.quadraticCurveTo(W / 2, 158 + Math.sin(zeit * 2 + 1) * 3, W, 152);
+      ctx.stroke();
+      ctx.fillStyle = '#eeddb9'; ctx.fillRect(0, 196, W, H - 196);
+      ctx.font = '26px serif'; ctx.textAlign = 'center';
+      ctx.fillText('⛱️', 40, 190); ctx.fillText('🌴', W - 34, 186);
+      // Stand mit Rosalía
+      ctx.fillStyle = '#c96f4a';
+      ctx.fillRect(W / 2 - 66, 108, 132, 10);
+      for (const sx of [W / 2 - 60, W / 2 + 56]) ctx.fillRect(sx, 118, 5, 60);
+      ctx.fillStyle = '#f2ede2';
+      ctx.fillRect(W / 2 - 66, 96, 132, 12);
+      ctx.font = '30px serif';
+      ctx.fillText('👩🏽‍🦱', W / 2 - 30, 168);
+      ctx.font = '26px serif';
+      ctx.fillText('🙂', W / 2 + 26, 168);
+      // Geflochtene Strähne wächst mit jeder richtigen Perle
+      const basisX = W / 2 + 38, basisY = 178;
+      geflochten.forEach((p, i) => {
+        const gy = basisY + i * 13;
+        ctx.strokeStyle = '#6b4f2f'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(basisX + Math.sin(i * 1.4) * 4, gy - 10);
+        ctx.lineTo(basisX + Math.sin((i + 1) * 1.4) * 4, gy);
+        ctx.stroke();
+        ctx.fillStyle = PERLEN[p].farbe;
+        ctx.beginPath(); ctx.arc(basisX + Math.sin((i + 1) * 1.4) * 4, gy, 5, 0, Math.PI * 2); ctx.fill();
+      });
+      // Status
+      ctx.fillStyle = '#2b2d42'; ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(statusText, W / 2, 236);
+      ctx.font = '12px sans-serif'; ctx.fillStyle = '#55586a';
+      ctx.fillText('Strähne ' + Math.min(runde + 1, RUNDEN.length) + ' von ' + RUNDEN.length +
+        (fehler ? ' · 😅 ' + fehler + ' Patzer' : ''), W / 2, 258);
+
+      // Die vier Perlen-Knöpfe
+      PERLEN.forEach((p, i) => {
+        const aktiv = leuchtet === i;
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.beginPath(); ctx.ellipse(p.x, PERLE_Y + 26, 24, 6, 0, 0, Math.PI * 2); ctx.fill();
+        const kugel = ctx.createRadialGradient(p.x - 8, PERLE_Y - 10, 4, p.x, PERLE_Y, 30);
+        kugel.addColorStop(0, aktiv ? '#ffffff' : p.hell);
+        kugel.addColorStop(1, aktiv ? p.hell : p.farbe);
+        ctx.fillStyle = kugel;
+        ctx.beginPath(); ctx.arc(p.x, PERLE_Y, aktiv ? 30 : 25, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(43,45,66,0.35)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(p.x, PERLE_Y, aktiv ? 30 : 25, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = 'bold 13px sans-serif';
+        ctx.fillText(String(i + 1), p.x, PERLE_Y + 5);
+      });
+
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
+
+  // ----------------------------------- Minispiel: Wettlauf um die Poolliegen
+  // Morgens am Pool: Schnapp dir eine freie Liege, bevor die anderen Gäste
+  // sie erreichen – vorne am Pool liegt es sich am schönsten.
+  function starteLiegenSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '🏖️ Der Wettlauf um die Poolliegen',
+      'Punkt neun öffnet der Pool – und alle wollen die besten Liegen! Tippe schnell auf eine freie ' +
+      'Liege (vorne am Pool = beste Lage), bevor andere Gäste sie erreichen.', 400);
+
+    const REIHEN_Y = [148, 218, 288];
+    const SPALTEN_X = [52, 132, 212, 292];
+    const liegen = [];
+    for (let r = 0; r < 3; r++)
+      for (let c = 0; c < 4; c++)
+        liegen.push({ r, c, x: SPALTEN_X[c], y: REIHEN_Y[r],
+          belegt: Math.random() < (r === 0 ? 0.45 : 0.3) });
+    if (!liegen.some(l => !l.belegt)) liegen[5].belegt = false;
+    const gaeste = [];
+    let spawnIn = 900, meins = null, vorbei = false;
+    const start = performance.now();
+    let letztes = start;
+
+    function fertig(icon, text, effekte, extra) {
+      if (vorbei) return;
+      vorbei = true; aufraeumen();
+      minispielErgebnis(icon, text, effekte, extra, fertigCb);
+    }
+    function zeigerRunter(e) {
+      if (vorbei || meins) return;
+      const box = canvas.getBoundingClientRect();
+      const mx = (e.clientX - box.left) / box.width * W;
+      const my = (e.clientY - box.top) / box.height * H;
+      for (const l of liegen) {
+        if (l.belegt || Math.abs(mx - l.x) > 34 || Math.abs(my - l.y) > 26) continue;
+        l.belegt = true; l.du = true; meins = l;
+        piep(720, 150, 'triangle', 0.08);
+        setTimeout(() => {
+          if (l.r === 0)
+            fertig('🏖️', 'Erste Reihe, direkt am Beckenrand! Du breitest dein Handtuch aus wie eine Siegesflagge. Heute gehört der Pool dir.',
+              { erholung: 8, stimmung: 5, stress: -5 }, ['🥇 Beste Lage!']);
+          else if (l.r === 1)
+            fertig('🏖️', 'Zweite Reihe mit Blick zwischen zwei Sonnenschirmen hindurch – völlig okay. Der Zumo schmeckt trotzdem.',
+              { erholung: 5, stimmung: 3, stress: -3 });
+          else
+            fertig('🏖️', 'Hinten beim Heckenrand ist es … schattig. Immerhin: eine Liege ist eine Liege.',
+              { erholung: 3, stimmung: 2, stress: -1 });
+        }, 900);
+        return;
+      }
+      e.preventDefault();
+    }
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    function aufraeumen() { canvas.removeEventListener('pointerdown', zeigerRunter); }
+
+    if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('🏖️', 'Liege gesichert!', { erholung: 3, stimmung: 2 }), 700);
+
+    function schleife(now) {
+      if (vorbei) return;
+      const dt = Math.min(50, now - letztes) / 1000;
+      letztes = now;
+      const zeit = (now - start) / 1000;
+
+      // Neue Gäste stürmen auf freie Liegen zu
+      spawnIn -= dt * 1000;
+      if (spawnIn <= 0 && !meins) {
+        spawnIn = 950 + Math.random() * 800;
+        const freie = liegen.filter(l => !l.belegt && !gaeste.some(g => g.ziel === l));
+        if (freie.length) {
+          freie.sort((a, b) => a.r - b.r);
+          const ziel = freie[Math.random() < 0.6 ? 0 : Math.floor(Math.random() * freie.length)];
+          const links = Math.random() < 0.5;
+          gaeste.push({ x: links ? -20 : W + 20, y: ziel.y + 26, ziel,
+            tempo: 62 + Math.random() * 30, icon: ['🚶', '🚶‍♀️', '🏃'][Math.floor(Math.random() * 3)] });
+        }
+      }
+      for (let i = gaeste.length - 1; i >= 0; i--) {
+        const g = gaeste[i];
+        if (g.ziel.belegt) {          // jemand war schneller → beleidigt abdrehen
+          g.x += (g.x < W / 2 ? -1 : 1) * g.tempo * dt;
+          if (g.x < -30 || g.x > W + 30) gaeste.splice(i, 1);
+          continue;
+        }
+        g.x += Math.sign(g.ziel.x - g.x) * g.tempo * dt;
+        if (Math.abs(g.x - g.ziel.x) < 4) {
+          g.ziel.belegt = true;
+          gaeste.splice(i, 1);
+          piep(300, 90, 'square', 0.05);
+        }
+      }
+
+      // ————— Pool-Szene —————
+      const himmel = ctx.createLinearGradient(0, 0, 0, 96);
+      himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
+      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, 96);
+      // Pool mit Glitzern
+      ctx.fillStyle = '#37a3d6';
+      ctx.beginPath(); ctx.roundRect(20, 42, W - 40, 62, 18); ctx.fill();
+      ctx.fillStyle = '#61bfe4';
+      ctx.beginPath(); ctx.roundRect(26, 48, W - 52, 50, 14); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.4;
+      for (let i = 0; i < 5; i++) {
+        const wx = 40 + (i * 67 + zeit * 26) % (W - 80);
+        ctx.beginPath(); ctx.moveTo(wx, 58 + (i % 3) * 12);
+        ctx.quadraticCurveTo(wx + 9, 55 + (i % 3) * 12, wx + 18, 58 + (i % 3) * 12);
+        ctx.stroke();
+      }
+      ctx.font = '17px serif'; ctx.textAlign = 'center';
+      ctx.fillText('🏊', 90 + Math.sin(zeit * 0.8) * 40, 80);
+      // Terrasse
+      ctx.fillStyle = '#e8dbc0'; ctx.fillRect(0, 104, W, H - 104);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 42) { ctx.beginPath(); ctx.moveTo(x, 104); ctx.lineTo(x, H); ctx.stroke(); }
+      // Hecke hinten
+      ctx.fillStyle = '#7fae6d'; ctx.fillRect(0, H - 52, W, 18);
+
+      // Liegen
+      for (const l of liegen) {
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath(); ctx.ellipse(l.x + 2, l.y + 16, 30, 7, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f5f0e6';
+        ctx.beginPath(); ctx.roundRect(l.x - 28, l.y - 14, 56, 30, 6); ctx.fill();
+        ctx.fillStyle = 'rgba(43,45,66,0.15)';
+        ctx.fillRect(l.x - 28, l.y - 14, 56, 7);
+        if (l.du) {
+          ctx.fillStyle = '#e63946';
+          ctx.beginPath(); ctx.roundRect(l.x - 24, l.y - 10, 48, 22, 4); ctx.fill();
+          ctx.font = '18px serif'; ctx.fillText('😎', l.x, l.y + 8);
+        } else if (l.belegt) {
+          ctx.fillStyle = ['#3a6ea5', '#2a9d8f', '#b03a2e', '#7b5aa6'][(l.r * 4 + l.c) % 4];
+          ctx.beginPath(); ctx.roundRect(l.x - 24, l.y - 10, 48, 22, 4); ctx.fill();
+          ctx.font = '15px serif'; ctx.fillText('🧴', l.x + 14, l.y + 8);
+        } else if (Math.floor(zeit * 2) % 2 === 0) {
+          ctx.strokeStyle = '#2a9d8f'; ctx.lineWidth = 2.4;
+          ctx.beginPath(); ctx.roundRect(l.x - 31, l.y - 17, 62, 36, 8); ctx.stroke();
+        }
+      }
+      // Sonnenschirme zwischen den Reihen
+      ctx.font = '22px serif';
+      ctx.fillText('⛱️', 12, 140); ctx.fillText('⛱️', W - 12, 210);
+      // Gäste
+      for (const g of gaeste) { ctx.font = '20px serif'; ctx.fillText(g.icon, g.x, g.y); }
+
+      // HUD
+      ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('🕘 Pool öffnet – schnell!', 8, 16);
+      ctx.textAlign = 'right';
+      ctx.fillText('frei: ' + liegen.filter(l => !l.belegt).length, W - 8, 16);
+
+      if (!meins && !liegen.some(l => !l.belegt)) {
+        fertig('😤', 'Alle Liegen weg – die Handtuch-Profis waren schneller. Bleibt nur der Handtuch-Platz auf den Fliesen.',
+          { stress: 4, stimmung: -2 });
+        return;
+      }
+      if (!meins && zeit > 25) {
+        fertig('🤷', 'Du zögerst zu lange und teilst dir am Ende eine Liege mit deinem Buch – halb sitzend. Morgen bist du schneller.',
+          { stimmung: 0, stress: 2 });
+        return;
+      }
       requestAnimationFrame(schleife);
     }
     requestAnimationFrame(schleife);
@@ -1879,18 +2988,18 @@ const UI = (() => {
     $('#kino-overlay').classList.add('versteckt');
   }
 
-  function zeigeKino(motiv, titel, untertitel, weiterCb, fotoNeu) {
+  function zeigeKino(motiv, titel, untertitel, weiterCb, fotoNeu, buttonsDef) {
     const videoP = BILDER.videoHole(motiv);   // parallel zur Bildsuche starten
     Promise.race([BILDER.hole(motiv), wartezeit(1800)]).then(bild => {
       if (!bild) {
         // Kein Bild? Vielleicht gibt es wenigstens ein Video.
         Promise.race([videoP, wartezeit(2200)]).then(video => {
-          if (video) kinoOeffnen(motiv, null, video, titel, untertitel, weiterCb, fotoNeu);
+          if (video) kinoOeffnen(motiv, null, video, titel, untertitel, weiterCb, fotoNeu, buttonsDef);
           else weiterCb();
         });
         return;
       }
-      kinoOeffnen(motiv, bild, null, titel, untertitel, weiterCb, fotoNeu);
+      kinoOeffnen(motiv, bild, null, titel, untertitel, weiterCb, fotoNeu, buttonsDef);
       // Video nachladen und einblenden, sobald es bereit ist
       Promise.race([videoP, wartezeit(8000)]).then(video => {
         const overlay = $('#kino-overlay');
@@ -1946,7 +3055,7 @@ const UI = (() => {
     setTimeout(() => { if (aktiv) aufloesen(false); }, 7000);
   }
 
-  function kinoOeffnen(motiv, bild, video, titel, untertitel, weiterCb, fotoNeu) {
+  function kinoOeffnen(motiv, bild, video, titel, untertitel, weiterCb, fotoNeu, buttonsDef) {
     const overlay = $('#kino-overlay');
     overlay.dataset.motiv = motiv;
     const img = $('#kino-bild');
@@ -1964,9 +3073,17 @@ const UI = (() => {
 
     const buttons = $('#kino-buttons');
     buttons.innerHTML = '';
-    const weiter = el('button', 'btn btn-primary', '▶ Weiter');
-    weiter.addEventListener('click', () => { kinoSchliessen(); weiterCb(); });
-    buttons.appendChild(weiter);
+    if (buttonsDef && buttonsDef.length) {
+      buttonsDef.forEach((b, i) => {
+        const btn = el('button', 'btn' + (i === 0 ? ' btn-primary' : ''), b.text);
+        btn.addEventListener('click', b.cb);
+        buttons.appendChild(btn);
+      });
+    } else {
+      const weiter = el('button', 'btn btn-primary', '▶ Weiter');
+      weiter.addEventListener('click', () => { kinoSchliessen(); weiterCb(); });
+      buttons.appendChild(weiter);
+    }
     if (bild) {
       const quelle = el('a', 'btn btn-klein', '📷 Quelle');
       quelle.href = bild.artikelUrl; quelle.target = '_blank'; quelle.rel = 'noopener';
@@ -2255,10 +3372,32 @@ const UI = (() => {
       const img = karte.querySelector('img[data-motiv]');
       if (img) BILDER.anzeigen(img, motiv, true);
 
+      // Größere Ausflüge lassen sich vorab im Kino ansehen – und direkt buchen
+      if (!e.gesperrt && act.kosten >= 25 && motiv && BILDER.VIDEO_SUCHE[motiv]) {
+        const vorschau = el('span', 'chip chip-vorschau', '▶ Vorschau');
+        vorschau.setAttribute('role', 'button');
+        vorschau.title = 'Video/Foto ansehen und danach entscheiden';
+        vorschau.addEventListener('click', ev => { ev.stopPropagation(); zeigeVorschau(act); });
+        karte.querySelector('.akt-chips').appendChild(vorschau);
+      }
+
       if (!e.gesperrt) karte.addEventListener('click', () => aktivitaetWaehlen(act.id));
       else karte.disabled = true;
       raster.appendChild(karte);
     }
+  }
+
+  // Ausflug-Vorschau: erst das Video/Foto im Kino ansehen, dann entscheiden
+  function zeigeVorschau(act) {
+    const motiv = motivFuerAct(act);
+    if (!motiv) return;
+    zeigeKino(motiv, act.name,
+      'Vorschau · ' + (DATA.ZONEN[act.zone] ? DATA.ZONEN[act.zone].name : 'Teneriffa'),
+      () => toast('🎬 Gerade keine Vorschau verfügbar – buch einfach direkt!'),
+      false, [
+        { text: '✅ Jetzt buchen', cb: () => { kinoSchliessen(); aktivitaetWaehlen(act.id); } },
+        { text: '↩ Zurück', cb: () => kinoSchliessen() },
+      ]);
   }
 
   // ------------------------------------------------------------ Aktivitätsfluss
@@ -2304,19 +3443,38 @@ const UI = (() => {
       } else modalZeigen();
     };
 
-    // Minispiele: Kartbahn = Rennen; in der Stadt wartet der Verkehr,
-    // am Pool der frisch gepresste Zumo.
+    // Minispiele: Kartbahn = Rennen, Spieleabend = Farkle. Unterwegs warten
+    // Verkehr, Parkplatzsuche, Tanzabend, Flechtstand, Liegen-Wettlauf & Zumo –
+    // jedes einmal pro Urlaub, passend zu Ort und Tageszeit.
     if (res.act.id === 'karting') { starteKartRennen(kinoOderModal); return; }
+    if (res.act.id === 'spieleabend') { starteFarkleSpiel(kinoOderModal); return; }
     let vorspiel = null;
     if (Game.run) {
-      if (!Game.run.flags.strasseGespielt && res.act.zone !== 'hotel' &&
-          (res.act.tags.includes('bummeln') || res.act.tags.includes('kultur')) && Math.random() < 0.55) {
-        Game.bonusAnwenden({ flag: 'strasseGespielt' });
-        vorspiel = starteStrassenSpiel;
-      } else if (!Game.run.flags.saftGespielt &&
-                 (res.act.id === 'pool' || res.act.tags.includes('strand')) && Math.random() < 0.5) {
-        Game.bonusAnwenden({ flag: 'saftGespielt' });
-        vorspiel = starteSaftSpiel;
+      const r = Game.run, tags = res.act.tags, abends = r.slot === 2;
+      const kandidaten = [];
+      if (!r.flags.strasseGespielt && res.act.zone !== 'hotel' &&
+          (tags.includes('bummeln') || tags.includes('kultur')) && Math.random() < 0.55)
+        kandidaten.push(['strasseGespielt', starteStrassenSpiel]);
+      if (!r.flags.parkplatzGespielt && r.transport === 'mietwagen' && res.fahrt &&
+          (tags.includes('bummeln') || tags.includes('kultur') || tags.includes('restaurant')) &&
+          Math.random() < 0.5)
+        kandidaten.push(['parkplatzGespielt', starteParkplatzSpiel]);
+      if (!r.flags.tanzGespielt && abends && res.act.zone !== 'hotel' &&
+          (tags.includes('party') || tags.includes('bummeln') || tags.includes('restaurant')) &&
+          Math.random() < 0.5)
+        kandidaten.push(['tanzGespielt', starteTanzSpiel]);
+      if (!r.flags.zoepfeGespielt && tags.includes('strand') && res.act.zone !== 'hotel' &&
+          Math.random() < 0.4)
+        kandidaten.push(['zoepfeGespielt', starteFlechtenSpiel]);
+      if (!r.flags.liegenGespielt && res.act.id === 'pool' && Math.random() < 0.55)
+        kandidaten.push(['liegenGespielt', starteLiegenSpiel]);
+      if (!r.flags.saftGespielt && (res.act.id === 'pool' || tags.includes('strand')) &&
+          Math.random() < 0.5)
+        kandidaten.push(['saftGespielt', starteSaftSpiel]);
+      if (kandidaten.length) {
+        const [flagId, spiel] = kandidaten[Math.floor(Math.random() * kandidaten.length)];
+        Game.bonusAnwenden({ flag: flagId });
+        vorspiel = spiel;
       }
     }
     if (vorspiel) vorspiel(kinoOderModal);
@@ -2614,30 +3772,6 @@ const UI = (() => {
     $('#btn-album').addEventListener('click', () => { renderAlbum(); zeigeScreen('album'); });
     $('#btn-besten').addEventListener('click', () => { renderBesten(); zeigeScreen('besten'); });
     $('#btn-hilfe').addEventListener('click', () => zeigeScreen('hilfe'));
-
-    // Optionaler Pexels-Schlüssel für hochwertigere Videos
-    const pexelsFeld = $('#pexels-key'), pexelsStatus = $('#pexels-status');
-    const pexelsAnzeigen = () => {
-      let key = '';
-      try { key = localStorage.getItem('tus_pexels_key') || ''; } catch (e) { /* egal */ }
-      pexelsStatus.textContent = key
-        ? '✅ Schlüssel gespeichert – neue Kino-Momente nutzen jetzt Pexels-Videos.'
-        : 'Kein Schlüssel hinterlegt – es werden freie Wikimedia-Videos genutzt.';
-    };
-    if (pexelsFeld) {
-      pexelsAnzeigen();
-      $('#pexels-speichern').addEventListener('click', () => {
-        try {
-          const wert = pexelsFeld.value.trim();
-          if (wert) localStorage.setItem('tus_pexels_key', wert);
-          else localStorage.removeItem('tus_pexels_key');
-          localStorage.removeItem('tus_videos_v1');   // Cache leeren → neu suchen
-        } catch (e) { /* egal */ }
-        pexelsFeld.value = '';
-        pexelsAnzeigen();
-        toast('🎬 Video-Einstellung gespeichert.');
-      });
-    }
 
     document.querySelectorAll('.btn-zurueck').forEach(b =>
       b.addEventListener('click', () => { renderStart(); zeigeScreen(b.dataset.ziel); }));

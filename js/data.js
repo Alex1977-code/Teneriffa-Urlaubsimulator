@@ -132,6 +132,10 @@ const DATA = (() => {
       slots: [0, 1], dauer: 1, kosten: 35, energie: +10, erholung: +14, stimmung: +6, erlebnis: 3,
       sonne: 0, outdoor: 0, stress: -16, nurHotel: ['komfort', 'deluxe'], tags: ['entspannung'],
       desc: 'Massage, Dampfbad, Ruheraum mit Meerblick. Der Stress bleibt an der Tür.' },
+    { id: 'spieleabend', name: 'Spieleabend: Farkle in der Hotelbar', icon: '🎲', zone: 'hotel',
+      slots: [2], dauer: 1, kosten: 6, energie: +8, erholung: +6, stimmung: +5, erlebnis: 5,
+      stress: -5, sonne: 0, outdoor: 0, tags: ['entspannung'],
+      desc: 'In der Hotelbar rasseln die Würfel: Karl aus Wuppertal fordert dich zum Farkle heraus.' },
 
     // ————— Südküste —————
     { id: 'playa-americas', name: 'Strandtag Playa de las Américas', icon: '🏖️', zone: 'sued',
