@@ -299,6 +299,7 @@ const Game = (() => {
 
     run = {
       region: cfg.region, hotel: cfg.hotel, transport: cfg.transport, auto, dauer,
+      gruppe: cfg.gruppe === 'familie' ? 'familie' : 'single',
       tag: 1, slot: 1, // Tag 1: Ankunft am Mittag – der Vormittag geht für die Anreise drauf
       budget, energie: 65, stimmung: 70, erholung: 10, erlebnis: 0, sonnenbrand: 0,
       stress: 15, kofferWeg: false, kofferTag: 0, kofferVerloren: false,
@@ -330,6 +331,7 @@ const Game = (() => {
     for (const act of D.AKTIVITAETEN) {
       if (!act.slots.includes(run.slot)) continue;
       if (act.versteckt && !run.flags.guachincheEntdeckt) continue;
+      if (act.nurGruppe && run.gruppe !== act.nurGruppe) continue;
       if (act.minLevel && lvl < act.minLevel) continue;
       if (act.nurHotel && !act.nurHotel.includes(run.hotel)) continue;
 

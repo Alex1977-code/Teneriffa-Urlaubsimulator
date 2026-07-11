@@ -20,18 +20,20 @@ const UI = (() => {
   // ------------------------------------------------ Welt-Highscore (online)
   // Gemeinsame Online-Bestenliste (kvdb.io). Sobald hier eine Bucket-URL
   // steht, melden alle Spieler ihre Urlaube automatisch dorthin.
-  const HISCORE_URL = '';   // z. B. 'https://kvdb.io/AbCdEf1234/'
+  const HISCORE_FEST = '';   // globale Bucket-URL, sobald bekannt
+  const hiscoreUrl = () =>
+    HISCORE_FEST || localStorage.getItem('tus_hiscore_url') || '';
   function hiscoreSenden(score) {
-    if (!HISCORE_URL || !score) return;
+    if (!hiscoreUrl() || !score) return;
     const name = (localStorage.getItem('tus_name_v1') || 'Gast').slice(0, 14) || 'Gast';
-    fetch(HISCORE_URL + 's' + Date.now() + Math.floor(Math.random() * 1000), {
+    fetch(hiscoreUrl() + 's' + Date.now() + Math.floor(Math.random() * 1000), {
       method: 'PUT',
       body: name + '|' + score + '|' + new Date().toLocaleDateString('de-DE'),
     }).catch(() => { /* offline? macht nichts */ });
   }
   function hiscoreLaden() {
-    if (!HISCORE_URL) return Promise.resolve(null);
-    return fetch(HISCORE_URL + '?values=true&limit=500&format=json')
+    if (!hiscoreUrl()) return Promise.resolve(null);
+    return fetch(hiscoreUrl() + '?values=true&limit=500&format=json')
       .then(r => r.json())
       .then(liste => liste
         .map(([, v]) => {
@@ -2088,6 +2090,105 @@ const UI = (() => {
     requestAnimationFrame(schleife);
   }
 
+  // ------------------------------- Minispiel: Bar-Flirt (nur Single-Urlaub)
+  // Der Moment muss stimmen: Stoße genau dann an, wenn das Herz am größten ist.
+  function starteFlirtSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '💘 Ein Blick durch die Bar …',
+      'Jemand am Tresen lächelt herüber! Tippe (oder Leertaste), wenn das Herz <strong>am größten</strong> ist – ' +
+      'drei gute Momente, und der Abend gehört euch.', 380);
+    const uhr = minispielUhr(canvas, ctx, W, H, ['Tippe genau dann,', 'wenn das Herz am GRÖSSTEN ist!']);
+    let runde = 0, punkte = 0, feedback = null, vorbei = false, endeIn = -1, cooldown = 0;
+
+    function fertig(icon, text, effekte, extra) {
+      if (vorbei) return;
+      vorbei = true; aufraeumen();
+      minispielErgebnis(icon, text, effekte, extra, fertigCb);
+    }
+    const puls = () => (Math.sin(uhr.zeit * 2.7) + 1) / 2;
+    function schlag() {
+      if (vorbei || cooldown > 0 || endeIn > 0 || uhr.pausiert) return;
+      const p = puls();
+      cooldown = 0.7; runde++;
+      if (p > 0.86) { punkte += 2; feedback = { text: '¡Perfecto!', farbe: '#3ddc97', alter: 0 }; piep(880, 130, 'triangle', 0.08); brumm(30); }
+      else if (p > 0.6) { punkte += 1; feedback = { text: 'Charmant!', farbe: '#ffd166', alter: 0 }; piep(620, 100, 'triangle', 0.06); }
+      else { feedback = { text: 'Zu hektisch!', farbe: '#ff5b6a', alter: 0 }; piep(200, 160, 'sawtooth', 0.07); brumm(40); }
+      if (runde >= 3) endeIn = 1.0;
+    }
+    const zeigerRunter = e => { schlag(); e.preventDefault(); };
+    function tasteRunter(e) { if (e.key === ' ' || e.key === 'Enter') { schlag(); e.preventDefault(); } }
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    document.addEventListener('keydown', tasteRunter);
+    function aufraeumen() {
+      uhr.aufraeumen();
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+      document.removeEventListener('keydown', tasteRunter);
+    }
+    if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('💘', 'Was für ein Abend!', { stimmung: 4 }), 700);
+
+    function schleife(now) {
+      if (vorbei) return;
+      const t = uhr.tick(now);
+      const dt = t.dt;
+      cooldown = Math.max(0, cooldown - dt);
+      if (endeIn > 0) {
+        endeIn -= dt;
+        if (endeIn <= 0) {
+          if (punkte >= 5)
+            fertig('💘', 'Ihr redet, bis die Bar die Stühle hochstellt – und tauscht Nummern. Der Urlaub hat gerade ein Kapitel dazubekommen.',
+              { stimmung: 10, erlebnis: 10, stress: -5 }, ['💘 Voll verzaubert']);
+          else if (punkte >= 3)
+            fertig('🍹', 'Ein charmantes Gespräch, zwei Mojitos und ein Lächeln zum Abschied. Läuft.',
+              { stimmung: 6, erlebnis: 6, stress: -3 });
+          else
+            fertig('😅', 'Der Funke springt heute nicht über – aber der Mojito war ausgezeichnet.',
+              { stimmung: 2, erlebnis: 3 });
+          return;
+        }
+      }
+
+      // Bar-Szene bei Nacht
+      const bar = ctx.createLinearGradient(0, 0, 0, H);
+      bar.addColorStop(0, '#1c1030'); bar.addColorStop(1, '#3a1f47');
+      ctx.fillStyle = bar; ctx.fillRect(0, 0, W, H);
+      gtaText(ctx, '🍹 LA BARRACA', W / 2, 52, 20, '#ff7bd5');
+      ctx.fillStyle = 'rgba(255,123,213,0.15)';
+      ctx.beginPath(); ctx.ellipse(W / 2, 52, 110, 22, 0, 0, Math.PI * 2); ctx.fill();
+      // Tresen
+      ctx.fillStyle = '#5a3a28'; ctx.fillRect(30, 250, W - 60, 22);
+      ctx.fillStyle = '#40291c'; ctx.fillRect(30, 272, W - 60, 60);
+      ctx.font = '30px serif'; ctx.textAlign = 'center';
+      ctx.fillText('🙂', 74, 246);
+      ctx.fillText('😊', W - 74, 246);
+      ctx.font = '16px serif';
+      ctx.fillText('🍸', 116, 248); ctx.fillText('🍹', W - 116, 248);
+      // Das pulsierende Herz mit Zielring
+      const p = puls();
+      const gr = 20 + p * 46;
+      ctx.strokeStyle = 'rgba(61,220,151,0.65)'; ctx.lineWidth = 2.5;
+      ctx.setLineDash([5, 6]);
+      ctx.beginPath(); ctx.arc(W / 2, 168, 66, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = Math.round(gr * 2) + 'px serif';
+      ctx.fillText('❤️', W / 2, 168 + gr * 0.7);
+      if (feedback) {
+        feedback.alter += dt;
+        if (feedback.alter > 0.8) feedback = null;
+        else {
+          ctx.globalAlpha = 1 - feedback.alter / 0.8;
+          gtaText(ctx, feedback.text, W / 2, 110 - feedback.alter * 26, 24, feedback.farbe);
+          ctx.globalAlpha = 1;
+        }
+      }
+      ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
+      gtaText(ctx, 'Momente: ' + runde + '/3', 8, 17, 11, '#fff', 'left');
+      gtaText(ctx, '♥ ' + punkte, W - 8, 17, 11, '#ff7bd5', 'right');
+      uhr.zeichnen();
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
+
   // ----------------------------------- Minispiel: Farkle gegen Karl (Würfel)
   // Klassisches Würfelspiel: Einsen & Fünfen zählen, Drillinge bringen mehr.
   // Wer nach 3 Runden vorne liegt, gewinnt den Spieleabend.
@@ -3638,7 +3739,7 @@ const UI = (() => {
   }
 
   // ------------------------------------------------------------------- Setup
-  const cfg = { dauer: 7, region: 'sued', hotel: 'komfort', transport: 'mietwagen', auto: 'kompakt', items: [] };
+  const cfg = { dauer: 7, region: 'sued', hotel: 'komfort', transport: 'mietwagen', auto: 'kompakt', gruppe: 'single', items: [] };
 
   function optionsGruppe(titel, hinweis, optionen, aktiv, onWahl) {
     const wrap = el('div', 'setup-gruppe');
@@ -3666,6 +3767,13 @@ const UI = (() => {
       { id: 10, icon: '🔟', name: '10 Tage', desc: 'Zeit für den Norden' },
       { id: 14, icon: '🗓️', name: '2 Wochen', desc: 'Die ganze Insel' },
     ], cfg.dauer, id => { cfg.dauer = id; }));
+
+    inhalt.appendChild(optionsGruppe('🧑‍🤝‍🧑 Wer reist mit?', null, [
+      { id: 'single', icon: '🧑', name: 'Single-Urlaub',
+        desc: 'Volle Freiheit – und abends vielleicht ein Flirt an der Bar …' },
+      { id: 'familie', icon: '👨‍👩‍👧', name: 'Familienurlaub',
+        desc: 'Gemeinsam unterwegs – inklusive Shopping-Wettrennen in der Siam Mall.' },
+    ], cfg.gruppe, id => { cfg.gruppe = id; }));
 
     inhalt.appendChild(optionsGruppe('📍 Wo wohnst du?',
       'Der Süden ist sonnensicher, der Norden authentischer – und näher an Teide, Anaga & La Laguna.',
@@ -3968,6 +4076,9 @@ const UI = (() => {
           (tags.includes('bummeln') || tags.includes('kultur') || tags.includes('restaurant')) &&
           Math.random() < 0.5)
         kandidaten.push(['parkplatzGespielt', starteParkplatzSpiel]);
+      if (!r.flags.flirtbarGespielt && (r.gruppe || 'single') === 'single' && abends &&
+          tags.includes('party') && Math.random() < 0.6)
+        kandidaten.push(['flirtbarGespielt', starteFlirtSpiel]);
       if (!r.flags.tanzGespielt && abends && res.act.zone !== 'hotel' &&
           (tags.includes('party') || tags.includes('bummeln') || tags.includes('restaurant')) &&
           Math.random() < 0.5)
@@ -4142,15 +4253,30 @@ const UI = (() => {
     return `<div class="panel"><h3>🌍 Welt-Bestenliste</h3>
       <p class="besten-name">Dein Highscore-Name:
         <input id="hs-name" maxlength="14" placeholder="Gast" value="${esc(name)}"></p>
-      <div id="welt-liste"><p class="hint">${HISCORE_URL
+      <div id="welt-liste"><p class="hint">${hiscoreUrl()
         ? 'Lade Welt-Bestenliste …'
-        : 'Die weltweite Bestenliste wird gerade freigeschaltet – dein Name wird schon gespeichert und zählt ab dann automatisch mit!'}</p></div></div>`;
+        : 'Noch nicht eingerichtet – ein Klick genügt:'}</p></div>
+      ${hiscoreUrl() ? '' : '<button class="btn btn-primary" id="btn-hiscore-setup">🌍 Welt-Bestenliste jetzt einrichten</button>'}</div>`;
   }
   function weltPanelFuellen() {
     const eingabe = $('#hs-name');
     if (eingabe) eingabe.addEventListener('change', () =>
       localStorage.setItem('tus_name_v1', eingabe.value.trim().slice(0, 14)));
-    if (!HISCORE_URL) return;
+    const setup = $('#btn-hiscore-setup');
+    if (setup) setup.addEventListener('click', () => {
+      setup.disabled = true; setup.textContent = 'Richte ein …';
+      fetch('https://kvdb.io', { method: 'POST' })
+        .then(r => r.text())
+        .then(id => {
+          const url = 'https://kvdb.io/' + id.trim() + '/';
+          localStorage.setItem('tus_hiscore_url', url);
+          zeigeModal({ icon: '🌍', titel: 'Welt-Bestenliste eingerichtet!',
+            html: `<p>Dein Speicher läuft. Damit <strong>alle Spieler</strong> dieselbe Liste sehen, trage diese Adresse als <code>HISCORE_FEST</code> in js/ui.js ein (oder nenn sie Claude):</p><p><strong>${esc(url)}</strong></p>`,
+            buttons: [{ text: 'Alles klar!', cb: renderBesten }] });
+        })
+        .catch(() => { setup.disabled = false; setup.textContent = '🌍 Nochmal versuchen'; toast('❌ Einrichtung fehlgeschlagen – bitte später erneut.'); });
+    });
+    if (!hiscoreUrl()) return;
     hiscoreLaden().then(liste => {
       const ziel = $('#welt-liste');
       if (!ziel) return;

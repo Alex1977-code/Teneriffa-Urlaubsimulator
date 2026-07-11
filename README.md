@@ -86,9 +86,12 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
 - **Ausflüge mit Vorschau buchen** – größere Ausflüge zeigen auf Wunsch erst ein
   echtes Foto oder Video im Kino-Modus („▶ Vorschau“) und lassen sich von dort
   direkt buchen.
-- **Welt-Bestenliste** – jeder abgeschlossene Urlaub meldet sich (sobald der
-  gemeinsame Online-Speicher freigeschaltet ist) automatisch mit deinem
-  Highscore-Namen an die weltweite Bestenliste; lokal läuft die Rangliste immer.
+- **Single- oder Familienurlaub** – Familien erleben das Shopping-Wettrennen in
+  der Siam Mall, Singles stattdessen den Bar-Flirt: Tippe genau dann an, wenn das
+  Herz am größten ist – drei gute Momente, und der Abend gehört euch.
+- **Welt-Bestenliste** – in der Bestenliste per Klick einrichtbar: Jeder
+  abgeschlossene Urlaub meldet sich automatisch mit deinem Highscore-Namen an
+  die gemeinsame Online-Liste; lokal läuft die Rangliste immer.
 - **Mietwagen mit Charakter** – vier Autos von „Pulpo“ bis Cabrio „Sunset“:
   Preis, Tempo, Lenkverhalten, Regen-Grip, Gelände-Talent und Lackierung
   unterscheiden sich spürbar im 3D-Fahrspiel.

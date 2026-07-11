@@ -210,7 +210,7 @@ const DATA = (() => {
       desc: 'Feiner goldener Sand, Strandpavillons, glasklares Wasser – der eleganteste Strand der Costa Adeje.' },
     { id: 'siammall', name: 'Familien-Shopping in der Siam Mall', icon: '🛍️', zone: 'sued',
       slots: [0, 1], dauer: 1, kosten: 30, energie: -12, erholung: +2, stimmung: +8, erlebnis: 10,
-      sonne: 0, outdoor: 0, tags: ['bummeln'],
+      sonne: 0, outdoor: 0, tags: ['bummeln'], nurGruppe: 'familie',
       desc: 'Die Familie stürmt die Läden – und du? Suchst mal wieder einen Parkplatz. Wer ist schneller?' },
     { id: 'karting', name: 'Kartbahn Teneriffa Süd', icon: '🏎️', zone: 'sued',
       slots: [0, 1], dauer: 1, kosten: 30, energie: -18, erholung: 0, stimmung: +18, erlebnis: 20,
@@ -556,7 +556,7 @@ const DATA = (() => {
     // ————— Urlaubsflirt: eine kleine Geschichte in drei Akten —————
     { id: 'flirt-kennenlernen', icon: '💬', gewicht: 2,
       text: 'Du kommst mit %NAME% ins Gespräch – ihr lacht über dieselben Dinge, und die Zeit vergeht wie im Flug.',
-      bedingung: c => c.run.flirt.stufe === 0 &&
+      bedingung: c => (c.run.gruppe || 'single') !== 'familie' && c.run.flirt.stufe === 0 &&
         (c.act.tags.includes('strand') || c.act.tags.includes('party') ||
          c.act.tags.includes('bummeln') || c.act.id === 'pool'),
       wahl: [
