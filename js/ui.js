@@ -21,8 +21,16 @@ const UI = (() => {
   // Gemeinsame Online-Bestenliste (kvdb.io). Sobald hier eine Bucket-URL
   // steht, melden alle Spieler ihre Urlaube automatisch dorthin.
   const HISCORE_FEST = '';   // globale Bucket-URL, sobald bekannt
-  const hiscoreUrl = () =>
-    HISCORE_FEST || localStorage.getItem('tus_hiscore_url') || '';
+  const HISCORE_MUSTER = /^https:\/\/kvdb\.io\/[A-Za-z0-9]{6,}\/$/;
+  function hiscoreUrl() {
+    if (HISCORE_FEST) return HISCORE_FEST;
+    const lokal = localStorage.getItem('tus_hiscore_url') || '';
+    if (lokal && !HISCORE_MUSTER.test(lokal)) {
+      localStorage.removeItem('tus_hiscore_url');   // kaputte Einrichtung aufräumen
+      return '';
+    }
+    return lokal;
+  }
   function hiscoreSenden(score) {
     if (!hiscoreUrl() || !score) return;
     const name = (localStorage.getItem('tus_name_v1') || 'Gast').slice(0, 14) || 'Gast';
@@ -4295,17 +4303,32 @@ const UI = (() => {
       localStorage.setItem('tus_name_v1', eingabe.value.trim().slice(0, 14)));
     const setup = $('#btn-hiscore-setup');
     if (setup) setup.addEventListener('click', () => {
+      // kvdb.io verlangt beim Anlegen eine Kontakt-E-Mail (nur für den Speicher)
+      const mail = (prompt('Für den kostenlosen Online-Speicher (kvdb.io) wird eine ' +
+        'E-Mail-Adresse benötigt – sie wird nur an kvdb.io übermittelt:', '') || '').trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(mail)) {
+        toast('❌ Bitte eine gültige E-Mail-Adresse eingeben.');
+        return;
+      }
       setup.disabled = true; setup.textContent = 'Richte ein …';
-      fetch('https://kvdb.io', { method: 'POST' })
+      fetch('https://kvdb.io', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'email=' + encodeURIComponent(mail),
+      })
         .then(r => r.text())
         .then(id => {
           const url = 'https://kvdb.io/' + id.trim() + '/';
+          if (!HISCORE_MUSTER.test(url)) throw new Error(id.trim().slice(0, 120));
           localStorage.setItem('tus_hiscore_url', url);
           zeigeModal({ icon: '🌍', titel: 'Welt-Bestenliste eingerichtet!',
             html: `<p>Dein Speicher läuft. Damit <strong>alle Spieler</strong> dieselbe Liste sehen, trage diese Adresse als <code>HISCORE_FEST</code> in js/ui.js ein (oder nenn sie Claude):</p><p><strong>${esc(url)}</strong></p>`,
             buttons: [{ text: 'Alles klar!', cb: renderBesten }] });
         })
-        .catch(() => { setup.disabled = false; setup.textContent = '🌍 Nochmal versuchen'; toast('❌ Einrichtung fehlgeschlagen – bitte später erneut.'); });
+        .catch(err => {
+          setup.disabled = false; setup.textContent = '🌍 Nochmal versuchen';
+          toast('❌ Einrichtung fehlgeschlagen: ' + esc(String(err && err.message || err).slice(0, 90)));
+        });
     });
     if (!hiscoreUrl()) return;
     hiscoreLaden().then(liste => {
