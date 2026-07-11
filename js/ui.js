@@ -326,6 +326,29 @@ const UI = (() => {
     } catch (e) { /* kein Ton verfügbar – halb so wild */ }
   }
 
+  // Echte Ortsfotos als Spielkulissen (Wikipedia) – geladen und gecacht;
+  // ohne Netz greift überall der gezeichnete Look.
+  const fotoCache = {};
+  function fotoLaden(motiv) {
+    if (fotoCache[motiv]) return fotoCache[motiv];
+    if (fotoCache[motiv] === null) return null;
+    fotoCache[motiv] = null;
+    try {
+      BILDER.hole(motiv).then(bild => {
+        if (!bild) return;
+        const img = new Image();
+        img.onload = () => { fotoCache[motiv] = img; };
+        img.src = bild.url;
+      }).catch(() => {});
+    } catch (e) { /* egal */ }
+    return null;
+  }
+  function fotoStreifen(ctx, img, x, y, b, h) {
+    const q = Math.max(b / img.width, h / img.height);
+    const sw = b / q, sh = h / q;
+    ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, x, y, b, h);
+  }
+
   // Haptik: kurzes Vibrieren auf dem Handy (wo der Browser es erlaubt)
   function brumm(ms) {
     try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* egal */ }
@@ -378,6 +401,9 @@ const UI = (() => {
     };
     const thema = THEMEN[zielZone] || THEMEN.sued;
     const wagen = (Game.run && DATA.AUTOS[Game.run.auto]) || DATA.AUTOS.kompakt;
+    const panoMotiv = { sued: 'playa-americas', west: 'losgigantes', teide: 'teide',
+      nord: 'puerto', anaga: 'anaga' }[zielZone] || 'teide';
+    fotoLaden(panoMotiv);
     let wetterId = 'sonnig';
     try { wetterId = Game.wetterFuerZone(zielZone, Game.run.tag); } catch (e) { /* egal */ }
     const regnet = wetterId === 'regen';
@@ -455,6 +481,26 @@ const UI = (() => {
     for (let s = Math.max(0, S_END - 80); s < S_END - 8; s += 14 + Math.random() * 10) hausSetzen(s);
     for (let s = 110; s < S_END - 110; s += 70 + Math.random() * 60)
       if (Math.random() < 0.45) hausSetzen(s);
+
+    // Leitplanken in den Kurven & Werbetafeln – 90er-Rennspiel-Look
+    const planken = [];
+    for (let sp = 20; sp < S_END - 10; sp += 9) {
+      const dr = samplesBei(sp + 24).richtung - samplesBei(sp).richtung;
+      if (Math.abs(dr) > 0.22) {
+        const pp = samplesBei(sp), rp = rechtsVon(pp);
+        const seiteP = -Math.sign(dr);
+        planken.push({ x: pp.x + rp.x * seiteP * (HALB + 1.1), z: pp.z + rp.z * seiteP * (HALB + 1.1) });
+      }
+    }
+    const REKLAME = ['SIAM PARK', 'LORO PARQUE', 'CASA DEL VINO', 'KART CLUB', 'EL MÉDANO SURF'];
+    const plakate = [];
+    for (let i = 0; i < 3; i++) {
+      const sq = S_END * (0.22 + i * 0.27);
+      const pq = samplesBei(sq), rq = rechtsVon(pq);
+      const seiteQ = i % 2 ? -1 : 1;
+      plakate.push({ x: pq.x + rq.x * seiteQ * 12, z: pq.z + rq.z * seiteQ * 12,
+        text: REKLAME[(hops + i) % REKLAME.length] });
+    }
 
     const zielName = fahrt ? DATA.ZONEN[fahrt.nach].name.split(' ')[0].replace('Nordosten', 'Anaga') : 'Ziel';
     const endP = samplesBei(S_END), endR = rechtsVon(endP);
@@ -779,8 +825,26 @@ const UI = (() => {
       const himmel = ctx.createLinearGradient(0, 0, 0, HORIZONT);
       himmel.addColorStop(0, himmelFarben[0]); himmel.addColorStop(1, himmelFarben[1]);
       ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, HORIZONT);
+      // Echtes Foto-Panorama des Zielortes – dreht mit der Kamera
+      const pano = fotoLaden(panoMotiv);
+      if (pano) {
+        const ph = HORIZONT + 4;
+        const pw = Math.max(80, pano.width * (ph / pano.height));
+        let poff = (-camYaw * F * 0.9) % pw;
+        if (poff > 0) poff -= pw;
+        ctx.save();
+        ctx.globalAlpha = truebe || regnet ? 0.5 : 0.85;
+        for (let px2 = poff; px2 < W; px2 += pw) ctx.drawImage(pano, px2, 0, pw, ph);
+        ctx.restore();
+        const blende = ctx.createLinearGradient(0, 0, 0, ph);
+        blende.addColorStop(0, himmelFarben[0] + 'bb');
+        blende.addColorStop(0.6, himmelFarben[1] + '11');
+        blende.addColorStop(1, himmelFarben[1] + '00');
+        ctx.fillStyle = blende;
+        ctx.fillRect(0, 0, W, ph);
+      }
       const teideRel = winkelNorm(0.6 - camYaw);
-      if (Math.abs(teideRel) < 1.15) {
+      if (!pano && Math.abs(teideRel) < 1.15) {
         const tx = W / 2 + Math.tan(teideRel) * F;
         ctx.fillStyle = truebe || regnet ? '#6e7887' : '#8a7f8d';
         ctx.beginPath();
@@ -792,7 +856,7 @@ const UI = (() => {
         ctx.lineTo(tx + 9, HORIZONT - 32); ctx.lineTo(tx - 9, HORIZONT - 32);
         ctx.closePath(); ctx.fill();
       }
-      if (!regnet && !truebe) {
+      if (!pano && !regnet && !truebe) {
         const sonneRel = winkelNorm(-1.8 - camYaw);
         if (Math.abs(sonneRel) < 1.2) {
           const sx = W / 2 + Math.tan(sonneRel) * F;
@@ -807,7 +871,7 @@ const UI = (() => {
       }
       // Meer am Horizont (gegenüber dem Teide) & Wolken
       const meerRel = winkelNorm(0.6 + Math.PI - camYaw);
-      if (Math.abs(meerRel) < 1.35) {
+      if (!pano && Math.abs(meerRel) < 1.35) {
         ctx.fillStyle = 'rgba(31,111,165,' + (0.85 * Math.cos(meerRel * 1.1)).toFixed(2) + ')';
         ctx.fillRect(0, HORIZONT - 7, W, 7);
       }
@@ -895,6 +959,8 @@ const UI = (() => {
           sx: W / 2 + pr.rx * F / pr.rz, sy: HORIZONT + KAM_H * F / pr.rz });
       };
       for (const o of objekte) sammle(o, 'deko');
+      for (const pl of planken) sammle(pl, 'planke');
+      for (const pk of plakate) sammle(pk, 'plakat');
       for (const hs of haeuser) sammle(hs, 'haus');
       for (const h of hindernisse) if (!h.erledigt || h.icon !== '🐐') sammle(h, 'deko');
       for (const st of sterne) if (!st.weg) sammle(st, 'deko');
@@ -915,6 +981,25 @@ const UI = (() => {
           ctx.fillText(s.o.text, s.sx, s.sy - sh / 2 - 1.4 * F / s.rz + 0.4 * F / s.rz);
           ctx.fillStyle = '#8a8d9c';
           ctx.fillRect(s.sx - 0.08 * F / s.rz, s.sy - 1.4 * F / s.rz, 0.16 * F / s.rz, 1.4 * F / s.rz);
+        } else if (s.art === 'planke') {
+          // Leitplanke: Pfosten + silberne Schiene
+          const q = F / s.rz;
+          ctx.fillStyle = '#8f939e';
+          ctx.fillRect(s.sx - 0.08 * q, s.sy - 0.85 * q, 0.16 * q, 0.85 * q);
+          ctx.fillStyle = '#cdd3dc';
+          ctx.fillRect(s.sx - 0.8 * q, s.sy - 0.82 * q, 1.6 * q, 0.26 * q);
+        } else if (s.art === 'plakat') {
+          // Werbetafel wie in den Arcade-Racern der 90er
+          const q = F / s.rz;
+          const pb = 5 * q, phh = 1.9 * q;
+          ctx.fillStyle = '#6b6f78';
+          ctx.fillRect(s.sx - pb * 0.38, s.sy - phh - 1.6 * q, 0.14 * q, phh + 1.6 * q);
+          ctx.fillRect(s.sx + pb * 0.26, s.sy - phh - 1.6 * q, 0.14 * q, phh + 1.6 * q);
+          ctx.fillStyle = '#f5f0e6';
+          ctx.strokeStyle = '#2b2d42'; ctx.lineWidth = Math.max(1, 0.1 * q);
+          ctx.beginPath(); ctx.roundRect(s.sx - pb / 2, s.sy - phh - 1.6 * q, pb, phh, 0.2 * q);
+          ctx.fill(); ctx.stroke();
+          if (q > 7) gtaText(ctx, s.o.text, s.sx, s.sy - 1.6 * q - phh * 0.3, phh * 0.38, '#e63946');
         } else if (s.art === 'haus') {
           // Kanarisches Haus: weiße Wand, Terrakotta-Dach, Fenster & Tür
           const q = F / s.rz;
@@ -1132,6 +1217,14 @@ const UI = (() => {
       ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(3.6, 4); ctx.lineTo(-3.6, 4); ctx.closePath(); ctx.fill();
       ctx.restore();
       }
+
+      // Film-Vignette & großer Arcade-Tacho (90er-Look)
+      const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.44, W / 2, H / 2, H * 0.84);
+      vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(10,12,20,0.32)');
+      ctx.fillStyle = vig; ctx.fillRect(0, 0, W, H);
+      gtaText(ctx, String(Math.round(speed * 3.6)), W / 2, H - 24, 30,
+        boostZeit > 0 ? '#ff5b6a' : '#ffd166');
+      gtaText(ctx, 'km/h', W / 2, H - 8, 11, '#fff');
 
       zeichneTouchPfeile(ctx, W, H, lenk);
 
@@ -1577,8 +1670,11 @@ const UI = (() => {
       const wand = ctx.createLinearGradient(0, 0, 0, 118);
       wand.addColorStop(0, '#c3cad4'); wand.addColorStop(1, '#dfe3e8');
       ctx.fillStyle = wand; ctx.fillRect(0, 0, W, 118);
-      ctx.fillStyle = 'rgba(120,180,220,0.5)';
-      ctx.fillRect(126, 34, W - 138, 30);
+      const fotoK = fotoLaden('teide');
+      if (fotoK) fotoStreifen(ctx, fotoK, 126, 34, W - 138, 34);
+      else { ctx.fillStyle = 'rgba(120,180,220,0.5)'; ctx.fillRect(126, 34, W - 138, 30); }
+      ctx.strokeStyle = '#aab2bd'; ctx.lineWidth = 2;
+      ctx.strokeRect(126, 34, W - 138, 34);
       ctx.font = '13px serif'; ctx.textAlign = 'center';
       ctx.fillText('✈️', 150 + (zeit * 14) % (W - 190), 54);
       ctx.fillStyle = '#e8e4da'; ctx.fillRect(0, 118, W, H - 118);
@@ -1777,8 +1873,13 @@ const UI = (() => {
         }
       }
 
-      // Zeichnen
+      // Zeichnen (Promenaden-Foto als Kulisse hinter dem Café)
       ctx.fillStyle = '#e8e0cf'; ctx.fillRect(0, 0, W, H);          // Gehwege
+      const fotoP = fotoLaden('promenade');
+      if (fotoP) {
+        fotoStreifen(ctx, fotoP, 0, 0, W, 92);
+        ctx.fillStyle = 'rgba(245,240,230,0.3)'; ctx.fillRect(0, 0, W, 92);
+      }
       ctx.fillStyle = '#54565e'; ctx.fillRect(0, 96, W, H - 96 - 78); // Fahrbahn
       ctx.strokeStyle = 'rgba(245,240,230,0.7)'; ctx.lineWidth = 2;
       ctx.setLineDash([14, 12]);
@@ -1807,8 +1908,7 @@ const UI = (() => {
       ctx.font = '28px serif'; ctx.textAlign = 'center';
       if (unverwundbar <= 0 || Math.floor(zeit * 8) % 2 === 0)
         ctx.fillText('🚶', W / 2, REIHEN[reihe] + 10);
-      ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#55586a';
-      ctx.fillText('dein Café ☕', W / 2, 34);
+      gtaText(ctx, 'dein Café ☕', W / 2, 36, 13, '#ffd166');
       if (IST_TOUCH && reihe === 0 && zeit % 1.6 < 0.9)
         gtaText(ctx, '⬆ Tippen zum Loslaufen', W / 2, H - 14, 14, '#ffd166');
       if (blitz > 0) { blitz -= dt * 1000; ctx.fillStyle = 'rgba(230,57,70,0.22)'; ctx.fillRect(0, 0, W, H); }
@@ -1921,10 +2021,16 @@ const UI = (() => {
         return;
       }
 
-      // Zeichnen: Pool-Szene mit vorbeiziehender Kulisse
-      const himmel = ctx.createLinearGradient(0, 0, 0, 140);
-      himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
-      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, 140);
+      // Zeichnen: Pool-Szene mit echter Foto-Kulisse
+      const fotoZ = fotoLaden('playa-americas');
+      if (fotoZ) {
+        fotoStreifen(ctx, fotoZ, 0, 0, W, 140);
+        ctx.fillStyle = 'rgba(225,244,255,0.15)'; ctx.fillRect(0, 0, W, 140);
+      } else {
+        const himmel = ctx.createLinearGradient(0, 0, 0, 140);
+        himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
+        ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, 140);
+      }
       ctx.font = '30px serif'; ctx.textAlign = 'center';
       const scroll = fortschritt * 400;
       ctx.fillText('🌴', (620 - scroll) % (W + 80) - 40, 120);
@@ -2906,11 +3012,17 @@ const UI = (() => {
       while (plan.length && plan[0].bei <= zeit && !vorbei) plan.shift().fn();
       if (vorbei) return;
 
-      // Strandkulisse
-      const himmel = ctx.createLinearGradient(0, 0, 0, 150);
-      himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
-      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, 150);
-      ctx.fillStyle = '#7ecbe8'; ctx.fillRect(0, 150, W, 46);
+      // Strandkulisse (mit echtem Teresitas-Foto)
+      const fotoF = fotoLaden('teresitas');
+      if (fotoF) {
+        fotoStreifen(ctx, fotoF, 0, 0, W, 196);
+        ctx.fillStyle = 'rgba(230,245,255,0.14)'; ctx.fillRect(0, 0, W, 196);
+      } else {
+        const himmel = ctx.createLinearGradient(0, 0, 0, 150);
+        himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
+        ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, 150);
+        ctx.fillStyle = '#7ecbe8'; ctx.fillRect(0, 150, W, 46);
+      }
       ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.moveTo(0, 152 + Math.sin(zeit * 2) * 2);
       ctx.quadraticCurveTo(W / 2, 158 + Math.sin(zeit * 2 + 1) * 3, W, 152);
@@ -3139,10 +3251,16 @@ const UI = (() => {
         return;
       }
 
-      // ————— Pool-Szene —————
-      const himmel = ctx.createLinearGradient(0, 0, 0, 96);
-      himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
-      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, 96);
+      // ————— Pool-Szene (mit echtem Ortsfoto als Kulisse) —————
+      const fotoL = fotoLaden('pool');
+      if (fotoL) {
+        fotoStreifen(ctx, fotoL, 0, 0, W, 96);
+        ctx.fillStyle = 'rgba(225,244,255,0.16)'; ctx.fillRect(0, 0, W, 96);
+      } else {
+        const himmel = ctx.createLinearGradient(0, 0, 0, 96);
+        himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
+        ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, 96);
+      }
       // Pool mit Glitzern
       ctx.fillStyle = '#37a3d6';
       ctx.beginPath(); ctx.roundRect(20, 42, W - 40, 62, 18); ctx.fill();
@@ -3519,6 +3637,20 @@ const UI = (() => {
       ctx.strokeStyle = 'rgba(245,240,230,0.8)'; ctx.lineWidth = 1.6;
       ctx.setLineDash([10, 12]); ctx.stroke(pfad); ctx.setLineDash([]);
 
+      // Rot-weiße Randsteine (Kerbs) in den Kurven
+      for (let i = 0; i < N; i += 2) {
+        let dk = samples[(i + 6) % N].richtung - samples[i].richtung;
+        dk = Math.atan2(Math.sin(dk), Math.cos(dk));
+        if (Math.abs(dk) < 0.16) continue;
+        const pk = samples[i];
+        const rk = { x: Math.cos(pk.richtung), z: -Math.sin(pk.richtung) };
+        for (const seiteK of [-1, 1]) {
+          const kp = topP(pk.x + rk.x * seiteK * (HALB + 0.5), pk.z + rk.z * seiteK * (HALB + 0.5));
+          ctx.fillStyle = i % 4 ? '#f5f0e6' : '#e63946';
+          ctx.fillRect(kp.sx - 3, kp.sy - 3, 6, 6);
+        }
+      }
+
       // Boost-Pfeile auf der Bahn
       for (const pad of boostPads) {
         const p = topP(pad.x, pad.z);
@@ -3608,6 +3740,11 @@ const UI = (() => {
       gtaText(ctx, '🏎️ ' + stil, 50, 19, 12, '#ffd166', 'left');
       gtaText(ctx, 'Runde ' + Math.min(RUNDEN_ZIEL, runden + 1) + '/' + RUNDEN_ZIEL, W / 2, 19, 12, '#fff');
       gtaText(ctx, fahrZeit.toFixed(1) + ' s', W - 6, 19, 12, '#fff', 'right');
+
+      // Film-Vignette (90er-Arcade-Look)
+      const vigK = ctx.createRadialGradient(W / 2, H / 2, H * 0.42, W / 2, H / 2, H * 0.8);
+      vigK.addColorStop(0, 'rgba(0,0,0,0)'); vigK.addColorStop(1, 'rgba(10,12,20,0.3)');
+      ctx.fillStyle = vigK; ctx.fillRect(0, 0, W, H);
 
       // Platzierung groß links, Item-Box rechts (antippen = benutzen)
       ctx.fillStyle = 'rgba(43,45,66,0.6)';
