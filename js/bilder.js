@@ -217,6 +217,31 @@ const BILDER = (() => {
     } catch (e) { /* egal */ }
   }
 
+  // Optional: kostenloser Pexels-API-Schlüssel (pexels.com/api) für
+  // hochwertige Stock-Videos. Wird lokal gespeichert, nie übertragen.
+  function pexelsKey() {
+    try { return (typeof localStorage !== 'undefined' && localStorage.getItem('tus_pexels_key')) || ''; }
+    catch (e) { return ''; }
+  }
+
+  async function pexelsSuchen(begriff) {
+    const key = pexelsKey();
+    if (!key) return null;
+    const resp = await fetch('https://api.pexels.com/videos/search?per_page=6&query=' +
+      encodeURIComponent(begriff), { headers: { Authorization: key } });
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    for (const video of json.videos || []) {
+      const dateien = (video.video_files || [])
+        .filter(f => /mp4/.test(f.file_type || '') && f.height && f.height <= 720)
+        .sort((a, b) => b.height - a.height);
+      if (dateien.length) {
+        return { url: dateien[0].link, quelle: video.url, titel: 'Video: Pexels / ' + ((video.user || {}).name || 'Pexels') };
+      }
+    }
+    return null;
+  }
+
   async function videoSuchen(suchbegriff) {
     const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*' +
       '&generator=search&gsrnamespace=6&gsrlimit=6' +
@@ -226,23 +251,33 @@ const BILDER = (() => {
     if (!resp.ok) return null;
     const json = await resp.json();
     const seiten = json.query && json.query.pages ? Object.values(json.query.pages) : [];
-    seiten.sort((a, b) => (a.index || 99) - (b.index || 99));
+    const woerter = suchbegriff.toLowerCase().split(/\s+/);
+    let bester = null, besteWertung = -1;
     for (const seite of seiten) {
       const vi = seite.videoinfo && seite.videoinfo[0];
       if (!vi) continue;
       const dauer = vi.duration || 0;
-      if (dauer && (dauer < 2 || dauer > 600)) continue;   // zu kurz/lang fürs Kino
+      if (dauer && (dauer < 2 || dauer > 600)) continue;
       const ableitungen = (vi.derivatives || []).filter(d =>
         d.src && /video\/(webm|mp4)/.test(d.type || '') && d.height && d.height <= 720);
       if (!ableitungen.length) continue;
-      ableitungen.sort((a, b) => b.height - a.height);     // beste Qualität ≤ 720p
-      return {
-        url: ableitungen[0].src,
-        quelle: vi.descriptionurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(seite.title)),
-        titel: seite.title.replace(/^File:/, '').replace(/\.\w+$/, ''),
-      };
+      ableitungen.sort((a, b) => b.height - a.height);
+      // Wertung: Suchwörter im Titel, angenehme Länge, ordentliche Auflösung
+      const titel = seite.title.toLowerCase();
+      let wertung = -(seite.index || 9) * 0.1;
+      for (const wort of woerter) if (wort.length > 3 && titel.includes(wort)) wertung += 2;
+      if (dauer >= 8 && dauer <= 120) wertung += 1.5;
+      if (ableitungen[0].height >= 480) wertung += 1;
+      if (wertung > besteWertung) {
+        besteWertung = wertung;
+        bester = {
+          url: ableitungen[0].src,
+          quelle: vi.descriptionurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(seite.title)),
+          titel: seite.title.replace(/^File:/, '').replace(/\.\w+$/, ''),
+        };
+      }
     }
-    return null;
+    return bester;
   }
 
   /** Liefert ein Promise auf {url, quelle, titel} oder null. */
@@ -254,6 +289,14 @@ const BILDER = (() => {
 
     videoLaufend[motiv] = (async () => {
       const begriffe = Array.isArray(VIDEO_SUCHE[motiv]) ? VIDEO_SUCHE[motiv] : [VIDEO_SUCHE[motiv]];
+      if (pexelsKey()) {
+        for (const begriff of begriffe) {
+          try {
+            const video = await pexelsSuchen(begriff);
+            if (video) { videoCache[motiv] = video; videoCacheSpeichern(); return video; }
+          } catch (e) { /* Schlüssel ungültig oder offline → Commons versuchen */ }
+        }
+      }
       for (const begriff of begriffe) {
         try {
           const video = await videoSuchen(begriff);

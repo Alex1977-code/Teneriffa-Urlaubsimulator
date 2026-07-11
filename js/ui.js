@@ -262,6 +262,8 @@ const UI = (() => {
   function starteFahrspiel(fahrt, fertigCb) {
     $('#fahrt-inselkarte').classList.add('versteckt');
     $('#fahrspiel-wrap').classList.remove('versteckt');
+    $('#fahrspiel-hilfe').innerHTML = 'Lenken: ← → · Gas: ↑ · Bremse: ↓ · Turbo: Leertaste oder 🔥 · Kamera: C oder 🗺️<br>' +
+      'Überhole für 🏎️ Fahrstil-Punkte, sammle ⭐ Sterne und weiche Ziegen & Gegenverkehr aus!';
     $('#fahrt-buttons').innerHTML = '';
 
     const canvas = $('#fahrspiel-canvas');
@@ -932,6 +934,8 @@ const UI = (() => {
       ctx.restore();
       }
 
+      zeichneTouchPfeile(ctx, W, H);
+
       // Kamera-Umschalter (Taste C oder Tippen)
       ctx.fillStyle = 'rgba(43,45,66,0.55)';
       ctx.beginPath(); ctx.roundRect(W - 44, 32, 38, 30, 8); ctx.fill();
@@ -1000,12 +1004,457 @@ const UI = (() => {
   }
 
 
+  // ------------------------------------------------------ Minispiel-Gerüst
+  const IST_TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+
+  function zeichneTouchPfeile(ctx, W, H) {
+    if (!IST_TOUCH) return;
+    ctx.fillStyle = 'rgba(43,45,66,0.26)';
+    ctx.beginPath(); ctx.roundRect(8, H - 48, 52, 40, 10); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(66, H - 48, 52, 40, 10); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('◀', 34, H - 21);
+    ctx.fillText('▶', 92, H - 21);
+  }
+
+  function minispielFenster(titel, hinweis, hoehe) {
+    const overlay = $('#fahrt-overlay');
+    overlay.classList.remove('versteckt');
+    $('#fahrt-titel').textContent = titel;
+    $('#fahrt-inselkarte').classList.add('versteckt');
+    $('#fahrspiel-wrap').classList.remove('versteckt');
+    $('#fahrspiel-hilfe').innerHTML = hinweis;
+    $('#fahrt-log').innerHTML = '';
+    $('#fahrt-buttons').innerHTML = '';
+    const canvas = $('#fahrspiel-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = 340, H = hoehe || 420;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = 'min(340px, 100%)';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { overlay, canvas, ctx, W, H };
+  }
+
+  function minispielErgebnis(icon, text, effekte, extraChips, fertigCb) {
+    const chips = Game.run ? Game.bonusAnwenden(effekte || {}) : [];
+    if (extraChips) chips.unshift(...extraChips);
+    $('#fahrt-log').appendChild(el('div', 'flug-zeile sichtbar',
+      `<span class="flug-zeile-icon">${icon}</span><div>${esc(text)}` +
+      (chips.length ? '<div class="flug-chips">' + chips.map(c => `<span class="chip">${esc(c)}</span>`).join('') + '</div>' : '') +
+      '</div>'));
+    const weiter = el('button', 'btn btn-primary', 'Weiter');
+    weiter.addEventListener('click', () => { $('#fahrt-overlay').classList.add('versteckt'); fertigCb(); });
+    $('#fahrt-buttons').appendChild(weiter);
+    if (Game.run) renderStats();
+  }
+
+  // ------------------------------------------- Minispiel: Koffer vom Band
+  function starteKofferSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '🧳 Gepäckband – schnapp dir deinen Koffer!',
+      'Oben siehst du deinen Koffer. Tippe ihn an, sobald er vorbeirollt – aber greif nicht daneben!', 320);
+
+    const FARBEN = ['#c0392b', '#2c3e50', '#8e44ad', '#16a085', '#d35400', '#5d6d7e'];
+    const STICKER = ['🌺', '✈️', '⚽', '🎀', '🐢', ''];
+    const ziel = { farbe: FARBEN[Math.floor(Math.random() * FARBEN.length)],
+                   sticker: STICKER[Math.floor(Math.random() * STICKER.length)] };
+    const BAND_Y = 190, TEMPO = 78;
+    let koffer = [], spawnIn = 300, spawnZaehler = 0, zielDa = false;
+    let fehlgriffe = 0, blitz = 0, vorbei = false;
+    const start = performance.now();
+    let letztes = start;
+
+    function zeichneKoffer(x, y, k, gross) {
+      const b = gross ? 56 : 48, h = gross ? 36 : 31;
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.beginPath(); ctx.ellipse(x, y + h / 2 + 3, b * 0.55, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#8a8d9c';
+      ctx.fillRect(x - 8, y - h / 2 - 6, 16, 8);
+      ctx.fillStyle = k.farbe;
+      ctx.beginPath(); ctx.roundRect(x - b / 2, y - h / 2, b, h, 6); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x - b / 2 + 8, y - h / 2); ctx.lineTo(x - b / 2 + 8, y + h / 2); ctx.stroke();
+      if (k.sticker) { ctx.font = (gross ? 17 : 14) + 'px serif'; ctx.textAlign = 'center'; ctx.fillText(k.sticker, x + 6, y + 6); }
+    }
+
+    function fertig(icon, text, effekte, extra) {
+      if (vorbei) return;
+      vorbei = true;
+      aufraeumen();
+      minispielErgebnis(icon, text, effekte, extra, fertigCb);
+    }
+
+    function klick(e) {
+      if (vorbei) return;
+      const box = canvas.getBoundingClientRect();
+      const mx = (e.clientX - box.left) / box.width * W;
+      const my = (e.clientY - box.top) / box.height * H;
+      for (let i = koffer.length - 1; i >= 0; i--) {
+        const k = koffer[i];
+        if (Math.abs(mx - k.x) < 30 && Math.abs(my - BAND_Y) < 26 && Math.abs(my - BAND_Y) === Math.abs(my - BAND_Y)) {
+          if (my < BAND_Y - 30 || my > BAND_Y + 30) continue;
+          if (k.istZiel) {
+            const zeit = (performance.now() - start) / 1000;
+            piep(880, 180, 'triangle', 0.09);
+            if (fehlgriffe === 0 && zeit < 14)
+              fertig('🧳', 'Erster Griff, richtiger Koffer – die Umstehenden sind neidisch auf deinen Blick fürs Detail.',
+                { stimmung: 4, stress: -3, erlebnis: 2 });
+            else if (fehlgriffe <= 2)
+              fertig('🧳', 'Koffer gesichert! Ein kurzer Moment der Verwirrung, aber am Ende zählt das Ergebnis.',
+                { stimmung: 2, stress: -1 });
+            else
+              fertig('🧳', 'Koffer gefunden – nach ein paar sehr peinlichen Fremdgriffen. Die Dame in Reihe zwei schaut noch immer streng.',
+                { stimmung: 1, stress: 2 });
+          } else {
+            fehlgriffe++; blitz = 250; k.peinlich = 1;
+            piep(180, 180, 'sawtooth', 0.1);
+          }
+          return;
+        }
+      }
+    }
+    canvas.addEventListener('pointerdown', klick);
+    function aufraeumen() { canvas.removeEventListener('pointerdown', klick); }
+
+    if (window.MINISPIEL_SCHNELL) {
+      setTimeout(() => fertig('🧳', 'Koffer gesichert!', { stimmung: 2 }), 700);
+    }
+
+    function schleife(now) {
+      if (vorbei) return;
+      const dt = Math.min(50, now - letztes) / 1000;
+      letztes = now;
+      const zeit = (now - start) / 1000;
+
+      spawnIn -= dt * 1000;
+      if (spawnIn <= 0) {
+        spawnIn = 950 + Math.random() * 400;
+        spawnZaehler++;
+        const istZiel = !zielDa && (spawnZaehler % 5 === 4 || Math.random() < 0.22);
+        let stil;
+        if (istZiel) { stil = ziel; zielDa = true; }
+        else {
+          do {
+            stil = { farbe: FARBEN[Math.floor(Math.random() * FARBEN.length)],
+                     sticker: STICKER[Math.floor(Math.random() * STICKER.length)] };
+          } while (stil.farbe === ziel.farbe && stil.sticker === ziel.sticker);
+        }
+        koffer.push({ x: W + 40, farbe: stil.farbe, sticker: stil.sticker, istZiel });
+      }
+      for (const k of koffer) {
+        k.x -= TEMPO * dt;
+        if (k.peinlich) k.peinlich = Math.max(0, k.peinlich - dt * 2);
+      }
+      koffer = koffer.filter(k => {
+        if (k.x < -50) { if (k.istZiel) zielDa = false; return false; }
+        return true;
+      });
+
+      // Zeichnen: Flughafenhalle, Zielanzeige, Band mit Rollen
+      ctx.fillStyle = '#dfe3e8'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#c8cdd4'; ctx.fillRect(0, 0, W, 96);
+      ctx.fillStyle = '#2b2d42'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('So sieht deiner aus:', 12, 30);
+      zeichneKoffer(200, 50, ziel, true);
+      ctx.fillStyle = '#55586a'; ctx.font = '11px sans-serif';
+      ctx.fillText('Fehlgriffe: ' + fehlgriffe, 12, 52);
+      ctx.fillText('⏱ ' + Math.max(0, Math.ceil(30 - zeit)) + ' s', 12, 70);
+
+      ctx.fillStyle = '#3c3f4a';
+      ctx.fillRect(0, BAND_Y - 34, W, 68);
+      ctx.fillStyle = '#2b2d36';
+      for (let x = (-(zeit * TEMPO) % 34); x < W; x += 34)
+        ctx.fillRect(x, BAND_Y - 34, 4, 68);
+
+      ctx.textAlign = 'center';
+      for (const k of koffer) {
+        if (k.peinlich > 0) {
+          ctx.save(); ctx.translate((Math.random() - 0.5) * 4, 0);
+          zeichneKoffer(k.x, BAND_Y, k, false);
+          ctx.restore();
+        } else zeichneKoffer(k.x, BAND_Y, k, false);
+      }
+
+      if (blitz > 0) { blitz -= dt * 1000; ctx.fillStyle = 'rgba(230,57,70,0.2)'; ctx.fillRect(0, 0, W, H); }
+
+      if (zeit > 30) {
+        fertig('🧳', 'Irgendwann kommt jeder Koffer – deiner eben ganz zum Schluss. Hauptsache, er ist da.',
+          { stress: 2 });
+        return;
+      }
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
+
+  // ------------------------------- Minispiel: Straße überqueren (¡cuidado!)
+  function starteStrassenSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '🚦 Erstmal über die Straße!',
+      'Tippe (oder ↑), um einen Schritt zu gehen. Die Fahrweise hier ist … temperamentvoll. ¡Cuidado!', 420);
+
+    const REIHEN = [372, 306, 246, 186, 126, 62];   // 0 = Start-Gehweg, 5 = Ziel
+    const spuren = [
+      { y: 306, richtung: 1, tempo: 105, autos: [], spawnIn: 400 },
+      { y: 246, richtung: -1, tempo: 150, autos: [], spawnIn: 900 },
+      { y: 186, richtung: 1, tempo: 195, autos: [], spawnIn: 200 },
+      { y: 126, richtung: -1, tempo: 125, autos: [], spawnIn: 1200 },
+    ];
+    const FARBEN = ['#3a6ea5', '#d8d8d8', '#454754', '#c46a2b', '#7b5aa6', '#b03a2e'];
+    let reihe = 0, schrecks = 0, blitz = 0, freundlich = false, vorbei = false, letzterSchritt = 0;
+    const start = performance.now();
+    let letztes = start;
+
+    function fertig(icon, text, effekte) {
+      if (vorbei) return;
+      vorbei = true; aufraeumen();
+      minispielErgebnis(icon, text, effekte, null, fertigCb);
+    }
+    function schritt() {
+      if (vorbei || performance.now() - letzterSchritt < 160) return;
+      letzterSchritt = performance.now();
+      reihe = Math.min(5, reihe + 1);
+      piep(520, 50, 'square', 0.04);
+      if (reihe === 5)
+        fertig('🚶', schrecks === 0
+          ? 'Rüber wie ein Einheimischer – im Rhythmus der Lücken, ohne eine Wimper zu zucken.'
+          : 'Geschafft! Mit Herzklopfen, Hupkonzert und einem entschuldigenden Winken.',
+          schrecks === 0 ? { stimmung: 4, erlebnis: 4, stress: -2 }
+            : schrecks < 3 ? { stimmung: 2, stress: 2 } : { stimmung: 1, stress: 4 });
+    }
+    function tasteRunter(e) {
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') { schritt(); e.preventDefault(); }
+    }
+    const zeigerRunter = e => { schritt(); e.preventDefault(); };
+    document.addEventListener('keydown', tasteRunter);
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    function aufraeumen() {
+      document.removeEventListener('keydown', tasteRunter);
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+    }
+
+    if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('🚶', 'Rüber!', { stimmung: 2 }), 700);
+
+    function schleife(now) {
+      if (vorbei) return;
+      const dt = Math.min(50, now - letztes) / 1000;
+      letztes = now;
+      const zeit = (now - start) / 1000;
+
+      for (const spur of spuren) {
+        spur.spawnIn -= dt * 1000;
+        if (spur.spawnIn <= 0 && !freundlich) {
+          const moped = Math.random() < 0.22;
+          spur.spawnIn = 700 + Math.random() * 1400;
+          spur.autos.push({
+            x: spur.richtung > 0 ? -60 : W + 60,
+            tempo: (moped ? spur.tempo * 1.8 : spur.tempo * (0.85 + Math.random() * 0.4)),
+            moped, farbe: FARBEN[Math.floor(Math.random() * FARBEN.length)],
+          });
+        }
+        for (const auto of spur.autos) auto.x += spur.richtung * auto.tempo * dt * (freundlich ? 0 : 1);
+        spur.autos = spur.autos.filter(a => a.x > -90 && a.x < W + 90);
+      }
+
+      // Schreckmoment: Auto kreuzt deine Reihe
+      if (reihe >= 1 && reihe <= 4 && !freundlich) {
+        const spur = spuren[reihe - 1];
+        for (const auto of spur.autos) {
+          if (Math.abs(auto.x - W / 2) < 34) {
+            schrecks++; blitz = 300; reihe = 0;
+            piep(300, 120, 'square', 0.12); setTimeout(() => piep(240, 200, 'square', 0.12), 110);
+            if (schrecks >= 3) freundlich = true;
+            break;
+          }
+        }
+      }
+
+      // Zeichnen
+      ctx.fillStyle = '#e8e0cf'; ctx.fillRect(0, 0, W, H);          // Gehwege
+      ctx.fillStyle = '#54565e'; ctx.fillRect(0, 96, W, H - 96 - 78); // Fahrbahn
+      ctx.strokeStyle = 'rgba(245,240,230,0.7)'; ctx.lineWidth = 2;
+      ctx.setLineDash([14, 12]);
+      for (const y of [156, 216, 276]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      ctx.setLineDash([]);
+      // Zebrastreifen am Ziel? Nein – hier gibt es keinen. Deshalb das Spiel.
+      for (const spur of spuren) {
+        for (const auto of spur.autos) {
+          if (auto.moped) {
+            ctx.font = '22px serif'; ctx.textAlign = 'center';
+            ctx.fillText(spur.richtung > 0 ? '🛵' : '🛵', auto.x, spur.y + 8);
+          } else {
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath(); ctx.ellipse(auto.x, spur.y + 12, 26, 5, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = auto.farbe;
+            ctx.beginPath(); ctx.roundRect(auto.x - 26, spur.y - 10, 52, 22, 6); ctx.fill();
+            ctx.fillStyle = 'rgba(210,230,240,0.9)';
+            ctx.fillRect(auto.x - (spur.richtung > 0 ? 2 : 16), spur.y - 7, 18, 7);
+            ctx.fillStyle = '#fff7cc';
+            ctx.fillRect(spur.richtung > 0 ? auto.x + 22 : auto.x - 26, spur.y - 4, 4, 4);
+          }
+        }
+      }
+      if (freundlich) {
+        ctx.fillStyle = '#2b2d42'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('🙋 Ein Fahrer hält an und winkt dich rüber!', W / 2, 88);
+      }
+      ctx.font = '28px serif'; ctx.textAlign = 'center';
+      ctx.fillText('🚶', W / 2, REIHEN[reihe] + 10);
+      ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#55586a';
+      ctx.fillText('dein Café ☕', W / 2, 34);
+      if (IST_TOUCH && reihe === 0 && zeit % 1.6 < 0.9) {
+        ctx.fillStyle = 'rgba(43,45,66,0.7)'; ctx.font = 'bold 14px sans-serif';
+        ctx.fillText('⬆ Tippen zum Loslaufen', W / 2, H - 14);
+      }
+      if (blitz > 0) { blitz -= dt * 1000; ctx.fillStyle = 'rgba(230,57,70,0.22)'; ctx.fillRect(0, 0, W, H); }
+
+      if (zeit > 45) { fertig('🚶', 'Irgendwann kam die eine große Lücke – rüber!', { stimmung: 1 }); return; }
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
+
+  // -------------------------------- Minispiel: Saft balancieren (Zumo-Lauf)
+  function starteSaftSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '🧃 Frischer Zumo – bring ihn heil zur Liege!',
+      'Halte links/rechts (oder ← →) dagegen, damit nichts überschwappt. Barfuß auf heißen Fliesen – viel Erfolg.', 320);
+
+    let theta = 0, omega = 0, input = 0, fortschritt = 0;
+    let boeIn = 600, vorbei = false;
+    const start = performance.now();
+    let letztes = start;
+
+    function fertig(icon, text, effekte) {
+      if (vorbei) return;
+      vorbei = true; aufraeumen();
+      minispielErgebnis(icon, text, effekte, null, fertigCb);
+    }
+    function tasteRunter(e) {
+      if (e.key === 'ArrowLeft' || e.key === 'a') { input = -1; e.preventDefault(); }
+      if (e.key === 'ArrowRight' || e.key === 'd') { input = 1; e.preventDefault(); }
+    }
+    function tasteHoch(e) { if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) input = 0; }
+    function zeigerRunter(e) {
+      const box = canvas.getBoundingClientRect();
+      input = (e.clientX - box.left) / box.width * W < W / 2 ? -1 : 1;
+      e.preventDefault();
+    }
+    const zeigerHoch = () => { input = 0; };
+    document.addEventListener('keydown', tasteRunter);
+    document.addEventListener('keyup', tasteHoch);
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    document.addEventListener('pointerup', zeigerHoch);
+    function aufraeumen() {
+      document.removeEventListener('keydown', tasteRunter);
+      document.removeEventListener('keyup', tasteHoch);
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+      document.removeEventListener('pointerup', zeigerHoch);
+    }
+
+    if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('🧃', 'Angekommen!', { stimmung: 2 }), 700);
+
+    function schleife(now) {
+      if (vorbei) return;
+      const dt = Math.min(50, now - letztes) / 1000;
+      letztes = now;
+
+      // Instabiles Gleichgewicht plus Windböen und Gegensteuern
+      boeIn -= dt * 1000;
+      if (boeIn <= 0) {
+        boeIn = 500 + Math.random() * 900;
+        omega += (Math.random() - 0.5) * (2.2 + fortschritt * 2.2);
+      }
+      omega += theta * 2.4 * dt + input * -3.4 * dt * -1;
+      omega *= 1 - 0.6 * dt;
+      theta += omega * dt;
+      fortschritt = Math.min(1, fortschritt + dt / 9);
+
+      if (Math.abs(theta) > 0.55) {
+        fertig('💦', 'Platsch – der halbe Zumo ziert jetzt Fliesen und Badelatschen. Der Barmann grinst: „¡Otra vez!“',
+          { stimmung: -1, stress: 1 });
+        return;
+      }
+      if (fortschritt >= 1) {
+        fertig('🧃', 'Kein Tropfen verschüttet! Du stellst das Glas ab wie ein Kellner mit dreißig Jahren Berufserfahrung.',
+          { stimmung: 3, erholung: 2, stress: -2 });
+        return;
+      }
+
+      // Zeichnen: Pool-Szene mit vorbeiziehender Kulisse
+      const himmel = ctx.createLinearGradient(0, 0, 0, 140);
+      himmel.addColorStop(0, '#4ea8de'); himmel.addColorStop(1, '#bde6f5');
+      ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, 140);
+      ctx.font = '30px serif'; ctx.textAlign = 'center';
+      const scroll = fortschritt * 400;
+      ctx.fillText('🌴', (620 - scroll) % (W + 80) - 40, 120);
+      ctx.fillText('⛱️', (900 - scroll) % (W + 80) - 40, 126);
+      ctx.fillStyle = '#7ecbe8'; ctx.fillRect(0, 140, W, 60);
+      ctx.fillStyle = '#e8dbc0'; ctx.fillRect(0, 200, W, H - 200);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+      for (let x = -(scroll % 42); x < W; x += 42) {
+        ctx.beginPath(); ctx.moveTo(x, 200); ctx.lineTo(x, H); ctx.stroke();
+      }
+      // Ziel-Liege rückt näher
+      ctx.font = Math.round(22 + fortschritt * 26) + 'px serif';
+      ctx.fillText('🛋️', W - 50 - fortschritt * 30, 232 + fortschritt * 20);
+
+      // Fortschrittsbalken
+      ctx.fillStyle = 'rgba(43,45,66,0.7)'; ctx.fillRect(0, 0, W, 22);
+      ctx.fillStyle = '#f5f0e6'; ctx.fillRect(60, 8, W - 120, 6);
+      ctx.fillStyle = '#f4a261'; ctx.fillRect(60, 8, (W - 120) * fortschritt, 6);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'left'; ctx.fillText('🍹', 40, 16);
+      ctx.textAlign = 'right'; ctx.fillText('🛋️', W - 40, 16);
+
+      // Hand mit Glas
+      ctx.save();
+      ctx.translate(W / 2, 258);
+      ctx.rotate(theta);
+      ctx.fillStyle = '#e8b88a';
+      ctx.beginPath(); ctx.ellipse(0, 26, 20, 12, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.moveTo(-22, -46); ctx.lineTo(22, -46); ctx.lineTo(16, 18); ctx.lineTo(-16, 18);
+      ctx.closePath(); ctx.fill();
+      // Saft mit schwappender Oberfläche
+      const schwapp = Math.max(-14, Math.min(14, omega * 18));
+      ctx.fillStyle = 'rgba(244,162,97,0.92)';
+      ctx.beginPath();
+      ctx.moveTo(-20, -26 + schwapp); ctx.lineTo(20, -26 - schwapp);
+      ctx.lineTo(16, 18); ctx.lineTo(-16, 18);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-22, -46); ctx.lineTo(22, -46); ctx.lineTo(16, 18); ctx.lineTo(-16, 18);
+      ctx.closePath(); ctx.stroke();
+      ctx.font = '15px serif'; ctx.textAlign = 'center';
+      ctx.fillText('🍓', 14, -44);
+      ctx.restore();
+
+      // Kipp-Anzeige
+      ctx.fillStyle = Math.abs(theta) > 0.4 ? '#e63946' : '#2a9d8f';
+      ctx.beginPath();
+      ctx.arc(W / 2 + theta * 180, H - 64, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(43,45,66,0.4)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(W / 2 - 110, H - 64); ctx.lineTo(W / 2 + 110, H - 64); ctx.stroke();
+
+      zeichneTouchPfeile(ctx, W, H);
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
+
   // -------------------------------------------------- Bonuslevel: Kart-Rennen
   // Rundkurs in Draufsicht: 2 Runden gegen die Uhr, Rivalen überholen.
   function starteKartRennen(fertigCb) {
     const overlay = $('#fahrt-overlay');
     overlay.classList.remove('versteckt');
-    $('#fahrt-titel').textContent = '🏁 Bonuslevel: Kart-Rennen – 2 Runden!';
+    $('#fahrt-titel').textContent = '🏁 Bonuslevel: Kart-Rennen!';
+    $('#fahrspiel-hilfe').innerHTML = 'Lenken: ← → · Gas: ↑ · Item einsetzen: Leertaste oder Item-Box antippen<br>' +
+      'Fahr durch die ?-Boxen: 🍄 Turbo, 🍌 Banane legen, ⚡ Gegner schocken. Wer wird Erster?';
     $('#fahrt-inselkarte').classList.add('versteckt');
     $('#fahrspiel-wrap').classList.remove('versteckt');
     $('#fahrt-log').innerHTML = '';
@@ -1037,16 +1486,47 @@ const UI = (() => {
       a.richtung = Math.atan2(b.x - a.x, b.z - a.z);
     }
 
-    // Rivalen-Karts
+    // Rivalen-Karts (mit Rundenzählung fürs Klassement)
     const rivalen = [1, 2, 3].map(n => ({
-      idx: n * 12, v: 9.5 + n * 1.1,
-      farbe: ['#3a6ea5', '#2a9d8f', '#f4a261'][n - 1], hitCd: 0, prevVor: false,
+      idx: n * 12, total: n * 12, v: 9.5 + n * 1.1,
+      farbe: ['#3a6ea5', '#2a9d8f', '#f4a261'][n - 1],
+      name: ['Blau', 'Verde', 'Naranja'][n - 1],
+      hitCd: 0, prevVor: false, slow: 0,
     }));
+
+    // Mario-Kart-Zutaten: ?-Boxen, Items, Bananen und Boost-Pfeile
+    const itemBoxen = [0.14, 0.38, 0.62, 0.86].map(f => {
+      const p = samples[Math.floor(f * N)];
+      return { x: p.x, z: p.z, cd: 0 };
+    });
+    const boostPads = [0.25, 0.75].map(f => {
+      const i = Math.floor(f * N);
+      return { x: samples[i].x, z: samples[i].z, richtung: samples[i].richtung };
+    });
+    const bananen = [];
+    const ITEMS = ['pilz', 'banane', 'blitz'];
+    const ITEM_ICON = { pilz: '🍄', banane: '🍌', blitz: '⚡' };
+    let item = null, turbo = 0, blitzZeit = 0, schleuder = 0;
 
     let px = samples[0].x, pz = samples[0].z, heading = samples[0].richtung;
     let speed = 0, lenk = 0, lenkIst = 0, gas = 0;
     let roadIdx = 0, gesamtIdx = 0, runden = 0, treffer = 0, stil = 0;
     let blitz = 0, offZeit = 0, vorbei = false, countdownPiep = 3;
+
+    function itemBenutzen() {
+      if (!item || vorbei) return;
+      if (item === 'pilz') { turbo = 1.3; piep(520, 200, 'square', 0.1); }
+      if (item === 'banane') {
+        bananen.push({ x: px - Math.sin(heading) * 3, z: pz - Math.cos(heading) * 3 });
+        piep(300, 120, 'triangle', 0.08);
+      }
+      if (item === 'blitz') {
+        blitzZeit = 2.5;
+        schweber.push({ text: '⚡ Alle Gegner geschockt!', alter: 0 });
+        piep(140, 300, 'sawtooth', 0.12);
+      }
+      item = null;
+    }
     const schweber = [];
     const start = performance.now();
     let letztes = start;
@@ -1056,6 +1536,7 @@ const UI = (() => {
       if (e.key === 'ArrowRight' || e.key === 'd') { lenk = 1; e.preventDefault(); }
       if (e.key === 'ArrowUp' || e.key === 'w') { gas = 1; e.preventDefault(); }
       if (e.key === 'ArrowDown' || e.key === 's') { gas = -1; e.preventDefault(); }
+      if (e.key === ' ') { itemBenutzen(); e.preventDefault(); }
     }
     function tasteHoch(e) {
       if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) lenk = 0;
@@ -1063,7 +1544,10 @@ const UI = (() => {
     }
     function zeigerRunter(e) {
       const box = canvas.getBoundingClientRect();
-      lenk = (e.clientX - box.left) / box.width * W < W / 2 ? -1 : 1;
+      const x = (e.clientX - box.left) / box.width * W;
+      const y = (e.clientY - box.top) / box.height * H;
+      if (x > W - 60 && y > 30 && y < 72) { itemBenutzen(); e.preventDefault(); return; }
+      lenk = x < W / 2 ? -1 : 1;
       e.preventDefault();
     }
     const zeigerHoch = () => { lenk = 0; };
@@ -1105,24 +1589,73 @@ const UI = (() => {
       }
       const seitAbstand = Math.sqrt(d2(roadIdx));
 
-      // Physik
+      // Physik (inkl. Turbo & Bananen-Schleuder)
       if (seitStart >= COUNTDOWN) {
-        let ziel = gas > 0 ? 20 : gas < 0 ? 4 : 15;
+        turbo = Math.max(0, turbo - dt);
+        schleuder = Math.max(0, schleuder - dt);
+        blitzZeit = Math.max(0, blitzZeit - dt);
+        let ziel = turbo > 0 ? 27 : gas > 0 ? 20 : gas < 0 ? 4 : 15;
         if (seitAbstand > HALB + 0.8) ziel *= 0.45;
-        speed += (ziel - speed) * dt * (gas < 0 ? 2.8 : 1.2);
+        if (schleuder > 0) ziel *= 0.4;
+        speed += (ziel - speed) * dt * (gas < 0 ? 2.8 : turbo > 0 ? 2.4 : 1.2);
         lenkIst += (lenk - lenkIst) * Math.min(1, dt * 8);
-        heading += lenkIst * 2.3 * dt * Math.min(1, speed / 7);
+        if (schleuder > 0) heading += 9 * dt;
+        else heading += lenkIst * 2.3 * dt * Math.min(1, speed / 7);
         px += Math.sin(heading) * speed * dt;
         pz += Math.cos(heading) * speed * dt;
+      }
+
+      // ?-Boxen, Boost-Pfeile & Bananen
+      for (const box of itemBoxen) {
+        box.cd = Math.max(0, box.cd - dt);
+        if (box.cd <= 0 && !item && Math.hypot(box.x - px, box.z - pz) < 2.6) {
+          box.cd = 4;
+          item = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+          schweber.push({ text: ITEM_ICON[item] + ' Item!', alter: 0 });
+          piep(660, 120, 'triangle', 0.08);
+        }
+      }
+      for (const pad of boostPads) {
+        if (Math.hypot(pad.x - px, pad.z - pz) < 2.6 && turbo < 0.5) {
+          turbo = 0.9;
+          schweber.push({ text: '💨 Boost!', alter: 0 });
+          piep(540, 100, 'square', 0.08);
+        }
+      }
+      for (let i = bananen.length - 1; i >= 0; i--) {
+        const b = bananen[i];
+        if (Math.hypot(b.x - px, b.z - pz) < 1.9 && schleuder <= 0) {
+          bananen.splice(i, 1);
+          schleuder = 0.8; blitz = 250;
+          piep(220, 260, 'sawtooth', 0.12);
+          continue;
+        }
+        for (const r of rivalen) {
+          if (r.slow <= 0 && Math.hypot(b.x - r.x, b.z - r.z) < 1.9) {
+            bananen.splice(i, 1);
+            r.slow = 2;
+            schweber.push({ text: '🍌 ' + r.name + ' rutscht!', alter: 0 });
+            stil += 8;
+            break;
+          }
+        }
       }
       if (seitAbstand > HALB + 0.8 && speed > 5) {
         offZeit += dt;
         if (offZeit > 1) { treffer++; blitz = 300; offZeit = 0; piep(120, 200, 'sawtooth', 0.12); }
       } else offZeit = 0;
 
-      // Rivalen
+      // Rivalen: Gummiband-KI wie im Vorbild – wer hinten liegt, holt auf
       for (const r of rivalen) {
-        r.idx = (r.idx + r.v * dt / (Math.PI * 2 * 38 / N)) % N;
+        r.slow = Math.max(0, (r.slow || 0) - dt);
+        let vEff = r.v;
+        if (r.total < gesamtIdx - 18) vEff *= 1.2;
+        else if (r.total > gesamtIdx + 22) vEff *= 0.86;
+        if (blitzZeit > 0) vEff *= 0.55;
+        if (r.slow > 0) vEff *= 0.45;
+        const schritt = vEff * dt / (Math.PI * 2 * 38 / N);
+        r.idx = (r.idx + schritt) % N;
+        r.total += schritt;
         const p = samples[Math.floor(r.idx)];
         r.x = p.x; r.z = p.z; r.richtung = p.richtung;
         r.hitCd = Math.max(0, r.hitCd - dt);
@@ -1163,6 +1696,42 @@ const UI = (() => {
       ctx.strokeStyle = '#5c5e66'; ctx.lineWidth = HALB * 2 * skala; ctx.stroke(pfad);
       ctx.strokeStyle = 'rgba(245,240,230,0.8)'; ctx.lineWidth = 1.6;
       ctx.setLineDash([10, 12]); ctx.stroke(pfad); ctx.setLineDash([]);
+
+      // Boost-Pfeile auf der Bahn
+      for (const pad of boostPads) {
+        const p = topP(pad.x, pad.z);
+        ctx.save();
+        ctx.translate(p.sx, p.sy);
+        ctx.rotate(pad.richtung - heading);
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.moveTo(0, -9); ctx.lineTo(7, 2); ctx.lineTo(2.5, 2); ctx.lineTo(2.5, 9);
+        ctx.lineTo(-2.5, 9); ctx.lineTo(-2.5, 2); ctx.lineTo(-7, 2);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+      // ?-Boxen & Bananen
+      ctx.textAlign = 'center';
+      for (const box of itemBoxen) {
+        if (box.cd > 0) continue;
+        const p = topP(box.x, box.z);
+        ctx.save();
+        ctx.translate(p.sx, p.sy);
+        ctx.rotate((seitStart / 600) % (Math.PI * 2));
+        const grad = ctx.createLinearGradient(-8, -8, 8, 8);
+        grad.addColorStop(0, '#f4a261'); grad.addColorStop(0.5, '#e9c46a'); grad.addColorStop(1, '#2a9d8f');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.roundRect(-8, -8, 16, 16, 4); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif';
+        ctx.rotate(-(seitStart / 600) % (Math.PI * 2));
+        ctx.fillText('?', 0, 4);
+        ctx.restore();
+      }
+      for (const b of bananen) {
+        const p = topP(b.x, b.z);
+        ctx.font = '16px serif';
+        ctx.fillText('🍌', p.sx, p.sy + 5);
+      }
 
       // Start-/Ziellinie
       const sl = topP(samples[0].x, samples[0].z);
@@ -1214,7 +1783,8 @@ const UI = (() => {
       ctx.globalAlpha = 1;
       while (schweber.length && schweber[0].alter > 1.1) schweber.shift();
 
-      // HUD
+      // HUD: Platzierung, Runde, Item-Box
+      const platz = 1 + rivalen.filter(r => r.total > gesamtIdx).length;
       ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 26);
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
       ctx.fillText('💥 ' + treffer, 6, 18);
@@ -1223,6 +1793,21 @@ const UI = (() => {
       ctx.fillText('Runde ' + Math.min(RUNDEN_ZIEL, runden + 1) + '/' + RUNDEN_ZIEL, W / 2, 18);
       ctx.textAlign = 'right';
       ctx.fillText(fahrZeit.toFixed(1) + ' s', W - 6, 18);
+
+      // Platzierung groß links, Item-Box rechts (antippen = benutzen)
+      ctx.fillStyle = 'rgba(43,45,66,0.6)';
+      ctx.beginPath(); ctx.roundRect(6, 32, 58, 40, 10); ctx.fill();
+      ctx.fillStyle = platz === 1 ? '#ffd166' : '#fff';
+      ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('P' + platz, 35, 61);
+      ctx.fillStyle = 'rgba(43,45,66,0.6)';
+      ctx.beginPath(); ctx.roundRect(W - 60, 32, 54, 40, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(W - 60, 32, 54, 40, 10); ctx.stroke();
+      ctx.font = '22px serif';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(item ? ITEM_ICON[item] : '·', W - 33, 61);
+      zeichneTouchPfeile(ctx, W, H);
 
       if (seitStart < COUNTDOWN) {
         ctx.fillStyle = 'rgba(43,45,66,0.45)'; ctx.fillRect(0, 0, W, H);
@@ -1244,15 +1829,22 @@ const UI = (() => {
         piep(660, 150, 'square'); setTimeout(() => piep(880, 250, 'square'), 160);
 
         const geschafft = runden >= RUNDEN_ZIEL;
+        const endPlatz = 1 + rivalen.filter(r => r.total > gesamtIdx).length;
         let icon, text, effekte;
-        if (geschafft && treffer === 0 && fahrZeit < 55) {
-          icon = '🏆'; text = 'Pole Position! Sauber gefahren, alle Runden geschafft – die Bahn feiert dich.';
-          effekte = { erlebnis: 12 + Math.min(10, stil / 10 | 0), stimmung: 8, stress: -4 };
-        } else if (geschafft) {
-          icon = '🏁'; text = 'Zielflagge nach ' + Math.round(fahrZeit) + ' Sekunden – ordentliche Vorstellung!';
-          effekte = { erlebnis: 8 + Math.min(8, stil / 12 | 0), stimmung: 5 };
-        } else {
+        if (!geschafft) {
           icon = '⏱️'; text = 'Die Zeit ist um – aber Spaß gemacht hat es trotzdem.';
+          effekte = { erlebnis: 4, stimmung: 2 };
+        } else if (endPlatz === 1) {
+          icon = '🥇'; text = 'PLATZ 1! Du überquerst die Linie als Erster – die Bahn tobt, die Rivalen schmollen.';
+          effekte = { erlebnis: 14 + Math.min(8, stil / 12 | 0), stimmung: 10, stress: -4 };
+        } else if (endPlatz === 2) {
+          icon = '🥈'; text = 'Platz 2 – so knapp! Beim nächsten Mal hilft vielleicht eine gut getimte Banane.';
+          effekte = { erlebnis: 10 + Math.min(6, stil / 14 | 0), stimmung: 6 };
+        } else if (endPlatz === 3) {
+          icon = '🥉'; text = 'Platz 3 und ein Podium! Das Siegerfoto gibt es trotzdem.';
+          effekte = { erlebnis: 7, stimmung: 4 };
+        } else {
+          icon = '🏁'; text = 'Letzter Platz – aber die Rundenzeiten werden besser. Revanche?';
           effekte = { erlebnis: 4, stimmung: 2 };
         }
         const chips = Game.bonusAnwenden(effekte);
@@ -1712,8 +2304,22 @@ const UI = (() => {
       } else modalZeigen();
     };
 
-    // Die Kartbahn ist ein Bonuslevel: erst fahren, dann abrechnen!
-    if (res.act.id === 'karting') starteKartRennen(kinoOderModal);
+    // Minispiele: Kartbahn = Rennen; in der Stadt wartet der Verkehr,
+    // am Pool der frisch gepresste Zumo.
+    if (res.act.id === 'karting') { starteKartRennen(kinoOderModal); return; }
+    let vorspiel = null;
+    if (Game.run) {
+      if (!Game.run.flags.strasseGespielt && res.act.zone !== 'hotel' &&
+          (res.act.tags.includes('bummeln') || res.act.tags.includes('kultur')) && Math.random() < 0.55) {
+        Game.bonusAnwenden({ flag: 'strasseGespielt' });
+        vorspiel = starteStrassenSpiel;
+      } else if (!Game.run.flags.saftGespielt &&
+                 (res.act.id === 'pool' || res.act.tags.includes('strand')) && Math.random() < 0.5) {
+        Game.bonusAnwenden({ flag: 'saftGespielt' });
+        vorspiel = starteSaftSpiel;
+      }
+    }
+    if (vorspiel) vorspiel(kinoOderModal);
     else kinoOderModal();
   }
 
@@ -1929,14 +2535,28 @@ const UI = (() => {
 
   function flugFertig() {
     $('#btn-flug-skip').classList.add('versteckt');
-    $('#btn-flug-weiter').classList.remove('versteckt');
-    $('#btn-flug-weiter').onclick = () => {
-      flugAufraeumen();
-      Game.flugBestaetigen();
-      renderSpiel();
-      zeigeScreen('spiel');
-      toast('🌴 Willkommen auf Teneriffa – dein Urlaub beginnt jetzt!');
+    const run = Game.run;
+    const weiterZeigen = () => {
+      $('#btn-flug-weiter').classList.remove('versteckt');
+      $('#btn-flug-weiter').onclick = () => {
+        flugAufraeumen();
+        Game.flugBestaetigen();
+        renderSpiel();
+        zeigeScreen('spiel');
+        toast('🌴 Willkommen auf Teneriffa – dein Urlaub beginnt jetzt!');
+      };
     };
+    // Gepäckband-Minispiel – außer der Koffer ist ohnehin in Madrid …
+    if (run && !run.kofferVerloren && !run.flags.kofferSpielGespielt) {
+      const koffer = el('button', 'btn btn-primary btn-gross', '🧳 Zum Gepäckband');
+      koffer.id = 'btn-flug-koffer';
+      $('#btn-flug-weiter').parentNode.insertBefore(koffer, $('#btn-flug-weiter'));
+      koffer.addEventListener('click', () => {
+        koffer.remove();
+        Game.bonusAnwenden({ flag: 'kofferSpielGespielt' });
+        starteKofferSpiel(weiterZeigen);
+      });
+    } else weiterZeigen();
   }
 
   // ------------------------------------------------------- Urlaub fortsetzen
@@ -1994,6 +2614,30 @@ const UI = (() => {
     $('#btn-album').addEventListener('click', () => { renderAlbum(); zeigeScreen('album'); });
     $('#btn-besten').addEventListener('click', () => { renderBesten(); zeigeScreen('besten'); });
     $('#btn-hilfe').addEventListener('click', () => zeigeScreen('hilfe'));
+
+    // Optionaler Pexels-Schlüssel für hochwertigere Videos
+    const pexelsFeld = $('#pexels-key'), pexelsStatus = $('#pexels-status');
+    const pexelsAnzeigen = () => {
+      let key = '';
+      try { key = localStorage.getItem('tus_pexels_key') || ''; } catch (e) { /* egal */ }
+      pexelsStatus.textContent = key
+        ? '✅ Schlüssel gespeichert – neue Kino-Momente nutzen jetzt Pexels-Videos.'
+        : 'Kein Schlüssel hinterlegt – es werden freie Wikimedia-Videos genutzt.';
+    };
+    if (pexelsFeld) {
+      pexelsAnzeigen();
+      $('#pexels-speichern').addEventListener('click', () => {
+        try {
+          const wert = pexelsFeld.value.trim();
+          if (wert) localStorage.setItem('tus_pexels_key', wert);
+          else localStorage.removeItem('tus_pexels_key');
+          localStorage.removeItem('tus_videos_v1');   // Cache leeren → neu suchen
+        } catch (e) { /* egal */ }
+        pexelsFeld.value = '';
+        pexelsAnzeigen();
+        toast('🎬 Video-Einstellung gespeichert.');
+      });
+    }
 
     document.querySelectorAll('.btn-zurueck').forEach(b =>
       b.addEventListener('click', () => { renderStart(); zeigeScreen(b.dataset.ziel); }));

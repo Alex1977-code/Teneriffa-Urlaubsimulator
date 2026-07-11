@@ -204,6 +204,7 @@ const Game = (() => {
     if (effekte.stress) { run.stress = clamp(run.stress + effekte.stress, 0, 100);
       chips.push(`😰 Stress ${effekte.stress > 0 ? '+' : ''}${effekte.stress}`); }
     if (effekte.erlebnis) { run.erlebnis += effekte.erlebnis; chips.push(`⭐ +${effekte.erlebnis}`); }
+    if (effekte.flag) run.flags[effekte.flag] = true;
     return chips;
   }
 

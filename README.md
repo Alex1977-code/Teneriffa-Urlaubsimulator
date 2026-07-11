@@ -64,6 +64,15 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Quelle-Links führen zu Autor- und Lizenzangaben.
 - **Urlaubsflirt** – eine kleine Geschichte in drei Akten: Kennenlernen am Strand,
   Wiedersehen, Sonnenuntergangs-Date. Wer sich traut, wird mit Erinnerungen belohnt.
+- **Bonuslevel & Minispiele** – das Kart-Rennen im Mario-Kart-Stil (?-Boxen mit Turbo,
+  Bananen und Schock-Blitz, Boost-Pfeile, Platzierung gegen drei Rivalen mit
+  Gummiband-KI), Koffer-Schnappen am Gepäckband, die Straßenüberquerung mit
+  temperamentvoller spanischer Fahrweise und der Zumo-Balance-Lauf am Pool.
+  Alle Spiele sind voll touch-tauglich (sichtbare Lenk-Zonen, Tipp-Steuerung).
+- **Video-Qualität nach Wahl** – standardmäßig freie Wikimedia-Videos (mit klügerer
+  Auswahl nach Titel, Länge und Auflösung); optional lässt sich in der Anleitung ein
+  kostenloser Pexels-API-Schlüssel hinterlegen, dann kommen durchgehend hochwertige
+  Stock-Videos direkt ins Spiel.
 
 ## 🔁 Suchtfaktor
 

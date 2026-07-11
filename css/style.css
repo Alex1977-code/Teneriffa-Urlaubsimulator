@@ -841,3 +841,17 @@ button { font: inherit; cursor: pointer; }
   .kopf-budget { font-size: 1.05rem; }
   #modal-box { padding: 20px; }
 }
+
+/* ------------------------------------------------------ Pexels-Schlüssel */
+.pexels-reihe { display: flex; gap: 8px; margin-top: 8px; }
+
+.pexels-reihe input {
+  flex: 1;
+  border: 2px solid var(--sand-dunkel);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.pexels-reihe input:focus { outline: none; border-color: var(--ozean); }
