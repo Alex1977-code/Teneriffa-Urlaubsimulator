@@ -1270,32 +1270,64 @@ const UI = (() => {
   }
 
   // ------------------------------------------- Minispiel: Koffer vom Band
+  // Ovales Gepäckband mit Warnleuchte: Alle Koffer sehen fast gleich aus.
+  // Steuere dein Männchen um das Band und schnapp dir GENAU deinen Koffer!
   function starteKofferSpiel(fertigCb) {
     const { canvas, ctx, W, H } = minispielFenster(
       '🧳 Gepäckband – schnapp dir deinen Koffer!',
-      'Oben siehst du deinen Koffer. Tippe ihn an, sobald er vorbeirollt – aber greif nicht daneben!', 320);
+      'Alle Koffer sehen fast gleich aus – vergleiche <strong>Gurt-Farbe und Sticker</strong> mit deinem Koffer ' +
+      'oben links! Tippen = Männchen läuft hin (Pfeiltasten/WASD gehen auch). Koffer in Reichweite antippen ' +
+      'oder Leertaste = zugreifen.', 420);
 
-    const FARBEN = ['#c0392b', '#2c3e50', '#8e44ad', '#16a085', '#d35400', '#5d6d7e'];
-    const STICKER = ['🌺', '✈️', '⚽', '🎀', '🐢', ''];
-    const ziel = { farbe: FARBEN[Math.floor(Math.random() * FARBEN.length)],
-                   sticker: STICKER[Math.floor(Math.random() * STICKER.length)] };
-    const BAND_Y = 190, TEMPO = 78;
-    let koffer = [], spawnIn = 300, spawnZaehler = 0, zielDa = false;
-    let fehlgriffe = 0, blitz = 0, vorbei = false;
+    // Ovales Band mit Klappe links und Warnleuchte
+    const CX = W / 2, CY = 232, RX = 122, RY = 60;
+    const KLAPPE = Math.PI;
+    const posAuf = th => ({ x: CX + Math.cos(th) * RX, y: CY + Math.sin(th) * RY });
+
+    // Alle Koffer im gleichen Anthrazit – nur Gurtband und Sticker unterscheiden sich
+    const BASIS = '#41454f';
+    const GURTE = ['#e63946', '#ffd166', '#2a9d8f', null];
+    const STICKER = ['🌺', '✈️', '⭐', null];
+    const zufallStil = () => ({
+      gurt: GURTE[Math.floor(Math.random() * GURTE.length)],
+      sticker: STICKER[Math.floor(Math.random() * STICKER.length)],
+    });
+    const ziel = zufallStil();
+    const gleich = (a, b) => a.gurt === b.gurt && a.sticker === b.sticker;
+
+    const koffer = [];
+    let spawnIn = 0.3, spawnZaehler = 0, zielDa = false;
+    let fehlgriffe = 0, blitz = 0, leuchte = 0, vorbei = false, endeIn = -1, gewonnen = false;
+    const schweber = [];
+
+    // Dein Männchen + wartende Mitreisende (oben ums Band verteilt)
+    const du = { x: CX, y: H - 30, schritt: 0, blick: 1, tempo: 108 };
+    let laufZiel = null;
+    const tasten = { l: 0, r: 0, o: 0, u: 0 };
+    const menge = [3.6, 4.15, 4.7, 5.25, 5.8].map((th, i) => ({
+      x: CX + Math.cos(th) * (RX + 40), y: CY + Math.sin(th) * (RY + 32),
+      icon: ['🧍', '🧍‍♀️', '👵', '🧑‍🦱', '🧔'][i], greiftIn: 5 + i * 3 + Math.random() * 4,
+    }));
     const uhr = minispielUhr(canvas, ctx, W, H,
-      ['Merk dir deinen Koffer oben links!', 'Tippe ihn an, wenn er vorbeirollt']);
+      ['Alle Koffer sehen fast gleich aus!', 'Merk dir Gurt-Farbe & Sticker']);
 
     function zeichneKoffer(x, y, k, gross) {
-      const b = gross ? 56 : 48, h = gross ? 36 : 31;
-      ctx.fillStyle = 'rgba(0,0,0,0.2)';
-      ctx.beginPath(); ctx.ellipse(x, y + h / 2 + 3, b * 0.55, 5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#8a8d9c';
-      ctx.fillRect(x - 8, y - h / 2 - 6, 16, 8);
-      ctx.fillStyle = k.farbe;
-      ctx.beginPath(); ctx.roundRect(x - b / 2, y - h / 2, b, h, 6); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(x - b / 2 + 8, y - h / 2); ctx.lineTo(x - b / 2 + 8, y + h / 2); ctx.stroke();
-      if (k.sticker) { ctx.font = (gross ? 17 : 14) + 'px serif'; ctx.textAlign = 'center'; ctx.fillText(k.sticker, x + 6, y + 6); }
+      const b = gross ? 52 : 40, h = gross ? 34 : 26;
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath(); ctx.ellipse(x, y + h / 2 + 3, b * 0.55, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#23252d';
+      ctx.fillRect(x - 7, y - h / 2 - 5, 14, 7);
+      const lack = ctx.createLinearGradient(x, y - h / 2, x, y + h / 2);
+      lack.addColorStop(0, '#565b68'); lack.addColorStop(0.25, BASIS); lack.addColorStop(1, '#2e313a');
+      ctx.fillStyle = lack;
+      ctx.beginPath(); ctx.roundRect(x - b / 2, y - h / 2, b, h, 5); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(x - b / 2 + 7, y - h / 2); ctx.lineTo(x - b / 2 + 7, y + h / 2); ctx.stroke();
+      if (k.gurt) { ctx.fillStyle = k.gurt; ctx.fillRect(x + b * 0.06, y - h / 2, b * 0.16, h); }
+      if (k.sticker) {
+        ctx.font = (gross ? 14 : 11) + 'px serif'; ctx.textAlign = 'center';
+        ctx.fillText(k.sticker, x - b * 0.22, y + h * 0.22);
+      }
     }
 
     function fertig(icon, text, effekte, extra) {
@@ -1305,39 +1337,65 @@ const UI = (() => {
       minispielErgebnis(icon, text, effekte, extra, fertigCb);
     }
 
-    function klick(e) {
-      if (vorbei) return;
+    // Tippen: Koffer in Reichweite greifen – sonst läuft das Männchen hin
+    function zeigerRunter(e) {
+      if (vorbei || gewonnen) return;
       const box = canvas.getBoundingClientRect();
       const mx = (e.clientX - box.left) / box.width * W;
       const my = (e.clientY - box.top) / box.height * H;
-      for (let i = koffer.length - 1; i >= 0; i--) {
-        const k = koffer[i];
-        if (Math.abs(mx - k.x) < 30 && Math.abs(my - BAND_Y) < 26 && Math.abs(my - BAND_Y) === Math.abs(my - BAND_Y)) {
-          if (my < BAND_Y - 30 || my > BAND_Y + 30) continue;
-          if (k.istZiel) {
-            const zeit = uhr.zeit;
-            piep(880, 180, 'triangle', 0.09);
-            if (fehlgriffe === 0 && zeit < 14)
-              fertig('🧳', 'Erster Griff, richtiger Koffer – die Umstehenden sind neidisch auf deinen Blick fürs Detail.',
-                { stimmung: 4, stress: -3, erlebnis: 2 });
-            else if (fehlgriffe <= 2)
-              fertig('🧳', 'Koffer gesichert! Ein kurzer Moment der Verwirrung, aber am Ende zählt das Ergebnis.',
-                { stimmung: 2, stress: -1 });
-            else
-              fertig('🧳', 'Koffer gefunden – nach ein paar sehr peinlichen Fremdgriffen. Die Dame in Reihe zwei schaut noch immer streng.',
-                { stimmung: 1, stress: 2 });
-          } else {
-            fehlgriffe++; blitz = 250; k.peinlich = 1;
-            piep(180, 180, 'sawtooth', 0.1);
-          }
+      for (const k of koffer) {
+        const p = posAuf(k.th);
+        if (Math.hypot(mx - p.x, my - p.y) < 26 && Math.hypot(du.x - p.x, du.y - p.y) < 52) {
+          greifen(k, p);
+          e.preventDefault();
           return;
         }
       }
+      laufZiel = {
+        x: Math.max(12, Math.min(W - 12, mx)),
+        y: Math.max(120, Math.min(H - 14, my)),
+      };
+      e.preventDefault();
     }
-    canvas.addEventListener('pointerdown', klick);
+    function greifen(k, p) {
+      if (k.istZiel) {
+        gewonnen = true; endeIn = 1.1; leuchte = 1;
+        koffer.splice(koffer.indexOf(k), 1);
+        piep(880, 180, 'triangle', 0.09); setTimeout(() => piep(1100, 220, 'triangle', 0.09), 130);
+        brumm(40);
+      } else {
+        fehlgriffe++; blitz = 250; k.peinlich = 1;
+        schweber.push({ x: p.x, y: p.y - 22, text: 'Falscher Koffer!', alter: 0 });
+        piep(180, 180, 'sawtooth', 0.1);
+        brumm(50);
+      }
+    }
+    function naechstenGreifen() {           // Leertaste: nächster Koffer in Reichweite
+      let beste = null, dist = 52;
+      for (const k of koffer) {
+        const p = posAuf(k.th);
+        const d = Math.hypot(du.x - p.x, du.y - p.y);
+        if (d < dist) { dist = d; beste = { k, p }; }
+      }
+      if (beste) greifen(beste.k, beste.p);
+    }
+    function tasteRunter(e) {
+      const map = { ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r', ArrowUp: 'o', w: 'o', ArrowDown: 'u', s: 'u' };
+      if (map[e.key]) { tasten[map[e.key]] = 1; laufZiel = null; e.preventDefault(); }
+      else if (e.key === ' ' && !vorbei && !gewonnen) { naechstenGreifen(); e.preventDefault(); }
+    }
+    function tasteHoch(e) {
+      const map = { ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r', ArrowUp: 'o', w: 'o', ArrowDown: 'u', s: 'u' };
+      if (map[e.key]) tasten[map[e.key]] = 0;
+    }
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    document.addEventListener('keydown', tasteRunter);
+    document.addEventListener('keyup', tasteHoch);
     function aufraeumen() {
       uhr.aufraeumen();
-      canvas.removeEventListener('pointerdown', klick);
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+      document.removeEventListener('keydown', tasteRunter);
+      document.removeEventListener('keyup', tasteHoch);
     }
 
     if (window.MINISPIEL_SCHNELL) {
@@ -1349,63 +1407,200 @@ const UI = (() => {
       const t = uhr.tick(now);
       const dt = t.dt, zeit = t.zeit;
 
-      spawnIn -= dt * 1000;
-      if (spawnIn <= 0) {
-        spawnIn = 950 + Math.random() * 400;
+      // Nachschub aus der Klappe – die Warnleuchte blitzt bei jedem Koffer
+      spawnIn -= dt;
+      if (spawnIn <= 0 && koffer.length < 9) {
+        spawnIn = 1.1 + Math.random() * 0.7;
         spawnZaehler++;
-        const istZiel = !zielDa && (spawnZaehler % 5 === 4 || Math.random() < 0.22);
+        const istZiel = !zielDa && !gewonnen && (spawnZaehler % 6 === 5 || Math.random() < 0.2);
         let stil;
         if (istZiel) { stil = ziel; zielDa = true; }
-        else {
-          do {
-            stil = { farbe: FARBEN[Math.floor(Math.random() * FARBEN.length)],
-                     sticker: STICKER[Math.floor(Math.random() * STICKER.length)] };
-          } while (stil.farbe === ziel.farbe && stil.sticker === ziel.sticker);
+        else { do { stil = zufallStil(); } while (gleich(stil, ziel)); }
+        koffer.push({ th: KLAPPE, gurt: stil.gurt, sticker: stil.sticker, istZiel, peinlich: 0 });
+        leuchte = 1;
+      }
+      leuchte = Math.max(0, leuchte - dt * 1.4);
+      for (const k of koffer) {
+        k.th += 0.5 * dt;
+        if (k.peinlich > 0) k.peinlich = Math.max(0, k.peinlich - dt * 2);
+      }
+
+      // Wartende greifen sich ab und zu einen fremden Koffer
+      for (const m of menge) {
+        m.greiftIn -= dt;
+        if (m.greiftIn > 0) continue;
+        m.greiftIn = 6 + Math.random() * 8;
+        for (let i = koffer.length - 1; i >= 0; i--) {
+          const p = posAuf(koffer[i].th);
+          if (!koffer[i].istZiel && Math.hypot(m.x - p.x, m.y - p.y) < 56) {
+            koffer.splice(i, 1);
+            schweber.push({ x: m.x, y: m.y - 24, text: '„Meiner!“', alter: 0 });
+            piep(300, 90, 'square', 0.04);
+            break;
+          }
         }
-        koffer.push({ x: W + 40, farbe: stil.farbe, sticker: stil.sticker, istZiel });
-      }
-      for (const k of koffer) {
-        k.x -= TEMPO * dt;
-        if (k.peinlich) k.peinlich = Math.max(0, k.peinlich - dt * 2);
-      }
-      koffer = koffer.filter(k => {
-        if (k.x < -50) { if (k.istZiel) zielDa = false; return false; }
-        return true;
-      });
-
-      // Zeichnen: Flughafenhalle, Zielanzeige, Band mit Rollen
-      ctx.fillStyle = '#dfe3e8'; ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#c8cdd4'; ctx.fillRect(0, 0, W, 96);
-      ctx.fillStyle = '#2b2d42'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText('So sieht deiner aus:', 12, 30);
-      zeichneKoffer(200, 50, ziel, true);
-      ctx.fillStyle = '#55586a'; ctx.font = '11px sans-serif';
-      ctx.fillText('Fehlgriffe: ' + fehlgriffe, 12, 52);
-      ctx.fillText('⏱ ' + Math.max(0, Math.ceil(30 - zeit)) + ' s', 12, 70);
-
-      ctx.fillStyle = '#3c3f4a';
-      ctx.fillRect(0, BAND_Y - 34, W, 68);
-      ctx.fillStyle = '#2b2d36';
-      for (let x = (-(zeit * TEMPO) % 34); x < W; x += 34)
-        ctx.fillRect(x, BAND_Y - 34, 4, 68);
-
-      ctx.textAlign = 'center';
-      for (const k of koffer) {
-        if (k.peinlich > 0) {
-          ctx.save(); ctx.translate((Math.random() - 0.5) * 4, 0);
-          zeichneKoffer(k.x, BAND_Y, k, false);
-          ctx.restore();
-        } else zeichneKoffer(k.x, BAND_Y, k, false);
       }
 
-      if (blitz > 0) { blitz -= dt * 1000; ctx.fillStyle = 'rgba(230,57,70,0.2)'; ctx.fillRect(0, 0, W, H); }
-      uhr.zeichnen();
+      // Dein Männchen läuft (ums Band herum, nicht hindurch)
+      if (!gewonnen) {
+        let vx = tasten.r - tasten.l, vy = tasten.u - tasten.o;
+        if (vx || vy) {
+          const n = Math.hypot(vx, vy);
+          vx = vx / n * du.tempo; vy = vy / n * du.tempo;
+        } else if (laufZiel) {
+          const dx = laufZiel.x - du.x, dy = laufZiel.y - du.y, d = Math.hypot(dx, dy);
+          if (d > 4) { vx = dx / d * du.tempo; vy = dy / d * du.tempo; }
+          else laufZiel = null;
+        }
+        if (vx || vy) {
+          du.x = Math.max(12, Math.min(W - 12, du.x + vx * dt));
+          du.y = Math.max(120, Math.min(H - 12, du.y + vy * dt));
+          du.schritt += Math.hypot(vx, vy) * dt;
+          if (vx) du.blick = Math.sign(vx);
+        }
+        // Nicht über das Band laufen: sanft nach außen schieben
+        const ex = (du.x - CX) / (RX + 26), ey = (du.y - CY) / (RY + 24);
+        const e2 = ex * ex + ey * ey;
+        if (e2 < 1) {
+          const f = 1 / Math.sqrt(e2 || 0.01);
+          du.x = CX + (du.x - CX) * f;
+          du.y = CY + (du.y - CY) * f;
+          laufZiel = null;
+        }
+      }
 
-      if (zeit > 30) {
+      if (endeIn > 0) {
+        endeIn -= dt;
+        if (endeIn <= 0) {
+          if (fehlgriffe === 0 && zeit < 18)
+            fertig('🧳', 'Erster Griff, richtiger Koffer – die Umstehenden sind neidisch auf deinen Blick fürs Detail.',
+              { stimmung: 4, stress: -3, erlebnis: 2 });
+          else if (fehlgriffe <= 2)
+            fertig('🧳', 'Koffer gesichert! Ein kurzer Moment der Verwirrung, aber am Ende zählt das Ergebnis.',
+              { stimmung: 2, stress: -1 });
+          else
+            fertig('🧳', 'Koffer gefunden – nach ein paar sehr peinlichen Fremdgriffen. Die Dame am Band schaut noch immer streng.',
+              { stimmung: 1, stress: 2 });
+          return;
+        }
+      }
+
+      if (!gewonnen && zeit > 40) {
         fertig('🧳', 'Irgendwann kommt jeder Koffer – deiner eben ganz zum Schluss. Hauptsache, er ist da.',
           { stress: 2 });
         return;
       }
+
+      // ————— Zeichnen: Ankunftshalle mit ovalem Band —————
+      const wand = ctx.createLinearGradient(0, 0, 0, 118);
+      wand.addColorStop(0, '#c3cad4'); wand.addColorStop(1, '#dfe3e8');
+      ctx.fillStyle = wand; ctx.fillRect(0, 0, W, 118);
+      ctx.fillStyle = 'rgba(120,180,220,0.5)';
+      ctx.fillRect(126, 34, W - 138, 30);
+      ctx.font = '13px serif'; ctx.textAlign = 'center';
+      ctx.fillText('✈️', 150 + (zeit * 14) % (W - 190), 54);
+      ctx.fillStyle = '#e8e4da'; ctx.fillRect(0, 118, W, H - 118);
+      ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 42) { ctx.beginPath(); ctx.moveTo(x, 118); ctx.lineTo(x, H); ctx.stroke(); }
+
+      // Dein Koffer als Vergleich (oben links)
+      ctx.fillStyle = 'rgba(43,45,66,0.85)';
+      ctx.beginPath(); ctx.roundRect(6, 6, 110, 94, 10); ctx.fill();
+      gtaText(ctx, 'DEINER:', 61, 25, 12, '#ffd166');
+      zeichneKoffer(61, 56, ziel, true);
+      gtaText(ctx, '😅 ' + fehlgriffe, 61, 93, 11, fehlgriffe ? '#ff5b6a' : '#fff');
+
+      // Ovales Band: Sockel, Lauffläche, Mittelinsel, wandernde Lamellen
+      ctx.fillStyle = '#2c2f38';
+      ctx.beginPath(); ctx.ellipse(CX, CY, RX + 26, RY + 22, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#4a4e59';
+      ctx.beginPath(); ctx.ellipse(CX, CY, RX + 20, RY + 17, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#33363f';
+      ctx.beginPath(); ctx.ellipse(CX, CY, RX - 20, RY - 16, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#8f939e';
+      ctx.beginPath(); ctx.ellipse(CX, CY, RX - 24, RY - 19, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 2;
+      for (let i = 0; i < 26; i++) {
+        const th = i / 26 * Math.PI * 2 + zeit * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(CX + Math.cos(th) * (RX - 18), CY + Math.sin(th) * (RY - 14));
+        ctx.lineTo(CX + Math.cos(th) * (RX + 18), CY + Math.sin(th) * (RY + 15));
+        ctx.stroke();
+      }
+      // Klappe & orange Warnleuchte (blinkt, blitzt bei jedem neuen Koffer)
+      ctx.fillStyle = '#23252d';
+      ctx.fillRect(CX - RX - 34, CY - 26, 30, 52);
+      ctx.fillStyle = '#101116';
+      ctx.fillRect(CX - RX - 30, CY - 18, 22, 36);
+      const puls = Math.max(leuchte, 0.35 + 0.3 * Math.sin(zeit * 7));
+      const glut = ctx.createRadialGradient(CX - RX - 19, CY - 40, 1, CX - RX - 19, CY - 40, 22);
+      glut.addColorStop(0, 'rgba(255,160,60,' + (0.85 * puls).toFixed(2) + ')');
+      glut.addColorStop(1, 'rgba(255,160,60,0)');
+      ctx.fillStyle = glut;
+      ctx.beginPath(); ctx.arc(CX - RX - 19, CY - 40, 22, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,140,40,' + (0.4 + 0.6 * puls).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(CX - RX - 19, CY - 40, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3c3f4a';
+      ctx.fillRect(CX - RX - 22, CY - 36, 6, 12);
+
+      // Koffer (hintere zuerst, damit vordere sie verdecken)
+      const sortiert = [...koffer].sort((a, b) => Math.sin(a.th) - Math.sin(b.th));
+      for (const k of sortiert) {
+        const p = posAuf(k.th);
+        if (k.peinlich > 0) {
+          ctx.save(); ctx.translate((Math.random() - 0.5) * 4, 0);
+          zeichneKoffer(p.x, p.y, k, false);
+          ctx.restore();
+        } else zeichneKoffer(p.x, p.y, k, false);
+      }
+
+      // Wartende Mitreisende
+      for (const m of menge) {
+        ctx.fillStyle = 'rgba(0,0,0,0.16)';
+        ctx.beginPath(); ctx.ellipse(m.x, m.y + 9, 8, 3, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.font = '20px serif'; ctx.textAlign = 'center';
+        ctx.fillText(m.icon, m.x, m.y + 6 + Math.sin(zeit * 2 + m.x) * 1.2);
+      }
+
+      // Dein Männchen mit Reichweite-Ring und Zielmarke
+      if (!gewonnen) {
+        ctx.strokeStyle = 'rgba(42,157,143,0.4)'; ctx.lineWidth = 2;
+        ctx.setLineDash([6, 7]);
+        ctx.beginPath(); ctx.arc(du.x, du.y, 52, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+        const huepf = Math.abs(Math.sin(du.schritt * 0.12)) * -3;
+        ctx.save();
+        ctx.translate(du.x, du.y + huepf);
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        ctx.beginPath(); ctx.ellipse(0, 10 - huepf, 9, 3.4, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.scale(-du.blick, 1);
+        ctx.font = '24px serif'; ctx.textAlign = 'center';
+        ctx.fillText(laufZiel || tasten.l || tasten.r || tasten.o || tasten.u ? '🏃' : '🧍', 0, 8);
+        ctx.restore();
+        if (laufZiel) {
+          ctx.strokeStyle = 'rgba(230,57,70,0.8)'; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(laufZiel.x, laufZiel.y, 9 + Math.sin(zeit * 8) * 2, 0, Math.PI * 2); ctx.stroke();
+        }
+      } else {
+        ctx.font = '24px serif'; ctx.textAlign = 'center';
+        ctx.fillText('🙆', du.x, du.y + 8);
+        gtaText(ctx, 'DEINER!', W / 2, H / 2 - 44, 34, '#3ddc97');
+      }
+
+      // Schwebende Kommentare
+      for (let i = schweber.length - 1; i >= 0; i--) {
+        const s = schweber[i];
+        s.alter += dt;
+        if (s.alter > 1) { schweber.splice(i, 1); continue; }
+        ctx.globalAlpha = 1 - s.alter;
+        gtaText(ctx, s.text, s.x, s.y - s.alter * 26, 13, '#ffd166');
+        ctx.globalAlpha = 1;
+      }
+
+      if (blitz > 0) { blitz -= dt * 1000; ctx.fillStyle = 'rgba(230,57,70,0.2)'; ctx.fillRect(0, 0, W, H); }
+      gtaText(ctx, '⏱ ' + Math.max(0, Math.ceil(40 - zeit)) + ' s', W - 10, 22, 12, '#fff', 'right');
+      uhr.zeichnen();
+
       requestAnimationFrame(schleife);
     }
     requestAnimationFrame(schleife);
@@ -1877,7 +2072,7 @@ const UI = (() => {
 
     const RUNDEN = 3;
     let runde = 1, duPunkte = 0, karlPunkte = 0;
-    let feld = [], beiseite = 0, turnPunkte = 0;
+    let feld = [], abgelegt = [], turnPunkte = 0;
     let phase = 'start';   // start | wahl | karl | ende
     let meldung = 'Dein Zug, Runde 1 – wirf die Würfel!';
     let vorbei = false;
@@ -1948,8 +2143,9 @@ const UI = (() => {
       piep(320, 60, 'triangle', 0.06);
       setTimeout(() => piep(260, 50, 'triangle', 0.05), 80);
       if (!hatZug()) {
-        // Farkle! Zugpunkte futsch
+        // Farkle! Zugpunkte futsch – auch die abgelegten Würfel sind dahin
         turnPunkte = 0;
+        abgelegt = [];
         phase = 'karl';
         meldung = '💥 Farkle! Kein Wurf zählt – deine Zugpunkte sind weg.';
         piep(140, 300, 'sawtooth', 0.1);
@@ -1964,14 +2160,15 @@ const UI = (() => {
 
     rollBtn.addEventListener('click', () => {
       if (vorbei) return;
-      if (phase === 'start') { werfen(6); return; }
+      if (phase === 'start') { abgelegt = []; werfen(6); return; }
       if (phase !== 'wahl') return;
       const a = auswahlWertung();
       if (!a.gueltig) return;
       turnPunkte += a.punkte;
-      beiseite += feld.filter(w => w.gewaehlt).length;
-      const rest = 6 - beiseite;
-      if (rest <= 0) beiseite = 0;              // „Hot Dice“: alle sechs neu!
+      // Gewählte Würfel bleiben sichtbar liegen – sie sind für den Zug gesichert
+      for (const w of feld) if (w.gewaehlt) abgelegt.push(w.wert);
+      const rest = 6 - abgelegt.length;
+      if (rest <= 0) abgelegt = [];             // „Hot Dice“: alle sechs neu!
       werfen(rest <= 0 ? 6 : rest);
     });
     bankBtn.addEventListener('click', () => {
@@ -1982,7 +2179,7 @@ const UI = (() => {
       duPunkte += turnPunkte;
       logZeile('🙂', `Du sicherst ${turnPunkte} Punkte (gesamt ${duPunkte}).`);
       piep(660, 140, 'triangle', 0.08);
-      turnPunkte = 0; beiseite = 0; feld = [];
+      turnPunkte = 0; abgelegt = []; feld = [];
       phase = 'karl';
       meldung = 'Karl schüttelt den Würfelbecher …';
       malen();
@@ -2102,9 +2299,10 @@ const UI = (() => {
         w.y = w.gewaehlt ? 128 : 182;
         malWuerfel(w.x, w.y, gr, w.wert, w.gewaehlt, istWaehlbar(w.wert));
       });
-      if (beiseite > 0) {
-        ctx.fillStyle = 'rgba(245,240,230,0.7)'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
-        ctx.fillText('🎲 beiseitegelegt: ' + beiseite, 24, 100);
+      if (abgelegt.length) {
+        // Gesicherte Würfel des Zugs bleiben sichtbar liegen (goldener Rand)
+        gtaText(ctx, 'gesichert:', 24, 99, 10, '#ffd166', 'left');
+        abgelegt.forEach((wert, i) => malWuerfel(96 + i * 30, 95, 24, wert, true, false));
       }
 
       // Zug-Punkte & Auswahl

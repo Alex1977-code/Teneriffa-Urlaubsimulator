@@ -68,7 +68,8 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Wiedersehen, Sonnenuntergangs-Date. Wer sich traut, wird mit Erinnerungen belohnt.
 - **Bonuslevel & Minispiele** – das Kart-Rennen im Mario-Kart-Stil (?-Boxen mit Turbo,
   Bananen und Schock-Blitz, Boost-Pfeile, Platzierung gegen drei Rivalen mit
-  Gummiband-KI), Koffer-Schnappen am Gepäckband, die Straßenüberquerung mit
+  Gummiband-KI), das ovale Gepäckband mit blinkender Warnleuchte, fast identischen
+  Koffern, wartender Menge und Männchensteuerung, die Straßenüberquerung mit
   temperamentvoller spanischer Fahrweise, der Zumo-Balance-Lauf und der morgendliche
   Wettlauf um die Poolliegen – mit echter Männchensteuerung (Tippen/Ziehen oder
   Pfeiltasten), nur drei freien Liegen und rennenden Rivalen, die Parkplatzsuche mit dem Mietwagen, das
