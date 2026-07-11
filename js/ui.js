@@ -85,6 +85,25 @@ const UI = (() => {
     reihe.querySelector('button').focus();
   }
 
+  // Quelle & Lizenz im Spiel anzeigen – nichts wirft dich mehr aus dem Spiel
+  function zeigeQuelle(url) {
+    if (!url) return;
+    zeigeModal({
+      icon: '📷', titel: 'Quelle & Lizenz',
+      html: '<p>Dieses Foto/Video stammt von Wikipedia/Wikimedia Commons. ' +
+        'Auf der Quellseite findest du Autor- und Lizenzangaben.</p>' +
+        `<p class="hint">${esc(url)}</p>`,
+      buttons: [
+        { text: '↩ Zurück ins Spiel', cb: () => {} },
+        { text: '🌐 Quellseite in neuem Tab', cb: () => {
+          const a = el('a');
+          a.href = url; a.target = '_blank'; a.rel = 'noopener';
+          document.body.appendChild(a); a.click(); a.remove();
+        } },
+      ],
+    });
+  }
+
   function toast(html) {
     const t = el('div', 'toast', html);
     $('#toasts').appendChild(t);
@@ -1772,7 +1791,7 @@ const UI = (() => {
   function starteSaftSpiel(fertigCb) {
     const { canvas, ctx, W, H } = minispielFenster(
       '🧃 Frischer Zumo – bring ihn heil zur Liege!',
-      'Halte links/rechts (oder ← →) dagegen, damit nichts überschwappt. Barfuß auf heißen Fliesen – viel Erfolg.', 320);
+      'Finger halten und ziehen: je weiter links/rechts, desto stärker hältst du dagegen (← → gehen auch). Barfuß auf heißen Fliesen – viel Erfolg.', 320);
 
     let theta = 0, omega = 0, input = 0, fortschritt = 0, inputZeiger = null;
     let boeIn = 600, vorbei = false;
@@ -1789,11 +1808,15 @@ const UI = (() => {
       if (e.key === 'ArrowRight' || e.key === 'd') { input = 1; e.preventDefault(); }
     }
     function tasteHoch(e) { if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) input = 0; }
-    function zeigerRunter(e) {
+    // Analoge Touch-Steuerung: Fingerposition = Gegenkraft (fein dosierbar)
+    function analog(e) {
       const box = canvas.getBoundingClientRect();
-      input = (e.clientX - box.left) / box.width * W < W / 2 ? -1 : 1;
-      inputZeiger = e.pointerId;
-      e.preventDefault();
+      const x = (e.clientX - box.left) / box.width * W;
+      input = Math.max(-1, Math.min(1, (x - W / 2) / (W * 0.3)));
+    }
+    function zeigerRunter(e) { analog(e); inputZeiger = e.pointerId; e.preventDefault(); }
+    function zeigerZieh(e) {
+      if (inputZeiger !== null && e.pointerId === inputZeiger) { analog(e); e.preventDefault(); }
     }
     const zeigerHoch = e => {
       if (inputZeiger === null || e.pointerId === inputZeiger) { input = 0; inputZeiger = null; }
@@ -1801,12 +1824,14 @@ const UI = (() => {
     document.addEventListener('keydown', tasteRunter);
     document.addEventListener('keyup', tasteHoch);
     canvas.addEventListener('pointerdown', zeigerRunter);
+    canvas.addEventListener('pointermove', zeigerZieh);
     document.addEventListener('pointerup', zeigerHoch);
     function aufraeumen() {
       uhr.aufraeumen();
       document.removeEventListener('keydown', tasteRunter);
       document.removeEventListener('keyup', tasteHoch);
       canvas.removeEventListener('pointerdown', zeigerRunter);
+      canvas.removeEventListener('pointermove', zeigerZieh);
       document.removeEventListener('pointerup', zeigerHoch);
     }
 
@@ -2195,7 +2220,8 @@ const UI = (() => {
   function starteFarkleSpiel(fertigCb) {
     const { canvas, ctx, W, H } = minispielFenster(
       '🎲 Spieleabend: Farkle gegen Karl',
-      '<strong>1</strong> = 100 · <strong>5</strong> = 50 · Drilling = Augenzahl × 100 (drei Einsen: 1000).<br>' +
+      '<strong>1</strong> = 100 · <strong>5</strong> = 50 · Drilling = Augenzahl × 100 (drei Einsen: 1000). ' +
+      'Wirfst du zu einem <strong>gesicherten Drilling dieselbe Zahl nach, verdoppelt</strong> sich sein Wert!<br>' +
       'Würfel antippen (oder Tasten 1–6) zum Behalten, dann weiterwürfeln oder sichern. ' +
       'Kein Treffer im Wurf = <strong>Farkle</strong>, Zugpunkte weg!', 340);
 
@@ -2248,13 +2274,15 @@ const UI = (() => {
       let punkte = 0, gueltig = false;
       for (const [f, c] of Object.entries(zaehl)) {
         const wert = +f;
+        const basis = wert === 1 ? 1000 : wert * 100;
+        const schon = abgelegt.filter(v => v === wert).length;
         gueltig = true;
-        if (c >= 3) {
-          punkte += wert === 1 ? 1000 : wert * 100;
-          const rest = c - 3;
-          if (wert === 1) punkte += rest * 100;
-          else if (wert === 5) punkte += rest * 50;
-          else if (rest > 0) return { punkte: 0, gueltig: false };
+        if (schon >= 3) {
+          // Nachwurf auf gesicherten Drilling: jede weitere gleiche Zahl VERDOPPELT
+          punkte += basis * Math.pow(2, schon + c - 3) - basis * Math.pow(2, schon - 3);
+        } else if (c >= 3) {
+          // Drilling – jede weitere gleiche Zahl im selben Wurf verdoppelt ebenfalls
+          punkte += basis * Math.pow(2, c - 3);
         } else if (wert === 1) punkte += c * 100;
         else if (wert === 5) punkte += c * 50;
         else return { punkte: 0, gueltig: false };
@@ -2263,7 +2291,8 @@ const UI = (() => {
     }
     function istWaehlbar(wert) {
       if (wert === 1 || wert === 5) return true;
-      return feld.filter(w => w.wert === wert).length >= 3;
+      if (feld.filter(w => w.wert === wert).length >= 3) return true;
+      return abgelegt.filter(v => v === wert).length >= 3;   // Nachwurf zählt!
     }
     function hatZug() { return feld.some(w => istWaehlbar(w.wert)); }
 
@@ -3682,9 +3711,10 @@ const UI = (() => {
       buttons.appendChild(weiter);
     }
     if (bild) {
-      const quelle = el('a', 'btn btn-klein', '📷 Quelle');
-      quelle.href = bild.artikelUrl; quelle.target = '_blank'; quelle.rel = 'noopener';
+      const quelle = el('button', 'btn btn-klein', '📷 Quelle');
       quelle.id = 'kino-quelle';
+      quelle.dataset.url = bild.artikelUrl;
+      quelle.addEventListener('click', () => zeigeQuelle(quelle.dataset.url));
       buttons.appendChild(quelle);
     }
     overlay.classList.remove('versteckt');
@@ -3713,11 +3743,12 @@ const UI = (() => {
         buttons.appendChild(ton);
       }
       const quelle = $('#kino-quelle');
-      if (quelle) { quelle.href = video.quelle; quelle.textContent = '🎥 Quelle'; }
+      if (quelle) { quelle.dataset.url = video.quelle; quelle.textContent = '🎥 Quelle'; }
       else {
-        const neu = el('a', 'btn btn-klein', '🎥 Quelle');
-        neu.href = video.quelle; neu.target = '_blank'; neu.rel = 'noopener';
+        const neu = el('button', 'btn btn-klein', '🎥 Quelle');
         neu.id = 'kino-quelle';
+        neu.dataset.url = video.quelle;
+        neu.addEventListener('click', () => zeigeQuelle(neu.dataset.url));
         buttons.appendChild(neu);
       }
     });
@@ -4413,10 +4444,7 @@ const UI = (() => {
     document.addEventListener('click', ev => {
       const img = ev.target.closest ? ev.target.closest('img[data-quelle]') : null;
       if (img && !img.closest('.akt-karte')) {
-        // Über einen echten Link öffnen → neuer Tab, kein Popup-Blocker
-        const a = el('a');
-        a.href = img.dataset.quelle; a.target = '_blank'; a.rel = 'noopener';
-        document.body.appendChild(a); a.click(); a.remove();
+        zeigeQuelle(img.dataset.quelle);   // im Spiel bleiben!
         ev.stopPropagation();
       }
     }, true);

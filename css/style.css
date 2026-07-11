@@ -46,6 +46,19 @@
 .ende-kopf h2 { color: #ffd166; }
 .kopf-tag { color: #ffd166; -webkit-text-stroke-width: 1.6px; }
 
+/* GTA-Look auch für alle kleineren Titel im Spiel */
+.panel h3, .panel h4, .akt-name, .option-name, #setup-budget .budget-summe {
+  font-family: "Arial Black", Impact, "Segoe UI", system-ui, sans-serif;
+  font-weight: 900;
+  font-style: italic;
+  -webkit-text-stroke: 1.1px #14151f;
+  paint-order: stroke fill;
+}
+.panel h3 { color: var(--ozean); }
+.panel h4 { color: var(--sonne-dunkel); }
+.akt-name { color: var(--ozean-dunkel); }
+.option-name { color: var(--gruen); }
+
 html { scroll-behavior: smooth; }
 
 body {
@@ -563,7 +576,8 @@ button { font: inherit; cursor: pointer; }
 }
 
 .akt-karte {
-  background: var(--karte);
+  background: linear-gradient(180deg, #ffffff 0%, #fdf9f0 100%);
+  border-top: 3px solid var(--ozean-hell);
   border: 2px solid transparent;
   border-radius: var(--radius);
   box-shadow: var(--schatten);
@@ -613,7 +627,8 @@ button { font: inherit; cursor: pointer; }
 #spiel-seite { display: flex; flex-direction: column; gap: 14px; }
 
 .panel {
-  background: var(--karte);
+  background: linear-gradient(180deg, #ffffff 0%, #fdfaf3 100%);
+  border-top: 3px solid var(--sonne);
   border-radius: var(--radius);
   box-shadow: var(--schatten);
   padding: 16px 18px;
