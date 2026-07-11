@@ -20,7 +20,7 @@ const UI = (() => {
   // ------------------------------------------------ Welt-Highscore (online)
   // Gemeinsame Online-Bestenliste (kvdb.io). Sobald hier eine Bucket-URL
   // steht, melden alle Spieler ihre Urlaube automatisch dorthin.
-  const HISCORE_FEST = '';   // globale Bucket-URL, sobald bekannt
+  const HISCORE_FEST = 'https://kvdb.io/9vp5YEqVV7F3U4VCxSS7Wr/';   // gemeinsame Welt-Bestenliste
   const HISCORE_MUSTER = /^https:\/\/kvdb\.io\/[A-Za-z0-9]{6,}\/$/;
   function hiscoreUrl() {
     if (HISCORE_FEST) return HISCORE_FEST;
