@@ -53,6 +53,17 @@ const UI = (() => {
       .catch(() => null);
   }
 
+  // ------------------------------------------------------- Urlaubs-Story
+  // Jeder Urlaub erzählt sich wie ein kleines Buch – Tag für Tag ein Kapitel.
+  const KAPITEL = ['Salz auf der Haut', 'Der Duft von Sonnencreme', 'Straße der Serpentinen',
+    'Unter dem Vulkan', 'Wo der Passat wohnt', 'Barraquito um vier', 'Die Insel ruft',
+    'Zwischen Palmen und Wolkenmeer', 'Golden geht die Sonne', 'Ein Tag wie eine Postkarte'];
+  function kapitelTitel(tag, dauer) {
+    if (tag <= 1) return 'Ankommen im Paradies';
+    if (tag >= dauer) return 'Der letzte Tanz';
+    return KAPITEL[(tag * 3 + dauer) % KAPITEL.length];
+  }
+
   // -------------------------------------------------------------- Bildschirme
   function zeigeScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('aktiv'));
@@ -359,11 +370,11 @@ const UI = (() => {
     // Umgebung passend zur echten Route
     const zielZone = fahrt ? (fahrt.nach === 'hotel' ? Game.run.region : fahrt.nach) : 'sued';
     const THEMEN = {
-      sued:  { boden: '#e0cfa2', deko: ['🌵', '🌴', '🌵'], himmel: ['#4ea8de', '#bde6f5'] },
-      west:  { boden: '#d5c08c', deko: ['🌵', '🌴', '🪨'], himmel: ['#4ea8de', '#bde6f5'] },
-      teide: { boden: '#93775e', deko: ['🌲', '🪨', '🌲'], himmel: ['#3d7fb8', '#a9d2e8'] },
-      nord:  { boden: '#a2bd77', deko: ['🌴', '🌳', '🍌'], himmel: ['#5aa5cf', '#c9e6f0'] },
-      anaga: { boden: '#88ad68', deko: ['🌳', '🌿', '🌲'], himmel: ['#5aa5cf', '#c9e6f0'] },
+      sued:  { boden: '#e0cfa2', deko: ['🌵', '🌴', '🌵', '🏵️', '🦎', '⛱️'], himmel: ['#4ea8de', '#bde6f5'] },
+      west:  { boden: '#d5c08c', deko: ['🌵', '🌴', '🪨', '🐐', '🌾'], himmel: ['#4ea8de', '#bde6f5'] },
+      teide: { boden: '#93775e', deko: ['🌲', '🪨', '🌲', '🌋', '🌾'], himmel: ['#3d7fb8', '#a9d2e8'] },
+      nord:  { boden: '#a2bd77', deko: ['🌴', '🌳', '🍌', '🌺', '🍇'], himmel: ['#5aa5cf', '#c9e6f0'] },
+      anaga: { boden: '#88ad68', deko: ['🌳', '🌿', '🌲', '🍃', '🐦'], himmel: ['#5aa5cf', '#c9e6f0'] },
     };
     const thema = THEMEN[zielZone] || THEMEN.sued;
     const wagen = (Game.run && DATA.AUTOS[Game.run.auto]) || DATA.AUTOS.kompakt;
@@ -485,6 +496,7 @@ const UI = (() => {
 
     // Wolken & Autofarben für den Verkehr
     const wolken = [{ az: -0.6, h: 34, gr: 26 }, { az: 1.4, h: 52, gr: 34 }, { az: 2.8, h: 40, gr: 22 }];
+    const voegel = [{ az: 0.4, h: 58 }, { az: 2.1, h: 40 }];
     const AUTOFARBEN = ['#3a6ea5', '#d8d8d8', '#454754', '#c46a2b', '#7b5aa6'];
     const schweber = [];
     const start = performance.now();
@@ -746,7 +758,7 @@ const UI = (() => {
       }
 
       // Kamera folgt mit Verzögerung (Chase-Cam)
-      camYaw += winkelNorm(heading - camYaw) * Math.min(1, dt * 4);
+      camYaw += winkelNorm(heading - camYaw) * Math.min(1, dt * 4.6);
       const sinY = Math.sin(camYaw), cosY = Math.cos(camYaw);
       const kamX = px - sinY * KAM_ABSTAND, kamZ = pz - cosY * KAM_ABSTAND;
       const projiziere = (x, z) => {
@@ -798,6 +810,19 @@ const UI = (() => {
       if (Math.abs(meerRel) < 1.35) {
         ctx.fillStyle = 'rgba(31,111,165,' + (0.85 * Math.cos(meerRel * 1.1)).toFixed(2) + ')';
         ctx.fillRect(0, HORIZONT - 7, W, 7);
+      }
+      // Möwen ziehen über den Himmel
+      for (const vogel of voegel) {
+        vogel.az += dt * 0.05;
+        const relV = winkelNorm(vogel.az - camYaw);
+        if (Math.abs(relV) < 1.2) {
+          const vx = W / 2 + Math.tan(relV) * F;
+          const schlag = Math.sin(performance.now() / 130 + vogel.h) * 3;
+          ctx.strokeStyle = 'rgba(40,45,60,0.75)'; ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(vx - 6, vogel.h - schlag); ctx.quadraticCurveTo(vx, vogel.h + 3, vx + 6, vogel.h - schlag);
+          ctx.stroke();
+        }
       }
       for (const wolke of wolken) {
         wolke.az += dt * 0.004;
@@ -1198,7 +1223,7 @@ const UI = (() => {
     ctx.textAlign = align || 'center';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = '#14151f';
-    ctx.lineWidth = Math.max(2.5, gr * 0.2);
+    ctx.lineWidth = Math.max(1.6, gr * 0.16);
     ctx.strokeText(text, x, y);
     ctx.fillStyle = farbe || '#ffd166';
     ctx.fillText(text, x, y);
@@ -1816,13 +1841,35 @@ const UI = (() => {
       if (e.key === 'ArrowRight' || e.key === 'd') { input = 1; e.preventDefault(); }
     }
     function tasteHoch(e) { if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) input = 0; }
+    // Neigungssensor: Handy kippen steuert das Glas (wo der Browser es erlaubt)
+    let neigung = null, sensorGefragt = false;
+    function orientierung(e) {
+      if (e.gamma !== null && e.gamma !== undefined)
+        neigung = Math.max(-1, Math.min(1, e.gamma / 20));
+    }
+    function sensorStarten() {
+      if (sensorGefragt) return;
+      sensorGefragt = true;
+      try {
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+            typeof DeviceOrientationEvent.requestPermission === 'function') {
+          DeviceOrientationEvent.requestPermission().then(erlaubt => {
+            if (erlaubt === 'granted') window.addEventListener('deviceorientation', orientierung);
+          }).catch(() => {});
+        } else {
+          window.addEventListener('deviceorientation', orientierung);
+        }
+      } catch (e) { /* kein Sensor – Finger reicht */ }
+    }
+    if (IST_TOUCH) sensorStarten();
+
     // Analoge Touch-Steuerung: Fingerposition = Gegenkraft (fein dosierbar)
     function analog(e) {
       const box = canvas.getBoundingClientRect();
       const x = (e.clientX - box.left) / box.width * W;
       input = Math.max(-1, Math.min(1, (x - W / 2) / (W * 0.3)));
     }
-    function zeigerRunter(e) { analog(e); inputZeiger = e.pointerId; e.preventDefault(); }
+    function zeigerRunter(e) { sensorStarten(); analog(e); inputZeiger = e.pointerId; e.preventDefault(); }
     function zeigerZieh(e) {
       if (inputZeiger !== null && e.pointerId === inputZeiger) { analog(e); e.preventDefault(); }
     }
@@ -1841,6 +1888,7 @@ const UI = (() => {
       canvas.removeEventListener('pointerdown', zeigerRunter);
       canvas.removeEventListener('pointermove', zeigerZieh);
       document.removeEventListener('pointerup', zeigerHoch);
+      window.removeEventListener('deviceorientation', orientierung);
     }
 
     if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('🧃', 'Angekommen!', { stimmung: 2 }), 700);
@@ -1855,7 +1903,8 @@ const UI = (() => {
         boeIn = 500 + Math.random() * 900;
         omega += (Math.random() - 0.5) * (2.2 + fortschritt * 2.2);
       }
-      omega += theta * 2.4 * dt + input * -3.4 * dt * -1;
+      const steuerung = inputZeiger !== null || input !== 0 ? input : (neigung !== null ? neigung : 0);
+      omega += theta * 2.4 * dt + steuerung * -3.4 * dt * -1;
       omega *= 1 - 0.6 * dt;
       theta += omega * dt;
       fortschritt = Math.min(1, fortschritt + dt / 9);
@@ -2229,7 +2278,8 @@ const UI = (() => {
     const { canvas, ctx, W, H } = minispielFenster(
       '🎲 Spieleabend: Farkle gegen Karl',
       '<strong>1</strong> = 100 · <strong>5</strong> = 50 · Drilling = Augenzahl × 100 (drei Einsen: 1000). ' +
-      'Wirfst du zu einem <strong>gesicherten Drilling dieselbe Zahl nach, verdoppelt</strong> sich sein Wert!<br>' +
+      'Wirfst du zu einem <strong>gesicherten Drilling dieselbe Zahl nach, verdoppelt</strong> sich sein Wert. ' +
+      'Straße 1–6 = 2500 · drei Paare = 1500 · zwei Drillinge = 2500.<br>' +
       'Würfel antippen (oder Tasten 1–6) zum Behalten, dann weiterwürfeln oder sichern. ' +
       'Kein Treffer im Wurf = <strong>Farkle</strong>, Zugpunkte weg!', 340);
 
@@ -2262,7 +2312,8 @@ const UI = (() => {
       document.removeEventListener('keydown', tasteRunter);
     }
     function wuerfelWaehlen(w) {
-      if (!w.gewaehlt && !istWaehlbar(w.wert)) { piep(180, 90, 'sawtooth', 0.05); return; }
+      const komboWurf = feld.length === 6 && abgelegt.length === 0;   // Straße/Paare möglich
+      if (!w.gewaehlt && !istWaehlbar(w.wert) && !komboWurf) { piep(180, 90, 'sawtooth', 0.05); return; }
       w.gewaehlt = !w.gewaehlt;
       piep(w.gewaehlt ? 520 : 320, 50, 'triangle', 0.05);
       malen();
@@ -2279,6 +2330,15 @@ const UI = (() => {
     function auswahlWertung() {
       const zaehl = {};
       for (const w of feld) if (w.gewaehlt) zaehl[w.wert] = (zaehl[w.wert] || 0) + 1;
+      // Original-Kombos mit allen sechs Würfeln des ersten Wurfs
+      const gewaehlt = feld.filter(w => w.gewaehlt);
+      if (gewaehlt.length === 6 && abgelegt.length === 0) {
+        const folge = gewaehlt.map(w => w.wert).sort().join('');
+        const mengen = Object.values(zaehl).sort().join('');
+        if (folge === '123456') return { punkte: 2500, gueltig: true };
+        if (mengen === '33') return { punkte: 2500, gueltig: true };
+        if (mengen === '222') return { punkte: 1500, gueltig: true };
+      }
       let punkte = 0, gueltig = false;
       for (const [f, c] of Object.entries(zaehl)) {
         const wert = +f;
@@ -2302,7 +2362,16 @@ const UI = (() => {
       if (feld.filter(w => w.wert === wert).length >= 3) return true;
       return abgelegt.filter(v => v === wert).length >= 3;   // Nachwurf zählt!
     }
-    function hatZug() { return feld.some(w => istWaehlbar(w.wert)); }
+    function hatZug() {
+      if (feld.length === 6) {
+        const folge = feld.map(w => w.wert).sort().join('');
+        const z = {};
+        for (const w of feld) z[w.wert] = (z[w.wert] || 0) + 1;
+        const mengen = Object.values(z).sort().join('');
+        if (folge === '123456' || mengen === '33' || mengen === '222') return true;
+      }
+      return feld.some(w => istWaehlbar(w.wert));
+    }
 
     function werfen(anzahl) {
       feld = Array.from({ length: anzahl }, () => ({ wert: 1 + Math.floor(Math.random() * 6), gewaehlt: false }));
@@ -3890,6 +3959,7 @@ const UI = (() => {
       <div class="kopf-links">
         <div class="kopf-tag">☀️ Tag ${run.tag} von ${run.dauer} · <strong>${slotName}</strong></div>
         <div class="kopf-ort">${D.REGIONEN[run.region].icon} ${esc(hotel.name)} ${hotel.sterne}, ${esc(D.REGIONEN[run.region].name)}${zimmerInfo}</div>
+        <div class="kopf-kapitel">📖 Kapitel ${run.tag}: „${esc(kapitelTitel(run.tag, run.dauer))}“</div>
       </div>
       <div class="kopf-budget">💶 ${run.budget} €</div>`;
 
@@ -4107,32 +4177,39 @@ const UI = (() => {
     let vorspiel = null;
     if (Game.run) {
       const r = Game.run, tags = res.act.tags, abends = r.slot === 2;
+      // Minispiele kommen an späteren Tagen wieder – nur nicht zweimal am selben Tag
+      const chance = flag => {
+        const wert = r.flags[flag];
+        if (wert === undefined || wert === false) return 1;
+        if (wert === true || wert === r.tag) return 0;
+        return 0.5;
+      };
       const kandidaten = [];
-      if (!r.flags.strasseGespielt && res.act.zone !== 'hotel' &&
-          (tags.includes('bummeln') || tags.includes('kultur')) && Math.random() < 0.55)
+      if (res.act.zone !== 'hotel' && (tags.includes('bummeln') || tags.includes('kultur')) &&
+          Math.random() < 0.55 * chance('strasseGespielt'))
         kandidaten.push(['strasseGespielt', starteStrassenSpiel]);
-      if (!r.flags.parkplatzGespielt && r.transport === 'mietwagen' && res.fahrt &&
+      if (r.transport === 'mietwagen' && res.fahrt &&
           (tags.includes('bummeln') || tags.includes('kultur') || tags.includes('restaurant')) &&
-          Math.random() < 0.5)
+          Math.random() < 0.5 * chance('parkplatzGespielt'))
         kandidaten.push(['parkplatzGespielt', starteParkplatzSpiel]);
-      if (!r.flags.flirtbarGespielt && (r.gruppe || 'single') === 'single' && abends &&
-          tags.includes('party') && Math.random() < 0.6)
+      if ((r.gruppe || 'single') === 'single' && abends && tags.includes('party') &&
+          Math.random() < 0.6 * chance('flirtbarGespielt'))
         kandidaten.push(['flirtbarGespielt', starteFlirtSpiel]);
-      if (!r.flags.tanzGespielt && abends && res.act.zone !== 'hotel' &&
+      if (abends && res.act.zone !== 'hotel' &&
           (tags.includes('party') || tags.includes('bummeln') || tags.includes('restaurant')) &&
-          Math.random() < 0.5)
+          Math.random() < 0.5 * chance('tanzGespielt'))
         kandidaten.push(['tanzGespielt', starteTanzSpiel]);
-      if (!r.flags.zoepfeGespielt && tags.includes('strand') && res.act.zone !== 'hotel' &&
-          Math.random() < 0.4)
+      if (tags.includes('strand') && res.act.zone !== 'hotel' &&
+          Math.random() < 0.4 * chance('zoepfeGespielt'))
         kandidaten.push(['zoepfeGespielt', starteFlechtenSpiel]);
-      if (!r.flags.liegenGespielt && res.act.id === 'pool' && Math.random() < 0.55)
+      if (res.act.id === 'pool' && Math.random() < 0.55 * chance('liegenGespielt'))
         kandidaten.push(['liegenGespielt', starteLiegenSpiel]);
-      if (!r.flags.saftGespielt && (res.act.id === 'pool' || tags.includes('strand')) &&
-          Math.random() < 0.5)
+      if ((res.act.id === 'pool' || tags.includes('strand')) &&
+          Math.random() < 0.5 * chance('saftGespielt'))
         kandidaten.push(['saftGespielt', starteSaftSpiel]);
       if (kandidaten.length) {
         const [flagId, spiel] = kandidaten[Math.floor(Math.random() * kandidaten.length)];
-        Game.bonusAnwenden({ flag: flagId });
+        r.flags[flagId] = r.tag;
         vorspiel = spiel;
       }
     }
@@ -4172,6 +4249,7 @@ const UI = (() => {
     const prognose = Object.entries(r.wetterMorgen).map(([region, wid]) =>
       `<div class="wetter-chip">${DATA.WETTER[wid].icon} <span>${namen[region]}</span></div>`).join('');
     let html = effekteHtml(r.zeilen);
+    html += `<p class="story-zeile">📖 Morgen wartet Kapitel ${r.neuerTag}: „${esc(kapitelTitel(r.neuerTag, Game.run ? Game.run.dauer : r.neuerTag))}“</p>`;
     html += `<div class="prognose"><strong>🌤️ Wetterbericht für Tag ${r.neuerTag}:</strong><div class="prognose-reihe">${prognose}</div>`;
     if (r.calima) html += '<p class="warn-text">🌫️ Achtung: Calima zieht auf!</p>';
     if (r.letzterTag) html += '<p class="warn-text">🧳 Morgen ist Abreisetag – nur noch der Vormittag bleibt!</p>';
@@ -4221,6 +4299,15 @@ const UI = (() => {
         <div class="ende-score">${r.score} <span>Urlaubspunkte</span></div>
         ${r.platz > 0 && r.platz <= 3 ? `<div class="platz-badge">🏆 Platz ${r.platz} deiner Bestenliste!</div>` : ''}
       </div>
+      <div class="panel"><h3>📖 Deine Urlaubsgeschichte</h3><p>${(() => {
+        const ziele = r.quests.filter(q => q.geschafft).length;
+        return `Es begann mit dem Kapitel <em>„Ankommen im Paradies“</em> – und wurde ` +
+          (r.fotosRun.length >= 5 ? 'eine Reise mit einem Album voller Motive' :
+           r.fotosRun.length ? 'eine Reise mit ein paar unvergesslichen Schnappschüssen' :
+           'eine Reise, deren Bilder nur in deinem Kopf hängen') +
+          `. ${ziele === 3 ? 'Alle drei' : ziele === 0 ? 'Keines der' : ziele + ' der drei'} Urlaubsziele ` +
+          `hast du erreicht${r.erfolgeNeu.length ? ', neue Erfolge inklusive' : ''} – und am Ende steht deine Geschichte unter der Überschrift: `;
+      })()}<strong>${esc(r.bewertung.titel)}</strong>.</p></div>
       <div class="panel"><h3>📊 Abrechnung</h3><table class="score-tabelle">${teileHtml}
         <tr class="summe"><td>Gesamt</td><td></td><td class="punkte">${r.score}</td></tr></table></div>
       <div class="panel"><h3>🎯 Urlaubsziele</h3>${questsHtml}</div>
