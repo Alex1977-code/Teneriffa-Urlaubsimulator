@@ -22,6 +22,30 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* ------------------------------------------------------- GTA-Stil-Schrift
+   Fette, bunte Überschriften mit dicker schwarzer Umrandung – der Look
+   großer Open-World-Spiele, angewendet auf alle Spiel-Titel. */
+.hero h1, .seiten-kopf h2, #aktivitaeten-titel, #fahrt-titel, #kino-titel,
+.modal-titel, .ende-kopf h2, .ende-score, .kopf-tag {
+  font-family: "Arial Black", Impact, "Segoe UI", system-ui, sans-serif;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  -webkit-text-stroke: 2px #14151f;
+  paint-order: stroke fill;
+  text-shadow: 3px 3px 0 rgba(20, 21, 31, 0.25);
+}
+
+.hero h1 { color: #ffd166; }
+.hero h1 span { color: #fff; }
+.seiten-kopf h2 { color: var(--sonne); }
+#aktivitaeten-titel { color: var(--gruen); font-size: 1.35rem; }
+#fahrt-titel { color: #ffd166; font-size: 1.25rem; }
+#kino-titel { color: #ffd166; }
+.modal-titel { color: var(--sonne); }
+.ende-kopf h2 { color: #ffd166; }
+.kopf-tag { color: #ffd166; -webkit-text-stroke-width: 1.6px; }
+
 html { scroll-behavior: smooth; }
 
 body {

@@ -75,6 +75,9 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Tanzabend als Rhythmusspiel im Takt der Band. Dazu der buchbare **Spieleabend in
   der Hotelbar**: Farkle-Würfelduell gegen Karl (Einsen 100, Fünfen 50, Drillinge
   Augenzahl × 100 – Gier wird mit dem Farkle bestraft).
+  Jedes Actionspiel startet mit einem **3-2-1-Countdown samt Erklärung** und lässt
+  sich jederzeit mit **Taste P oder dem ⏸-Knopf pausieren**. Die Spiel-Schrift kommt
+  im Open-World-Stil daher: fett, bunt und mit dicker schwarzer Umrandung.
   Alle Spiele sind voll touch-tauglich (sichtbare Lenk-Zonen, Tipp-Steuerung).
 - **Ausflüge mit Vorschau buchen** – größere Ausflüge zeigen auf Wunsch erst ein
   echtes Foto oder Video im Kino-Modus („▶ Vorschau“) und lassen sich von dort

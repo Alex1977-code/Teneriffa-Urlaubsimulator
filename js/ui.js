@@ -262,7 +262,7 @@ const UI = (() => {
   function starteFahrspiel(fahrt, fertigCb) {
     $('#fahrt-inselkarte').classList.add('versteckt');
     $('#fahrspiel-wrap').classList.remove('versteckt');
-    $('#fahrspiel-hilfe').innerHTML = 'Lenken: ← → · Gas: ↑ · Bremse: ↓ · Turbo: Leertaste oder 🔥 · Kamera: C oder 🗺️<br>' +
+    $('#fahrspiel-hilfe').innerHTML = 'Lenken: ← → · Gas: ↑ · Bremse: ↓ · Turbo: Leertaste oder 🔥 · Kamera: C oder 🗺️ · Pause: P oder ⏸<br>' +
       'Überhole für 🏎️ Fahrstil-Punkte, sammle ⭐ Sterne und weiche Ziegen & Gegenverkehr aus!';
     $('#fahrt-buttons').innerHTML = '';
 
@@ -273,6 +273,10 @@ const UI = (() => {
     canvas.width = W * dpr; canvas.height = H * dpr;
     canvas.style.width = 'min(420px, 100%)';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Pause (Taste P / ⏸) – der Countdown der Fahrt läuft weiter unten selbst
+    const uhr = minispielUhr(canvas, ctx, W, H, null,
+      { ohneCountdown: true, pauseBox: { x: W - 44, y: 70, b: 38, h: 30 } });
 
     // ————— GTA-Stil: echte 3D-Welt mit Verfolgerkamera —————
     // Eigene Mini-3D-Engine: Punkte werden perspektivisch projiziert, die
@@ -500,6 +504,7 @@ const UI = (() => {
 
     function aufraeumen() {
       motorStopp();
+      uhr.aufraeumen();
       document.removeEventListener('keydown', tasteRunter);
       document.removeEventListener('keyup', tasteHoch);
       canvas.removeEventListener('pointerdown', zeigerRunter);
@@ -572,9 +577,8 @@ const UI = (() => {
 
     function schleife(now) {
       if (vorbei) return;
-      const dt = Math.min(50, now - letztes) / 1000;
-      letztes = now;
-      const seitStart = now - start;
+      const dt = uhr.tick(now).dt;
+      const seitStart = now - start - uhr.pausenMs;
       const fahrZeit = Math.max(0, seitStart - COUNTDOWN) / 1000;
 
       // Countdown
@@ -610,7 +614,12 @@ const UI = (() => {
         px += Math.sin(heading) * speed * dt;
         pz += Math.cos(heading) * speed * dt;
       }
-      if (motor) { try { motor.osc.frequency.value = 45 + (speed / 38) * 85; } catch (e) { /* egal */ } }
+      if (motor) {
+        try {
+          motor.osc.frequency.value = 45 + (speed / 38) * 85;
+          motor.gain.gain.value = uhr.pausiert ? 0.001 : 0.028;   // in der Pause ist Ruhe
+        } catch (e) { /* egal */ }
+      }
 
       // Abseits: Gerumpel & Zeitstrafe
       if (abseits && speed > 6) {
@@ -682,7 +691,7 @@ const UI = (() => {
       // ————— Zeichnen —————
       // Screen-Shake nach Kollisionen: der ganze Frame wackelt kurz
       ctx.save();
-      if (shake > 0) {
+      if (shake > 0 && !uhr.pausiert) {
         const st = shake / 400;
         ctx.translate((Math.random() - 0.5) * 9 * st, (Math.random() - 0.5) * 7 * st);
         shake = Math.max(0, shake - dt * 1000);
@@ -999,27 +1008,18 @@ const UI = (() => {
       }
 
       // Schwebende Stil-Texte
-      ctx.textAlign = 'center';
       for (const s of schweber) {
         s.alter += dt;
         ctx.globalAlpha = Math.max(0, 1 - s.alter / 1.1);
-        ctx.fillStyle = '#ffd166';
-        ctx.strokeStyle = 'rgba(43,45,66,0.8)'; ctx.lineWidth = 3;
-        ctx.font = 'bold 17px sans-serif';
-        const sy = H - 130 - s.alter * 55;
-        ctx.strokeText(s.text, W / 2, sy);
-        ctx.fillText(s.text, W / 2, sy);
+        gtaText(ctx, s.text, W / 2, H - 130 - s.alter * 55, 18,
+          s.text.includes('⭐') || s.text.includes('🌟') ? '#ffd166' : '#3ddc97');
       }
       ctx.globalAlpha = 1;
       while (schweber.length && schweber[0].alter > 1.1) schweber.shift();
 
       // Zu weit weg von der Straße?
-      if (seitAbstand > 22 && seitStart > COUNTDOWN) {
-        ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(43,45,66,0.8)'; ctx.lineWidth = 4;
-        ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
-        ctx.strokeText('↩ Zurück zur Straße!', W / 2, 60);
-        ctx.fillText('↩ Zurück zur Straße!', W / 2, 60);
-      }
+      if (seitAbstand > 22 && seitStart > COUNTDOWN)
+        gtaText(ctx, '↩ Zurück zur Straße!', W / 2, 60, 19, '#ff5b6a');
 
       // Minimap (unten links) – nur in der Verfolgerkamera
       if (kamModus === 'chase') {
@@ -1063,25 +1063,19 @@ const UI = (() => {
       ctx.fillRect(88, 10, W - 200, 6);
       ctx.fillStyle = '#f4a261';
       ctx.fillRect(88, 10, (W - 200) * fortschritt, 6);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText('💥 ' + treffer, 6, 18);
-      ctx.fillStyle = '#ffd166';
-      ctx.fillText('🏎️ ' + stil, 42, 18);
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'right';
-      ctx.fillText('🏁 ' + Math.max(0, Math.ceil(GESAMT_KM * (1 - fortschritt))) + ' km · ' +
-        Math.round(speed * 3.6) + ' km/h', W - 6, 18);
+      gtaText(ctx, '💥 ' + treffer, 6, 19, 12, treffer > 0 ? '#ff5b6a' : '#fff', 'left');
+      gtaText(ctx, '🏎️ ' + stil, 46, 19, 12, '#ffd166', 'left');
+      gtaText(ctx, '🏁 ' + Math.max(0, Math.ceil(GESAMT_KM * (1 - fortschritt))) + ' km · ' +
+        Math.round(speed * 3.6) + ' km/h', W - 6, 19, 12, '#fff', 'right');
 
-      // Countdown-Overlay
+      // Countdown-Overlay mit Erklärung
       if (seitStart < COUNTDOWN) {
-        ctx.fillStyle = 'rgba(43,45,66,0.45)'; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-        ctx.font = 'bold 64px sans-serif';
-        ctx.fillText(String(Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3))), W / 2, H / 2);
-        ctx.font = 'bold 15px sans-serif';
-        ctx.fillText('Fahrt nach ' + zielName + ' – bereit machen …', W / 2, H / 2 + 34);
+        ctx.fillStyle = 'rgba(20,21,31,0.55)'; ctx.fillRect(0, 0, W, H);
+        const nr = Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3));
+        gtaText(ctx, String(nr), W / 2, H / 2 - 30, 72, ['#3ddc97', '#ffd166', '#ff5b6a'][nr - 1] || '#ffd166');
+        gtaText(ctx, 'Fahrt nach ' + zielName, W / 2, H / 2 + 16, 20, '#59c2ff');
+        gtaText(ctx, 'Lenken ← → · Gas ↑ · Bremse ↓', W / 2, H / 2 + 46, 14, '#fff');
+        gtaText(ctx, 'Turbo: Leertaste · Pause: P', W / 2, H / 2 + 70, 14, '#fff');
       }
 
       // Angekommen? (oder Zeitlimit: irgendwann ist jeder mal da)
@@ -1089,10 +1083,9 @@ const UI = (() => {
         vorbei = true;
         aufraeumen();
         ctx.restore();
-        ctx.fillStyle = 'rgba(43,45,66,0.55)'; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-        ctx.font = 'bold 30px sans-serif';
-        ctx.fillText('🏁 ' + zielName + ' erreicht!', W / 2, H / 2);
+        ctx.fillStyle = 'rgba(20,21,31,0.55)'; ctx.fillRect(0, 0, W, H);
+        gtaText(ctx, '🏁 ' + zielName, W / 2, H / 2 - 14, 32, '#ffd166');
+        gtaText(ctx, 'ERREICHT!', W / 2, H / 2 + 22, 26, '#3ddc97');
         piep(660, 150, 'square'); setTimeout(() => piep(880, 250, 'square'), 160);
 
         const ergebnis = Game.fahrtBewerten(treffer, stil);
@@ -1107,6 +1100,7 @@ const UI = (() => {
         return;
       }
       ctx.restore();
+      uhr.zeichnen();
       requestAnimationFrame(schleife);
     }
 
@@ -1126,6 +1120,110 @@ const UI = (() => {
     ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('◀', 34, H - 21);
     ctx.fillText('▶', 92, H - 21);
+  }
+
+  // ------------------------------------ GTA-Schrift, Countdown & Pause
+  // Fette, bunte Schrift mit dicker schwarzer Umrandung – Open-World-Stil.
+  function gtaText(ctx, text, x, y, gr, farbe, align) {
+    ctx.save();
+    ctx.font = 'italic 900 ' + gr + 'px "Arial Black", Impact, "Segoe UI", sans-serif';
+    ctx.textAlign = align || 'center';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#14151f';
+    ctx.lineWidth = Math.max(2.5, gr * 0.2);
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = farbe || '#ffd166';
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  // Gemeinsame Spieluhr für alle Action-Minispiele: Countdown mit Erklärung
+  // vor dem Start und Pause per Taste P oder ⏸-Knopf. Die zurückgegebene
+  // Spielzeit läuft nur, wenn wirklich gespielt wird.
+  function minispielUhr(canvas, ctx, W, H, erklaerung, opts) {
+    opts = opts || {};
+    const dauer = opts.ohneCountdown || window.MINISPIEL_SCHNELL ? 0 : 2800;
+    const box = opts.pauseBox || { x: W - 42, y: 32, b: 36, h: 30 };
+    let letztes = null, zeit = 0, pausenMs = 0, rest = dauer, piepNr = 4;
+    let pausiert = false, fertig = false;
+
+    function tick(now) {
+      if (letztes === null) letztes = now;
+      const roh = Math.min(50, now - letztes);
+      letztes = now;
+      if (pausiert) { pausenMs += roh; return { dt: 0, zeit, laeuft: false }; }
+      if (rest > 0) {
+        rest -= roh;
+        pausenMs += roh;
+        const nr = Math.ceil(Math.max(0, rest) / (dauer / 3));
+        if (nr < piepNr) { piepNr = nr; piep(nr === 0 ? 880 : 440, nr === 0 ? 220 : 120, 'square'); }
+        if (rest > 0) return { dt: 0, zeit, laeuft: false };
+      }
+      const dt = roh / 1000;
+      zeit += dt;
+      return { dt, zeit, laeuft: true };
+    }
+
+    function zeichnen() {
+      if (fertig) return;
+      // ⏸-Knopf
+      ctx.save();
+      ctx.fillStyle = pausiert ? 'rgba(255,209,102,0.92)' : 'rgba(20,21,31,0.55)';
+      ctx.beginPath(); ctx.roundRect(box.x, box.y, box.b, box.h, 8); ctx.fill();
+      ctx.fillStyle = pausiert ? '#14151f' : '#fff';
+      const bx = box.x + box.b / 2, by = box.y + box.h / 2;
+      ctx.fillRect(bx - 6, by - 7, 4, 14);
+      ctx.fillRect(bx + 2, by - 7, 4, 14);
+      ctx.restore();
+      if (rest > 0 && !pausiert) {
+        ctx.fillStyle = 'rgba(20,21,31,0.62)';
+        ctx.fillRect(0, 0, W, H);
+        const nr = Math.max(1, Math.ceil(rest / (dauer / 3)));
+        gtaText(ctx, String(nr), W / 2, H * 0.32, 68, ['#3ddc97', '#ffd166', '#ff5b6a'][nr - 1] || '#ffd166');
+        (erklaerung || []).forEach((zeile, i) =>
+          gtaText(ctx, zeile, W / 2, H * 0.32 + 46 + i * 27, 15, i === 0 ? '#59c2ff' : '#fff'));
+        gtaText(ctx, 'Pause: Taste P oder ⏸', W / 2, H - 16, 12, '#f4a261');
+      } else if (pausiert) {
+        ctx.fillStyle = 'rgba(20,21,31,0.68)';
+        ctx.fillRect(0, 0, W, H);
+        gtaText(ctx, 'PAUSE', W / 2, H / 2 - 8, 46, '#ffd166');
+        gtaText(ctx, 'Weiter: Tippen oder Taste P', W / 2, H / 2 + 28, 14, '#fff');
+      }
+    }
+
+    function stop(e) { e.preventDefault(); e.stopImmediatePropagation(); }
+    function zeiger(e) {
+      if (fertig) return;
+      const b = canvas.getBoundingClientRect();
+      const x = (e.clientX - b.left) / b.width * W;
+      const y = (e.clientY - b.top) / b.height * H;
+      if (pausiert) { pausiert = false; stop(e); return; }
+      if (x >= box.x && x <= box.x + box.b && y >= box.y && y <= box.y + box.h) {
+        pausiert = true; stop(e); return;
+      }
+      if (rest > 0) stop(e);   // während des Countdowns noch keine Eingaben
+    }
+    function taste(e) {
+      if (fertig || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === 'p' || e.key === 'P') { pausiert = !pausiert; stop(e); return; }
+      if (pausiert || rest > 0) {
+        if (pausiert && (e.key === ' ' || e.key === 'Enter')) { pausiert = false; stop(e); return; }
+        if (e.key.length === 1 || e.key.startsWith('Arrow') || e.key === 'Enter') stop(e);
+      }
+    }
+    canvas.addEventListener('pointerdown', zeiger, true);
+    document.addEventListener('keydown', taste, true);
+    return {
+      tick, zeichnen,
+      get pausiert() { return pausiert; },
+      get pausenMs() { return pausenMs; },
+      get zeit() { return zeit; },
+      aufraeumen() {
+        fertig = true;
+        canvas.removeEventListener('pointerdown', zeiger, true);
+        document.removeEventListener('keydown', taste, true);
+      },
+    };
   }
 
   function minispielFenster(titel, hinweis, hoehe) {
@@ -1173,8 +1271,8 @@ const UI = (() => {
     const BAND_Y = 190, TEMPO = 78;
     let koffer = [], spawnIn = 300, spawnZaehler = 0, zielDa = false;
     let fehlgriffe = 0, blitz = 0, vorbei = false;
-    const start = performance.now();
-    let letztes = start;
+    const uhr = minispielUhr(canvas, ctx, W, H,
+      ['Merk dir deinen Koffer oben links!', 'Tippe ihn an, wenn er vorbeirollt']);
 
     function zeichneKoffer(x, y, k, gross) {
       const b = gross ? 56 : 48, h = gross ? 36 : 31;
@@ -1206,7 +1304,7 @@ const UI = (() => {
         if (Math.abs(mx - k.x) < 30 && Math.abs(my - BAND_Y) < 26 && Math.abs(my - BAND_Y) === Math.abs(my - BAND_Y)) {
           if (my < BAND_Y - 30 || my > BAND_Y + 30) continue;
           if (k.istZiel) {
-            const zeit = (performance.now() - start) / 1000;
+            const zeit = uhr.zeit;
             piep(880, 180, 'triangle', 0.09);
             if (fehlgriffe === 0 && zeit < 14)
               fertig('🧳', 'Erster Griff, richtiger Koffer – die Umstehenden sind neidisch auf deinen Blick fürs Detail.',
@@ -1226,7 +1324,10 @@ const UI = (() => {
       }
     }
     canvas.addEventListener('pointerdown', klick);
-    function aufraeumen() { canvas.removeEventListener('pointerdown', klick); }
+    function aufraeumen() {
+      uhr.aufraeumen();
+      canvas.removeEventListener('pointerdown', klick);
+    }
 
     if (window.MINISPIEL_SCHNELL) {
       setTimeout(() => fertig('🧳', 'Koffer gesichert!', { stimmung: 2 }), 700);
@@ -1234,9 +1335,8 @@ const UI = (() => {
 
     function schleife(now) {
       if (vorbei) return;
-      const dt = Math.min(50, now - letztes) / 1000;
-      letztes = now;
-      const zeit = (now - start) / 1000;
+      const t = uhr.tick(now);
+      const dt = t.dt, zeit = t.zeit;
 
       spawnIn -= dt * 1000;
       if (spawnIn <= 0) {
@@ -1288,6 +1388,7 @@ const UI = (() => {
       }
 
       if (blitz > 0) { blitz -= dt * 1000; ctx.fillStyle = 'rgba(230,57,70,0.2)'; ctx.fillRect(0, 0, W, H); }
+      uhr.zeichnen();
 
       if (zeit > 30) {
         fertig('🧳', 'Irgendwann kommt jeder Koffer – deiner eben ganz zum Schluss. Hauptsache, er ist da.',
@@ -1315,8 +1416,8 @@ const UI = (() => {
     const FARBEN = ['#3a6ea5', '#d8d8d8', '#454754', '#c46a2b', '#7b5aa6', '#b03a2e'];
     let reihe = 0, schrecks = 0, blitz = 0, freundlich = false, vorbei = false, letzterSchritt = 0;
     let unverwundbar = 0;   // kurze Schonfrist nach einem Schreckmoment
-    const start = performance.now();
-    let letztes = start;
+    const uhr = minispielUhr(canvas, ctx, W, H,
+      ['Tippe (oder ↑) für jeden Schritt', 'Weiche den Autos aus – ¡cuidado!']);
 
     function fertig(icon, text, effekte) {
       if (vorbei) return;
@@ -1342,6 +1443,7 @@ const UI = (() => {
     document.addEventListener('keydown', tasteRunter);
     canvas.addEventListener('pointerdown', zeigerRunter);
     function aufraeumen() {
+      uhr.aufraeumen();
       document.removeEventListener('keydown', tasteRunter);
       canvas.removeEventListener('pointerdown', zeigerRunter);
     }
@@ -1350,9 +1452,8 @@ const UI = (() => {
 
     function schleife(now) {
       if (vorbei) return;
-      const dt = Math.min(50, now - letztes) / 1000;
-      letztes = now;
-      const zeit = (now - start) / 1000;
+      const t = uhr.tick(now);
+      const dt = t.dt, zeit = t.zeit;
 
       for (const spur of spuren) {
         spur.spawnIn -= dt * 1000;
@@ -1412,20 +1513,17 @@ const UI = (() => {
           }
         }
       }
-      if (freundlich) {
-        ctx.fillStyle = '#2b2d42'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText('🙋 Ein Fahrer hält an und winkt dich rüber!', W / 2, 88);
-      }
+      if (freundlich)
+        gtaText(ctx, '🙋 Ein Fahrer winkt dich rüber!', W / 2, 88, 14, '#3ddc97');
       ctx.font = '28px serif'; ctx.textAlign = 'center';
       if (unverwundbar <= 0 || Math.floor(zeit * 8) % 2 === 0)
         ctx.fillText('🚶', W / 2, REIHEN[reihe] + 10);
       ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#55586a';
       ctx.fillText('dein Café ☕', W / 2, 34);
-      if (IST_TOUCH && reihe === 0 && zeit % 1.6 < 0.9) {
-        ctx.fillStyle = 'rgba(43,45,66,0.7)'; ctx.font = 'bold 14px sans-serif';
-        ctx.fillText('⬆ Tippen zum Loslaufen', W / 2, H - 14);
-      }
+      if (IST_TOUCH && reihe === 0 && zeit % 1.6 < 0.9)
+        gtaText(ctx, '⬆ Tippen zum Loslaufen', W / 2, H - 14, 14, '#ffd166');
       if (blitz > 0) { blitz -= dt * 1000; ctx.fillStyle = 'rgba(230,57,70,0.22)'; ctx.fillRect(0, 0, W, H); }
+      uhr.zeichnen();
 
       if (zeit > 45) { fertig('🚶', 'Irgendwann kam die eine große Lücke – rüber!', { stimmung: 1 }); return; }
       requestAnimationFrame(schleife);
@@ -1441,8 +1539,8 @@ const UI = (() => {
 
     let theta = 0, omega = 0, input = 0, fortschritt = 0;
     let boeIn = 600, vorbei = false;
-    const start = performance.now();
-    let letztes = start;
+    const uhr = minispielUhr(canvas, ctx, W, H,
+      ['Halte links/rechts dagegen (← →)', 'Bring den Zumo heil zur Liege!']);
 
     function fertig(icon, text, effekte) {
       if (vorbei) return;
@@ -1465,6 +1563,7 @@ const UI = (() => {
     canvas.addEventListener('pointerdown', zeigerRunter);
     document.addEventListener('pointerup', zeigerHoch);
     function aufraeumen() {
+      uhr.aufraeumen();
       document.removeEventListener('keydown', tasteRunter);
       document.removeEventListener('keyup', tasteHoch);
       canvas.removeEventListener('pointerdown', zeigerRunter);
@@ -1475,8 +1574,7 @@ const UI = (() => {
 
     function schleife(now) {
       if (vorbei) return;
-      const dt = Math.min(50, now - letztes) / 1000;
-      letztes = now;
+      const dt = uhr.tick(now).dt;
 
       // Instabiles Gleichgewicht plus Windböen und Gegensteuern
       boeIn -= dt * 1000;
@@ -1559,6 +1657,7 @@ const UI = (() => {
       ctx.beginPath(); ctx.moveTo(W / 2 - 110, H - 64); ctx.lineTo(W / 2 + 110, H - 64); ctx.stroke();
 
       zeichneTouchPfeile(ctx, W, H);
+      uhr.zeichnen();
       requestAnimationFrame(schleife);
     }
     requestAnimationFrame(schleife);
@@ -1589,8 +1688,8 @@ const UI = (() => {
     }
     let perfekt = 0, gut = 0, daneben = 0, letzterBeat = -1;
     let feedback = null, vorbei = false;
-    const start = performance.now();
-    let letztes = start;
+    const uhr = minispielUhr(canvas, ctx, W, H,
+      ['Triff die Pfeile, wenn sie', 'die Linie erreichen – im Takt!']);
 
     function fertig(icon, text, effekte, extra) {
       if (vorbei) return;
@@ -1599,7 +1698,7 @@ const UI = (() => {
     }
     function schlag(spalte) {
       if (vorbei) return;
-      const jetzt = performance.now() - start;
+      const jetzt = uhr.zeit * 1000;
       let beste = null, besteDiff = 1e9;
       for (const n of noten) {
         if (n.weg || n.spalte !== spalte) continue;
@@ -1629,6 +1728,7 @@ const UI = (() => {
     document.addEventListener('keydown', tasteRunter);
     canvas.addEventListener('pointerdown', zeigerRunter);
     function aufraeumen() {
+      uhr.aufraeumen();
       document.removeEventListener('keydown', tasteRunter);
       canvas.removeEventListener('pointerdown', zeigerRunter);
     }
@@ -1638,9 +1738,8 @@ const UI = (() => {
 
     function schleife(now) {
       if (vorbei) return;
-      const dt = Math.min(50, now - letztes) / 1000;
-      letztes = now;
-      const jetzt = now - start;
+      const t = uhr.tick(now);
+      const dt = t.dt, jetzt = t.zeit * 1000;
 
       // Percussion im Takt (Klatschen + Bass)
       const beat = Math.floor(jetzt / TAKT);
@@ -1720,17 +1819,15 @@ const UI = (() => {
         if (feedback.alter > 0.8) feedback = null;
         else {
           ctx.globalAlpha = 1 - feedback.alter / 0.8;
-          ctx.fillStyle = feedback.farbe;
-          ctx.font = 'bold 26px sans-serif';
-          ctx.fillText(feedback.text, W / 2, 200 - feedback.alter * 40);
+          gtaText(ctx, feedback.text, W / 2, 200 - feedback.alter * 40, 28, feedback.farbe);
           ctx.globalAlpha = 1;
         }
       }
       ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
-      ctx.fillStyle = '#ffd166'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText('✨ ' + perfekt + '  ·  👍 ' + gut + '  ·  😅 ' + daneben, 8, 16);
-      ctx.textAlign = 'right'; ctx.fillStyle = '#fff';
-      ctx.fillText(noten.filter(n => !n.weg).length + ' Schritte übrig', W - 8, 16);
+      gtaText(ctx, '✨ ' + perfekt + ' · 👍 ' + gut + ' · 😅 ' + daneben, 8, 17, 11, '#ffd166', 'left');
+      gtaText(ctx, noten.filter(n => !n.weg).length + ' Schritte übrig', W - 8, 17, 11, '#fff', 'right');
+
+      uhr.zeichnen();
 
       // Vorbei?
       const letzteNote = noten[noten.length - 1];
@@ -1977,12 +2074,9 @@ const UI = (() => {
 
       // Punktetafel
       ctx.fillStyle = 'rgba(43,45,66,0.75)'; ctx.fillRect(0, 40, W, 28);
-      ctx.fillStyle = '#ffd166'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText('Du: ' + duPunkte, 12, 59);
-      ctx.textAlign = 'right'; ctx.fillStyle = '#f5f0e6';
-      ctx.fillText('Karl: ' + karlPunkte, W - 12, 59);
-      ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
-      ctx.fillText('Runde ' + Math.min(runde, RUNDEN) + '/' + RUNDEN, W / 2, 59);
+      gtaText(ctx, 'Du: ' + duPunkte, 12, 61, 14, '#ffd166', 'left');
+      gtaText(ctx, 'Karl: ' + karlPunkte, W - 12, 61, 14, '#59c2ff', 'right');
+      gtaText(ctx, 'Runde ' + Math.min(runde, RUNDEN) + '/' + RUNDEN, W / 2, 61, 13, '#fff');
 
       // Würfel im Feld
       const gr = 44, abstand = 52;
@@ -1999,12 +2093,11 @@ const UI = (() => {
 
       // Zug-Punkte & Auswahl
       const a = phase === 'wahl' ? auswahlWertung() : { punkte: 0, gueltig: false };
-      ctx.fillStyle = '#ffd166'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('Zug-Punkte: ' + turnPunkte + (a.punkte ? ' + ' + a.punkte : ''), W / 2, 236);
-      ctx.fillStyle = '#f5f0e6'; ctx.font = '12px sans-serif';
-      ctx.fillText(meldung, W / 2, 262);
+      gtaText(ctx, 'Zug-Punkte: ' + turnPunkte + (a.punkte ? ' + ' + a.punkte : ''), W / 2, 238, 16,
+        a.punkte ? '#3ddc97' : '#ffd166');
+      gtaText(ctx, meldung, W / 2, 263, 12, meldung.includes('Farkle') ? '#ff5b6a' : '#fff');
       if (phase === 'wahl' && !a.gueltig) {
-        ctx.fillStyle = 'rgba(245,240,230,0.65)'; ctx.font = '11px sans-serif';
+        ctx.fillStyle = 'rgba(245,240,230,0.65)'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
         ctx.fillText('Wähle mindestens eine 1, 5 oder einen Drilling.', W / 2, 282);
       }
 
@@ -2041,8 +2134,9 @@ const UI = (() => {
     }
     let weltY = 0, tempo = 88, fehl = 0, blitz = 0, vorbei = false;
     let hinweis = null, geparkt = null;
-    const start = performance.now();
-    let letztes = start;
+    const uhr = minispielUhr(canvas, ctx, W, H,
+      ['Tippe, sobald du neben einer', 'freien Lücke stehst!'],
+      { pauseBox: { x: W / 2 - 18, y: 30, b: 36, h: 28 } });
 
     function fertig(icon, text, effekte, extra) {
       if (vorbei) return;
@@ -2066,7 +2160,7 @@ const UI = (() => {
       }
       if (beste) {
         beste.reihe[beste.seite] = { farbe: '#e63946', du: true };
-        geparkt = { zeit: (performance.now() - start) / 1000 };
+        geparkt = { zeit: uhr.zeit };
         piep(660, 150, 'triangle', 0.08);
         setTimeout(() => {
           const z = geparkt.zeit;
@@ -2093,6 +2187,7 @@ const UI = (() => {
     document.addEventListener('keydown', tasteRunter);
     canvas.addEventListener('pointerdown', zeigerRunter);
     function aufraeumen() {
+      uhr.aufraeumen();
       document.removeEventListener('keydown', tasteRunter);
       canvas.removeEventListener('pointerdown', zeigerRunter);
     }
@@ -2114,9 +2209,8 @@ const UI = (() => {
 
     function schleife(now) {
       if (vorbei) return;
-      const dt = Math.min(50, now - letztes) / 1000;
-      letztes = now;
-      const zeit = (now - start) / 1000;
+      const t = uhr.tick(now);
+      const dt = t.dt, zeit = t.zeit;
 
       if (!geparkt) weltY += tempo * dt;
 
@@ -2171,9 +2265,8 @@ const UI = (() => {
       // Dein Auto (in der Fahrgasse, leicht links)
       if (!geparkt) autoZeichnen(W / 2 - 34, AUTO_Y, '#e63946', false);
       else {
-        ctx.fillStyle = 'rgba(43,45,66,0.5)'; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText('🅿️ Geparkt!', W / 2, H / 2);
+        ctx.fillStyle = 'rgba(20,21,31,0.5)'; ctx.fillRect(0, 0, W, H);
+        gtaText(ctx, '🅿️ GEPARKT!', W / 2, H / 2, 28, '#3ddc97');
       }
 
       if (hinweis) {
@@ -2181,10 +2274,7 @@ const UI = (() => {
         if (hinweis.alter > 1.2) hinweis = null;
         else {
           ctx.globalAlpha = 1 - hinweis.alter / 1.2;
-          ctx.fillStyle = '#ffd166'; ctx.font = 'bold 17px sans-serif'; ctx.textAlign = 'center';
-          ctx.strokeStyle = 'rgba(43,45,66,0.8)'; ctx.lineWidth = 3;
-          ctx.strokeText(hinweis.text, W / 2, 130);
-          ctx.fillText(hinweis.text, W / 2, 130);
+          gtaText(ctx, hinweis.text, W / 2, 130, 18, '#ffd166');
           ctx.globalAlpha = 1;
         }
       }
@@ -2192,14 +2282,11 @@ const UI = (() => {
 
       // HUD
       ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText('⏱ ' + zeit.toFixed(0) + ' s', 8, 16);
-      ctx.textAlign = 'right';
-      ctx.fillText('📢 Fehlversuche: ' + fehl, W - 8, 16);
-      if (IST_TOUCH && !geparkt && zeit % 1.6 < 0.9) {
-        ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText('👆 Tippen zum Einparken', W / 2, H - 12);
-      }
+      gtaText(ctx, '⏱ ' + zeit.toFixed(0) + ' s', 8, 17, 11, '#fff', 'left');
+      gtaText(ctx, '📢 Fehlversuche: ' + fehl, W - 8, 17, 11, fehl > 0 ? '#ff5b6a' : '#fff', 'right');
+      if (IST_TOUCH && !geparkt && zeit % 1.6 < 0.9)
+        gtaText(ctx, '👆 Tippen zum Einparken', W / 2, H - 12, 14, '#ffd166');
+      uhr.zeichnen();
 
       if (!geparkt && zeit > 45) {
         fertig('🚶', 'Du gibst auf und parkst drei Straßen weiter am Ortsrand. Der Spaziergang ist … unfreiwillig.',
@@ -2231,14 +2318,21 @@ const UI = (() => {
     let phase = 'intro';    // intro | zeigen | nachmachen | ende
     let fehler = 0, geflochten = [], leuchtet = -1, vorbei = false;
     let statusText = 'Rosalía sortiert die Perlen …';
+    let gestartet = false, jetztZeit = 0;
     const timer = [];
-    const start = performance.now();
-    let letztes = start;
+    const uhr = minispielUhr(canvas, ctx, W, H,
+      ['Merk dir die Reihenfolge', 'der leuchtenden Perlen!']);
+
+    // Abläufe laufen über die Spieluhr statt über setTimeout –
+    // so friert die Pause auch die Perlen-Vorführung sauber ein.
+    const plan = [];
+    const nach = (sek, fn) => plan.push({ bei: jetztZeit + sek, fn });
 
     function fertig(icon, text, effekte, extra) {
       if (vorbei) return;
       vorbei = true;
       timer.forEach(clearTimeout);
+      plan.length = 0;
       aufraeumen();
       minispielErgebnis(icon, text, effekte, extra, fertigCb);
     }
@@ -2246,16 +2340,16 @@ const UI = (() => {
       phase = 'zeigen';
       statusText = 'Gut aufpassen …';
       folge.forEach((p, i) => {
-        timer.push(setTimeout(() => {
+        nach(0.5 + i * 0.52, () => {
           leuchtet = p; zeigeIdx = i;
           piep(330 + p * 110, 160, 'triangle', 0.07);
-          timer.push(setTimeout(() => { leuchtet = -1; }, 330));
-        }, 500 + i * 520));
+          nach(0.33, () => { leuchtet = -1; });
+        });
       });
-      timer.push(setTimeout(() => {
+      nach(0.5 + folge.length * 0.52 + 0.2, () => {
         phase = 'nachmachen'; eingabeIdx = 0;
         statusText = 'Jetzt du – in derselben Reihenfolge!';
-      }, 500 + folge.length * 520 + 200));
+      });
     }
     function rundeStarten() {
       folge = Array.from({ length: RUNDEN[runde] }, () => Math.floor(Math.random() * 4));
@@ -2264,7 +2358,7 @@ const UI = (() => {
     function eingabe(p) {
       if (vorbei || phase !== 'nachmachen') return;
       leuchtet = p;
-      timer.push(setTimeout(() => { leuchtet = -1; }, 200));
+      nach(0.2, () => { leuchtet = -1; });
       if (p === folge[eingabeIdx]) {
         piep(330 + p * 110, 120, 'triangle', 0.06);
         geflochten.push(p);
@@ -2274,18 +2368,18 @@ const UI = (() => {
           if (runde >= RUNDEN.length) {
             phase = 'ende';
             statusText = '¡Qué guapa! Die Zöpfe sitzen.';
-            timer.push(setTimeout(() => {
+            nach(1.2, () => {
               if (fehler === 0)
                 fertig('💇', 'Jede Perle sitzt beim ersten Versuch – Rosalía will dich glatt als Aushilfe anstellen. Im Spiegel: Urlaubsfrisur der Extraklasse!',
                   { stimmung: 7, erlebnis: 7, stress: -4 }, ['📿 Fehlerfrei!']);
               else
                 fertig('💇', 'Ein Perlen-Patzer, aber das Ergebnis kann sich sehen lassen. Die Zöpfchen klackern bei jedem Schritt.',
                   { stimmung: 5, erlebnis: 5, stress: -2 });
-            }, 1200));
+            });
             return;
           }
           statusText = 'Sehr gut! Nächste Strähne …';
-          timer.push(setTimeout(rundeStarten, 1100));
+          nach(1.1, rundeStarten);
         }
       } else {
         fehler++;
@@ -2295,8 +2389,9 @@ const UI = (() => {
             { stimmung: 3, erlebnis: 4 });
           return;
         }
+        phase = 'zeigen';
         statusText = 'Huch, falsche Perle! Schau nochmal genau hin.';
-        timer.push(setTimeout(folgeZeigen, 900));
+        nach(0.9, folgeZeigen);
       }
     }
     function tasteRunter(e) {
@@ -2317,19 +2412,22 @@ const UI = (() => {
     document.addEventListener('keydown', tasteRunter);
     canvas.addEventListener('pointerdown', zeigerRunter);
     function aufraeumen() {
+      uhr.aufraeumen();
       document.removeEventListener('keydown', tasteRunter);
       canvas.removeEventListener('pointerdown', zeigerRunter);
     }
 
     if (window.MINISPIEL_SCHNELL)
       setTimeout(() => fertig('💇', 'Schicke Zöpfe!', { stimmung: 3 }), 700);
-    else timer.push(setTimeout(rundeStarten, 900));
 
     function schleife(now) {
       if (vorbei) return;
-      const dt = Math.min(50, now - letztes) / 1000;
-      letztes = now;
-      const zeit = (now - start) / 1000;
+      const t = uhr.tick(now);
+      const zeit = jetztZeit = t.zeit;
+      if (t.laeuft && !gestartet) { gestartet = true; nach(0.4, rundeStarten); }
+      plan.sort((a, b) => a.bei - b.bei);
+      while (plan.length && plan[0].bei <= zeit && !vorbei) plan.shift().fn();
+      if (vorbei) return;
 
       // Strandkulisse
       const himmel = ctx.createLinearGradient(0, 0, 0, 150);
@@ -2365,11 +2463,9 @@ const UI = (() => {
         ctx.beginPath(); ctx.arc(basisX + Math.sin((i + 1) * 1.4) * 4, gy, 5, 0, Math.PI * 2); ctx.fill();
       });
       // Status
-      ctx.fillStyle = '#2b2d42'; ctx.font = 'bold 14px sans-serif';
-      ctx.fillText(statusText, W / 2, 236);
-      ctx.font = '12px sans-serif'; ctx.fillStyle = '#55586a';
-      ctx.fillText('Strähne ' + Math.min(runde + 1, RUNDEN.length) + ' von ' + RUNDEN.length +
-        (fehler ? ' · 😅 ' + fehler + ' Patzer' : ''), W / 2, 258);
+      gtaText(ctx, statusText, W / 2, 238, 15, phase === 'nachmachen' ? '#3ddc97' : '#59c2ff');
+      gtaText(ctx, 'Strähne ' + Math.min(runde + 1, RUNDEN.length) + ' von ' + RUNDEN.length +
+        (fehler ? ' · 😅 ' + fehler + ' Patzer' : ''), W / 2, 260, 11, '#fff');
 
       // Die vier Perlen-Knöpfe
       PERLEN.forEach((p, i) => {
@@ -2386,6 +2482,7 @@ const UI = (() => {
         ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = 'bold 13px sans-serif';
         ctx.fillText(String(i + 1), p.x, PERLE_Y + 5);
       });
+      uhr.zeichnen();
 
       requestAnimationFrame(schleife);
     }
@@ -2411,8 +2508,8 @@ const UI = (() => {
     if (!liegen.some(l => !l.belegt)) liegen[5].belegt = false;
     const gaeste = [];
     let spawnIn = 900, meins = null, vorbei = false;
-    const start = performance.now();
-    let letztes = start;
+    const uhr = minispielUhr(canvas, ctx, W, H,
+      ['Tippe schnell eine freie Liege an!', 'Vorne am Pool = beste Lage']);
 
     function fertig(icon, text, effekte, extra) {
       if (vorbei) return;
@@ -2444,15 +2541,17 @@ const UI = (() => {
       e.preventDefault();
     }
     canvas.addEventListener('pointerdown', zeigerRunter);
-    function aufraeumen() { canvas.removeEventListener('pointerdown', zeigerRunter); }
+    function aufraeumen() {
+      uhr.aufraeumen();
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+    }
 
     if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('🏖️', 'Liege gesichert!', { erholung: 3, stimmung: 2 }), 700);
 
     function schleife(now) {
       if (vorbei) return;
-      const dt = Math.min(50, now - letztes) / 1000;
-      letztes = now;
-      const zeit = (now - start) / 1000;
+      const t = uhr.tick(now);
+      const dt = t.dt, zeit = t.zeit;
 
       // Neue Gäste stürmen auf freie Liegen zu
       spawnIn -= dt * 1000;
@@ -2536,10 +2635,9 @@ const UI = (() => {
 
       // HUD
       ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText('🕘 Pool öffnet – schnell!', 8, 16);
-      ctx.textAlign = 'right';
-      ctx.fillText('frei: ' + liegen.filter(l => !l.belegt).length, W - 8, 16);
+      gtaText(ctx, '🕘 Pool öffnet – schnell!', 8, 17, 11, '#ffd166', 'left');
+      gtaText(ctx, 'frei: ' + liegen.filter(l => !l.belegt).length, W - 8, 17, 11, '#3ddc97', 'right');
+      uhr.zeichnen();
 
       if (!meins && !liegen.some(l => !l.belegt)) {
         fertig('😤', 'Alle Liegen weg – die Handtuch-Profis waren schneller. Bleibt nur der Handtuch-Platz auf den Fliesen.',
@@ -2562,7 +2660,7 @@ const UI = (() => {
     const overlay = $('#fahrt-overlay');
     overlay.classList.remove('versteckt');
     $('#fahrt-titel').textContent = '🏁 Bonuslevel: Kart-Rennen!';
-    $('#fahrspiel-hilfe').innerHTML = 'Lenken: ← → · Gas: ↑ · Item einsetzen: Leertaste oder Item-Box antippen<br>' +
+    $('#fahrspiel-hilfe').innerHTML = 'Lenken: ← → · Gas: ↑ · Item einsetzen: Leertaste oder Item-Box antippen · Pause: P oder ⏸<br>' +
       'Fahr durch die ?-Boxen: 🍄 Turbo, 🍌 Banane legen, ⚡ Gegner schocken. Wer wird Erster?';
     $('#fahrt-inselkarte').classList.add('versteckt');
     $('#fahrspiel-wrap').classList.remove('versteckt');
@@ -2581,6 +2679,10 @@ const UI = (() => {
     const RUNDEN_ZIEL = window.FAHRSPIEL_DAUER ? 1 : 2;
     const ZEITLIMIT = window.FAHRSPIEL_DAUER ? window.FAHRSPIEL_DAUER / 1000 + 2 : 75;
     const HALB = 4.6;
+
+    // Pause (Taste P / ⏸) – links unter der Platzierungsbox
+    const uhr = minispielUhr(canvas, ctx, W, H, null,
+      { ohneCountdown: true, pauseBox: { x: 6, y: 78, b: 36, h: 30 } });
 
     // Geschlossener Kurs: verbeulte Ellipse
     const N = 160;
@@ -2665,6 +2767,7 @@ const UI = (() => {
     canvas.addEventListener('pointerdown', zeigerRunter);
     document.addEventListener('pointerup', zeigerHoch);
     function aufraeumen() {
+      uhr.aufraeumen();
       document.removeEventListener('keydown', tasteRunter);
       document.removeEventListener('keyup', tasteHoch);
       canvas.removeEventListener('pointerdown', zeigerRunter);
@@ -2673,9 +2776,8 @@ const UI = (() => {
 
     function schleife(now) {
       if (vorbei) return;
-      const dt = Math.min(50, now - letztes) / 1000;
-      letztes = now;
-      const seitStart = now - start;
+      const dt = uhr.tick(now).dt;
+      const seitStart = now - start - uhr.pausenMs;
       const fahrZeit = Math.max(0, seitStart - COUNTDOWN) / 1000;
 
       if (seitStart < COUNTDOWN) {
@@ -2879,15 +2981,11 @@ const UI = (() => {
         blitz -= dt * 1000;
         ctx.fillStyle = 'rgba(230,57,70,0.28)'; ctx.fillRect(0, 0, W, H);
       }
-      ctx.textAlign = 'center';
       for (const sch of schweber) {
         sch.alter += dt;
         ctx.globalAlpha = Math.max(0, 1 - sch.alter / 1.1);
-        ctx.fillStyle = '#ffd166';
-        ctx.strokeStyle = 'rgba(43,45,66,0.8)'; ctx.lineWidth = 3;
-        ctx.font = 'bold 17px sans-serif';
-        ctx.strokeText(sch.text, W / 2, H - 120 - sch.alter * 55);
-        ctx.fillText(sch.text, W / 2, H - 120 - sch.alter * 55);
+        gtaText(ctx, sch.text, W / 2, H - 120 - sch.alter * 55, 18,
+          sch.text.includes('Überholt') ? '#3ddc97' : '#ffd166');
       }
       ctx.globalAlpha = 1;
       while (schweber.length && schweber[0].alter > 1.1) schweber.shift();
@@ -2895,20 +2993,15 @@ const UI = (() => {
       // HUD: Platzierung, Runde, Item-Box
       const platz = 1 + rivalen.filter(r => r.total > gesamtIdx).length;
       ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 26);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText('💥 ' + treffer, 6, 18);
-      ctx.fillStyle = '#ffd166'; ctx.fillText('🏎️ ' + stil, 46, 18);
-      ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-      ctx.fillText('Runde ' + Math.min(RUNDEN_ZIEL, runden + 1) + '/' + RUNDEN_ZIEL, W / 2, 18);
-      ctx.textAlign = 'right';
-      ctx.fillText(fahrZeit.toFixed(1) + ' s', W - 6, 18);
+      gtaText(ctx, '💥 ' + treffer, 6, 19, 12, treffer > 0 ? '#ff5b6a' : '#fff', 'left');
+      gtaText(ctx, '🏎️ ' + stil, 50, 19, 12, '#ffd166', 'left');
+      gtaText(ctx, 'Runde ' + Math.min(RUNDEN_ZIEL, runden + 1) + '/' + RUNDEN_ZIEL, W / 2, 19, 12, '#fff');
+      gtaText(ctx, fahrZeit.toFixed(1) + ' s', W - 6, 19, 12, '#fff', 'right');
 
       // Platzierung groß links, Item-Box rechts (antippen = benutzen)
       ctx.fillStyle = 'rgba(43,45,66,0.6)';
       ctx.beginPath(); ctx.roundRect(6, 32, 58, 40, 10); ctx.fill();
-      ctx.fillStyle = platz === 1 ? '#ffd166' : '#fff';
-      ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('P' + platz, 35, 61);
+      gtaText(ctx, 'P' + platz, 35, 62, 25, platz === 1 ? '#ffd166' : '#fff');
       ctx.fillStyle = 'rgba(43,45,66,0.6)';
       ctx.beginPath(); ctx.roundRect(W - 60, 32, 54, 40, 10); ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
@@ -2919,22 +3012,20 @@ const UI = (() => {
       zeichneTouchPfeile(ctx, W, H);
 
       if (seitStart < COUNTDOWN) {
-        ctx.fillStyle = 'rgba(43,45,66,0.45)'; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-        ctx.font = 'bold 64px sans-serif';
-        ctx.fillText(String(Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3))), W / 2, H / 2);
-        ctx.font = 'bold 15px sans-serif';
-        ctx.fillText('Bonuslevel – gib alles!', W / 2, H / 2 + 34);
+        ctx.fillStyle = 'rgba(20,21,31,0.55)'; ctx.fillRect(0, 0, W, H);
+        const nr = Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3));
+        gtaText(ctx, String(nr), W / 2, H / 2 - 26, 72, ['#3ddc97', '#ffd166', '#ff5b6a'][nr - 1] || '#ffd166');
+        gtaText(ctx, 'BONUSLEVEL!', W / 2, H / 2 + 18, 22, '#59c2ff');
+        gtaText(ctx, '2 Runden · ?-Boxen sammeln', W / 2, H / 2 + 46, 14, '#fff');
+        gtaText(ctx, 'Item: Leertaste · Pause: P', W / 2, H / 2 + 70, 14, '#fff');
       }
 
       // Rennen vorbei?
       if (runden >= RUNDEN_ZIEL || fahrZeit > ZEITLIMIT) {
         vorbei = true;
         aufraeumen();
-        ctx.fillStyle = 'rgba(43,45,66,0.55)'; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-        ctx.font = 'bold 32px sans-serif';
-        ctx.fillText('🏁 Zielflagge!', W / 2, H / 2);
+        ctx.fillStyle = 'rgba(20,21,31,0.55)'; ctx.fillRect(0, 0, W, H);
+        gtaText(ctx, '🏁 ZIELFLAGGE!', W / 2, H / 2, 30, '#ffd166');
         piep(660, 150, 'square'); setTimeout(() => piep(880, 250, 'square'), 160);
 
         const geschafft = runden >= RUNDEN_ZIEL;
@@ -2968,6 +3059,7 @@ const UI = (() => {
         renderStats();
         return;
       }
+      uhr.zeichnen();
       requestAnimationFrame(schleife);
     }
     requestAnimationFrame(schleife);
