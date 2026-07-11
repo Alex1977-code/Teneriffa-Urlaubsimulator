@@ -86,6 +86,16 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
 - **Ausflüge mit Vorschau buchen** – größere Ausflüge zeigen auf Wunsch erst ein
   echtes Foto oder Video im Kino-Modus („▶ Vorschau“) und lassen sich von dort
   direkt buchen.
+- **Welt-Bestenliste** – jeder abgeschlossene Urlaub meldet sich (sobald der
+  gemeinsame Online-Speicher freigeschaltet ist) automatisch mit deinem
+  Highscore-Namen an die weltweite Bestenliste; lokal läuft die Rangliste immer.
+- **Mietwagen mit Charakter** – vier Autos von „Pulpo“ bis Cabrio „Sunset“:
+  Preis, Tempo, Lenkverhalten, Regen-Grip, Gelände-Talent und Lackierung
+  unterscheiden sich spürbar im 3D-Fahrspiel.
+- **Neu auf der Insel** – der Goldstrand Playa del Duque, die historische
+  Bauwerke-Tour (La Laguna & Santa Cruz) und das Familien-Shopping in der
+  Siam Mall: Wer ist schneller – die Familie an der Kasse oder du bei der
+  Parkplatzsuche?
 - **Freie Videos mit kluger Auswahl** – Wikimedia-Clips werden nach Titel-Treffern,
   Länge und Auflösung bewertet, statt blind den ersten Treffer zu nehmen.
 

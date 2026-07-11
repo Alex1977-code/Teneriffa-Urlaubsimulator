@@ -868,6 +868,11 @@ button { font: inherit; cursor: pointer; }
 .erfolg-icon { font-size: 1.6rem; }
 
 /* -------------------------------------------------------------- Bestenliste */
+.besten-name input {
+  font: inherit; padding: 4px 10px; border: 2px solid var(--sand-dunkel);
+  border-radius: 8px; margin-left: 6px; width: 150px;
+}
+
 .besten-tabelle { width: 100%; border-collapse: collapse; }
 .besten-tabelle th { text-align: left; font-size: 0.8rem; color: #8a8d9c; padding: 6px 8px; }
 .besten-tabelle td { padding: 10px 8px; border-top: 1px solid var(--sand-dunkel); }

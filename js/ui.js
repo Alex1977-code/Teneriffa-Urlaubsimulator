@@ -17,6 +17,32 @@ const UI = (() => {
   const esc = s => String(s).replace(/[&<>"]/g,
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+  // ------------------------------------------------ Welt-Highscore (online)
+  // Gemeinsame Online-Bestenliste (kvdb.io). Sobald hier eine Bucket-URL
+  // steht, melden alle Spieler ihre Urlaube automatisch dorthin.
+  const HISCORE_URL = '';   // z. B. 'https://kvdb.io/AbCdEf1234/'
+  function hiscoreSenden(score) {
+    if (!HISCORE_URL || !score) return;
+    const name = (localStorage.getItem('tus_name_v1') || 'Gast').slice(0, 14) || 'Gast';
+    fetch(HISCORE_URL + 's' + Date.now() + Math.floor(Math.random() * 1000), {
+      method: 'PUT',
+      body: name + '|' + score + '|' + new Date().toLocaleDateString('de-DE'),
+    }).catch(() => { /* offline? macht nichts */ });
+  }
+  function hiscoreLaden() {
+    if (!HISCORE_URL) return Promise.resolve(null);
+    return fetch(HISCORE_URL + '?values=true&limit=500&format=json')
+      .then(r => r.json())
+      .then(liste => liste
+        .map(([, v]) => {
+          const t = String(v).split('|');
+          return { name: t[0] || 'Gast', score: +t[1] || 0, datum: t[2] || '' };
+        })
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 15))
+      .catch(() => null);
+  }
+
   // -------------------------------------------------------------- Bildschirme
   function zeigeScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('aktiv'));
@@ -110,6 +136,7 @@ const UI = (() => {
     'playa-americas': [100, 201], 'siampark': [97, 197], 'whalewatching': [103, 206],
     'surfkurs': [141, 201], 'lacaleta': [87, 192], 'promenade': [102, 203],
     'cocktailbar': [99, 199], 'abades': [170, 182], 'paragliding': [95, 184],
+    'duque': [86, 193], 'siammall': [96, 196], 'bauwerke': [246, 86],
     'barranco': [94, 187], 'tejita': [146, 199], 'karting': [122, 195],
     'masca': [46, 112], 'losgigantes': [52, 132], 'garachico': [78, 84],
     'icod': [93, 82], 'teno': [26, 100], 'cueva': [90, 88], 'chinyero': [98, 112],
@@ -310,6 +337,7 @@ const UI = (() => {
       anaga: { boden: '#88ad68', deko: ['🌳', '🌿', '🌲'], himmel: ['#5aa5cf', '#c9e6f0'] },
     };
     const thema = THEMEN[zielZone] || THEMEN.sued;
+    const wagen = (Game.run && DATA.AUTOS[Game.run.auto]) || DATA.AUTOS.kompakt;
     let wetterId = 'sonnig';
     try { wetterId = Game.wetterFuerZone(zielZone, Game.run.tag); } catch (e) { /* egal */ }
     const regnet = wetterId === 'regen';
@@ -548,7 +576,7 @@ const UI = (() => {
       ctx.beginPath(); ctx.roundRect(16, 3, 11, 14, 3); ctx.fill();
       // Karosserie mit Lackverlauf
       const lack = ctx.createLinearGradient(0, -8, 0, 16);
-      lack.addColorStop(0, '#f2606c'); lack.addColorStop(0.45, '#e63946'); lack.addColorStop(1, '#a12633');
+      lack.addColorStop(0, wagen.hell); lack.addColorStop(0.45, wagen.farbe); lack.addColorStop(1, wagen.dunkel);
       ctx.fillStyle = lack;
       ctx.beginPath(); ctx.roundRect(-24, -6, 48, 21, 7); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
@@ -560,10 +588,10 @@ const UI = (() => {
       ctx.beginPath(); ctx.roundRect(-15, -17, 30, 13, 5); ctx.fill();
       ctx.fillStyle = 'rgba(200,225,245,0.35)';
       ctx.beginPath(); ctx.roundRect(-12, -15, 24, 5, 3); ctx.fill();
-      ctx.fillStyle = '#c9303f';
+      ctx.fillStyle = wagen.farbe;
       ctx.beginPath(); ctx.roundRect(-17, -20, 34, 5, 2); ctx.fill();
       // Heckspoiler
-      ctx.fillStyle = '#801d28';
+      ctx.fillStyle = wagen.dunkel;
       ctx.fillRect(-20, -22, 40, 3);
       ctx.fillRect(-18, -19, 3, 4); ctx.fillRect(15, -19, 3, 4);
       // Rücklichter: glühen beim Bremsen
@@ -612,12 +640,12 @@ const UI = (() => {
       // Fahrphysik: echtes Lenken, Gas, Bremse, Turbo
       if (seitStart >= COUNTDOWN) {
         boostZeit = Math.max(0, boostZeit - dt);
-        let zielTempo = boostZeit > 0 ? 38 : gas > 0 ? 26 : gas < 0 ? 4 : 18;
-        if (abseits) zielTempo *= 0.55;
+        let zielTempo = boostZeit > 0 ? wagen.tempo + 12 : gas > 0 ? wagen.tempo : gas < 0 ? 4 : wagen.tempo * 0.7;
+        if (abseits) zielTempo *= wagen.gelaende;
         speed += (zielTempo - speed) * dt * (gas < 0 ? 2.6 : boostZeit > 0 ? 2.0 : 0.9);
         lenkIst += (lenk - lenkIst) * Math.min(1, dt * 7);
-        const griff = regnet ? 0.82 : 1;
-        heading += lenkIst * 1.4 * dt * Math.min(1, speed / 10) * griff;
+        const griff = (regnet ? 0.82 : 1) * wagen.grip;
+        heading += lenkIst * wagen.lenk * dt * Math.min(1, speed / 10) * griff;
         if (regnet && speed > 14) heading += (Math.random() - 0.5) * 0.5 * dt;
         px += Math.sin(heading) * speed * dt;
         pz += Math.cos(heading) * speed * dt;
@@ -980,7 +1008,7 @@ const UI = (() => {
         const abw = 1.9 * skala, abl = 3.6 * skala;
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.beginPath(); ctx.ellipse(1.5, 2, abw * 0.7, abl * 0.55, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#e63946';
+        ctx.fillStyle = wagen.farbe;
         ctx.beginPath(); ctx.roundRect(-abw / 2, -abl / 2, abw, abl, abw * 0.28); ctx.fill();
         ctx.fillStyle = '#2b3a55';
         ctx.fillRect(-abw * 0.32, -abl * 0.3, abw * 0.64, abl * 0.22);
@@ -2330,9 +2358,10 @@ const UI = (() => {
   // ----------------------------------- Minispiel: Parkplatzsuche in der Stadt
   // Der Wagen rollt automatisch durch die Gasse – tippe im richtigen Moment,
   // um in eine freie Lücke zu ziehen, bevor sie ein anderer schnappt.
-  function starteParkplatzSpiel(fertigCb) {
+  function starteParkplatzSpiel(fertigCb, rennen) {
     const { canvas, ctx, W, H } = minispielFenster(
-      '🅿️ Parkplatzsuche – wie immer ist alles voll',
+      rennen ? '🛍️ Siam Mall: Wer ist schneller – du oder die Familie?'
+             : '🅿️ Parkplatzsuche – wie immer ist alles voll',
       'Dein Wagen rollt von allein durch die Gasse. Tippe (oder Leertaste/↑), sobald du neben einer ' +
       'freien Lücke bist – aber Vorsicht, die Einheimischen sind schneller!', 420);
 
@@ -2348,6 +2377,8 @@ const UI = (() => {
     }
     let weltY = 0, tempo = 88, fehl = 0, blitz = 0, vorbei = false;
     let hinweis = null, geparkt = null;
+    const familieDauer = rennen ? 19 + Math.random() * 9 : 0;
+    let familieFertig = false;
     const uhr = minispielUhr(canvas, ctx, W, H,
       ['Tippe, sobald du neben einer', 'freien Lücke stehst!'],
       { pauseBox: { x: W / 2 - 18, y: 30, b: 36, h: 28 } });
@@ -2378,6 +2409,15 @@ const UI = (() => {
         piep(660, 150, 'triangle', 0.08);
         setTimeout(() => {
           const z = geparkt.zeit;
+          if (rennen) {
+            if (z < familieDauer)
+              fertig('🏁', 'Eingeparkt, Sonnenbrille auf, lässig an die Mall gelehnt – als die Familie mit den Tüten kommt, tust du, als hättest du nie gesucht. Sieg!',
+                { stimmung: 6, erlebnis: 6, stress: -3 }, ['🏁 Schneller als die Familie!']);
+            else
+              fertig('🛍️', 'Die Familie wartet schon mit allen Tüten am Treffpunkt und winkt betont geduldig. „Na, endlich!“',
+                { stimmung: 2, stress: 3 });
+            return;
+          }
           if (z < 14 && fehl === 0)
             fertig('🅿️', 'Erste Lücke, sauber eingeparkt, Applaus vom Café nebenan. Der Tag kann kommen!',
               { stimmung: 5, stress: -4, erlebnis: 3 });
@@ -2428,6 +2468,12 @@ const UI = (() => {
       const dt = t.dt, zeit = t.zeit;
 
       if (!geparkt) weltY += tempo * dt;
+
+      if (rennen && !familieFertig && zeit >= familieDauer) {
+        familieFertig = true;
+        hinweis = { text: '👨‍👩‍👧 Die Familie ist fertig!', alter: 0 };
+        piep(240, 200, 'square', 0.07);
+      }
 
       // Rivalen schnappen Lücken vor dir weg
       if (!geparkt && Math.random() < dt * 0.22) {
@@ -2499,6 +2545,15 @@ const UI = (() => {
       ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
       gtaText(ctx, '⏱ ' + zeit.toFixed(0) + ' s', 8, 17, 11, '#fff', 'left');
       gtaText(ctx, '📢 Fehlversuche: ' + fehl, W - 8, 17, 11, fehl > 0 ? '#ff5b6a' : '#fff', 'right');
+      if (rennen) {
+        const anteil = Math.min(1, zeit / familieDauer);
+        ctx.fillStyle = 'rgba(43,45,66,0.75)';
+        ctx.beginPath(); ctx.roundRect(W / 2 - 92, H - 44, 184, 34, 10); ctx.fill();
+        ctx.fillStyle = '#f5f0e6'; ctx.fillRect(W / 2 - 80, H - 24, 160, 7);
+        ctx.fillStyle = anteil > 0.8 ? '#ff5b6a' : '#f4a261';
+        ctx.fillRect(W / 2 - 80, H - 24, 160 * anteil, 7);
+        gtaText(ctx, '👨‍👩‍👧 Familie shoppt …', W / 2, H - 30, 11, '#fff');
+      }
       if (IST_TOUCH && !geparkt && zeit % 1.6 < 0.9)
         gtaText(ctx, '👆 Tippen zum Einparken', W / 2, H - 12, 14, '#ffd166');
       uhr.zeichnen();
@@ -3583,7 +3638,7 @@ const UI = (() => {
   }
 
   // ------------------------------------------------------------------- Setup
-  const cfg = { dauer: 7, region: 'sued', hotel: 'komfort', transport: 'mietwagen', items: [] };
+  const cfg = { dauer: 7, region: 'sued', hotel: 'komfort', transport: 'mietwagen', auto: 'kompakt', items: [] };
 
   function optionsGruppe(titel, hinweis, optionen, aktiv, onWahl) {
     const wrap = el('div', 'setup-gruppe');
@@ -3628,8 +3683,17 @@ const UI = (() => {
     inhalt.appendChild(optionsGruppe('🚗 Wie kommst du herum?', null,
       Object.entries(DATA.TRANSPORT).map(([id, t]) =>
         ({ id, icon: t.icon, name: t.name,
-           detail: t.kostenProTag ? t.kostenProTag + ' €/Tag' : 'ab 1,50 € pro Fahrt', desc: t.desc })),
+           detail: t.kostenProTag ? 'ab 22 €/Tag' : 'ab 1,50 € pro Fahrt', desc: t.desc })),
       cfg.transport, id => { cfg.transport = id; }));
+
+    // Mietwagen-Auswahl: gute und schlechte Autos mit eigenem Charakter
+    if (cfg.transport === 'mietwagen') {
+      inhalt.appendChild(optionsGruppe('🔑 Welchen Wagen nimmst du?',
+        'Tempo, Fahrverhalten, Gelände-Talent und Look – du spürst den Unterschied später am Steuer.',
+        Object.entries(DATA.AUTOS).map(([id, a]) =>
+          ({ id, icon: a.icon, name: a.name, detail: a.preisProTag + ' €/Tag', desc: a.desc })),
+        cfg.auto, id => { cfg.auto = id; }));
+    }
 
     // Gepäck (Mehrfachauswahl)
     const gepaeck = el('div', 'setup-gruppe');
@@ -3655,8 +3719,8 @@ const UI = (() => {
     let budget = hotel.budgetProTag * cfg.dauer;
     const posten = [`Reisekasse: ${budget} €`];
     if (cfg.transport === 'mietwagen') {
-      const mw = DATA.TRANSPORT.mietwagen.kostenProTag * cfg.dauer;
-      budget -= mw; posten.push(`Mietwagen: −${mw} €`);
+      const mw = DATA.AUTOS[cfg.auto].preisProTag * cfg.dauer;
+      budget -= mw; posten.push(`${DATA.AUTOS[cfg.auto].name.split('„')[0].trim()}: −${mw} €`);
     }
     for (const id of cfg.items) { budget -= DATA.ITEMS[id].preis; posten.push(`${DATA.ITEMS[id].name}: −${DATA.ITEMS[id].preis} €`); }
     $('#setup-budget').innerHTML =
@@ -3889,6 +3953,10 @@ const UI = (() => {
     // jedes einmal pro Urlaub, passend zu Ort und Tageszeit.
     if (res.act.id === 'karting') { starteKartRennen(kinoOderModal); return; }
     if (res.act.id === 'spieleabend') { starteFarkleSpiel(kinoOderModal); return; }
+    if (res.act.id === 'siammall' && Game.run && Game.run.transport === 'mietwagen') {
+      starteParkplatzSpiel(kinoOderModal, true);
+      return;
+    }
     let vorspiel = null;
     if (Game.run) {
       const r = Game.run, tags = res.act.tags, abends = r.slot === 2;
@@ -3967,6 +4035,7 @@ const UI = (() => {
   // ------------------------------------------------------------- Urlaubsende
   function renderEnde(r) {
     zeigeScreen('ende');
+    hiscoreSenden(r.score);
     const teileHtml = r.teile.map(t =>
       `<tr><td>${t.icon} ${esc(t.name)}</td><td class="detail">${esc(t.detail)}</td><td class="punkte">${t.punkte}</td></tr>`).join('');
 
@@ -4062,7 +4131,38 @@ const UI = (() => {
       <td>${b.dauer} Tage · ${b.region === 'sued' ? 'Süden' : 'Norden'}</td>
       <td>📸 ${b.fotos}</td><td class="detail">${esc(b.datum)}</td></tr>`).join('');
     $('#besten-inhalt').innerHTML = `<div class="panel"><table class="besten-tabelle">
-      <tr><th></th><th>Punkte</th><th>Reise</th><th>Fotos</th><th>Datum</th></tr>${zeilen}</table></div>`;
+      <tr><th></th><th>Punkte</th><th>Reise</th><th>Fotos</th><th>Datum</th></tr>${zeilen}</table></div>` +
+      weltPanelHtml();
+    weltPanelFuellen();
+  }
+
+  // 🌍 Welt-Bestenliste: gemeinsamer Online-Highscore aller Spieler
+  function weltPanelHtml() {
+    const name = localStorage.getItem('tus_name_v1') || '';
+    return `<div class="panel"><h3>🌍 Welt-Bestenliste</h3>
+      <p class="besten-name">Dein Highscore-Name:
+        <input id="hs-name" maxlength="14" placeholder="Gast" value="${esc(name)}"></p>
+      <div id="welt-liste"><p class="hint">${HISCORE_URL
+        ? 'Lade Welt-Bestenliste …'
+        : 'Die weltweite Bestenliste wird gerade freigeschaltet – dein Name wird schon gespeichert und zählt ab dann automatisch mit!'}</p></div></div>`;
+  }
+  function weltPanelFuellen() {
+    const eingabe = $('#hs-name');
+    if (eingabe) eingabe.addEventListener('change', () =>
+      localStorage.setItem('tus_name_v1', eingabe.value.trim().slice(0, 14)));
+    if (!HISCORE_URL) return;
+    hiscoreLaden().then(liste => {
+      const ziel = $('#welt-liste');
+      if (!ziel) return;
+      if (!liste || !liste.length) {
+        ziel.innerHTML = '<p class="hint">Noch keine Einträge – sei die/der Erste! 🏆</p>';
+        return;
+      }
+      ziel.innerHTML = '<table class="besten-tabelle">' +
+        liste.map((e, i) => `<tr><td>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.'}</td>
+          <td class="punkte">${e.score}</td><td>${esc(e.name)}</td><td class="detail">${esc(e.datum)}</td></tr>`).join('') +
+        '</table>';
+    });
   }
 
   // ------------------------------------------------------------------- Flug

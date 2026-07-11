@@ -280,7 +280,9 @@ const Game = (() => {
     const dauer = cfg.dauer;
     let budget = Math.round(hotel.budgetProTag * dauer);
 
-    if (cfg.transport === 'mietwagen') budget -= D.TRANSPORT.mietwagen.kostenProTag * dauer;
+    const auto = cfg.transport === 'mietwagen'
+      ? (D.AUTOS[cfg.auto] ? cfg.auto : 'kompakt') : null;
+    if (auto) budget -= D.AUTOS[auto].preisProTag * dauer;
     const items = [];
     for (const it of cfg.items || []) {
       if (D.ITEMS[it] && !items.includes(it)) { items.push(it); budget -= D.ITEMS[it].preis; }
@@ -296,7 +298,7 @@ const Game = (() => {
     }
 
     run = {
-      region: cfg.region, hotel: cfg.hotel, transport: cfg.transport, dauer,
+      region: cfg.region, hotel: cfg.hotel, transport: cfg.transport, auto, dauer,
       tag: 1, slot: 1, // Tag 1: Ankunft am Mittag – der Vormittag geht für die Anreise drauf
       budget, energie: 65, stimmung: 70, erholung: 10, erlebnis: 0, sonnenbrand: 0,
       stress: 15, kofferWeg: false, kofferTag: 0, kofferVerloren: false,

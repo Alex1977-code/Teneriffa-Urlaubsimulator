@@ -61,6 +61,23 @@ const DATA = (() => {
     },
   };
 
+  // ------------------------------------------------------------- Mietwagen
+  // Gute und schlechte Autos: Tempo, Fahrverhalten, Gelände und Look
+  const AUTOS = {
+    klein: { name: 'Kleinwagen „Pulpo“', icon: '🚙', preisProTag: 22,
+      tempo: 23, lenk: 1.5, grip: 0.95, gelaende: 0.5, farbe: '#d8d8d8', dunkel: '#9b9ba4', hell: '#f2f2f2',
+      desc: 'Billig, wendig, etwas müde am Berg. Die Delle hinten war schon da – ehrlich.' },
+    kompakt: { name: 'Kompakter „Insel-Flitzer“', icon: '🚗', preisProTag: 28,
+      tempo: 26, lenk: 1.4, grip: 1, gelaende: 0.55, farbe: '#e63946', dunkel: '#a12633', hell: '#f2606c',
+      desc: 'Der solide Klassiker: ausgewogen, zuverlässig, in Mietwagen-Rot.' },
+    cabrio: { name: 'Cabrio „Sunset“', icon: '🏎️', preisProTag: 42,
+      tempo: 31, lenk: 1.7, grip: 0.9, gelaende: 0.45, farbe: '#ffd166', dunkel: '#c99b2f', hell: '#ffe8a3',
+      desc: 'Schnell, direkt, Haare im Wind – aber bei Regen tänzelt das Heck.' },
+    jeep: { name: 'Alter Jeep „Barranco“', icon: '🛻', preisProTag: 32,
+      tempo: 24, lenk: 1.25, grip: 1.08, gelaende: 0.85, farbe: '#2a9d8f', dunkel: '#1e6f66', hell: '#5fc4b8',
+      desc: 'Gemütlich auf Asphalt, unbeirrbar daneben: Schotter und Pisten machen ihm nichts aus.' },
+  };
+
   // ------------------------------------------------------------ Unterkünfte
   const REGIONEN = {
     sued: { name: 'Costa Adeje (Süden)', icon: '🏖️',
@@ -187,6 +204,14 @@ const DATA = (() => {
       stress: -5, sonne: 3, outdoor: 3, blockiertBei: ['regen', 'windig'], tags: ['strand', 'natur'],
       foto: 'tejita',
       desc: 'Einer der längsten Naturstrände der Insel, überragt vom roten Vulkankegel. Wild und wunderbar leer.' },
+    { id: 'duque', name: 'Goldstrand Playa del Duque', icon: '🏖️', zone: 'sued',
+      slots: [0, 1], dauer: 1, kosten: 12, energie: -10, erholung: +16, stimmung: +10, erlebnis: 12,
+      stress: -6, sonne: 3, outdoor: 3, blockiertBei: ['regen'], tags: ['strand'],
+      desc: 'Feiner goldener Sand, Strandpavillons, glasklares Wasser – der eleganteste Strand der Costa Adeje.' },
+    { id: 'siammall', name: 'Familien-Shopping in der Siam Mall', icon: '🛍️', zone: 'sued',
+      slots: [0, 1], dauer: 1, kosten: 30, energie: -12, erholung: +2, stimmung: +8, erlebnis: 10,
+      sonne: 0, outdoor: 0, tags: ['bummeln'],
+      desc: 'Die Familie stürmt die Läden – und du? Suchst mal wieder einen Parkplatz. Wer ist schneller?' },
     { id: 'karting', name: 'Kartbahn Teneriffa Süd', icon: '🏎️', zone: 'sued',
       slots: [0, 1], dauer: 1, kosten: 30, energie: -18, erholung: 0, stimmung: +18, erlebnis: 20,
       sonne: 1, outdoor: 2, blockiertBei: ['regen'], tags: ['action'],
@@ -314,6 +339,10 @@ const DATA = (() => {
       slots: [2], dauer: 1, kosten: 35, energie: -8, erholung: +6, stimmung: +14, erlebnis: 20,
       stress: -6, sonne: 0, outdoor: 0, tags: ['kultur'], foto: 'auditorio',
       desc: 'Calatravas weiße Welle über dem Meer – innen spielt das Sinfonieorchester von Teneriffa.' },
+    { id: 'bauwerke', name: 'Historische Bauwerke-Tour', icon: '⛪', zone: 'anaga',
+      slots: [0, 1], dauer: 1, kosten: 9, energie: -12, erholung: +4, stimmung: +8, erlebnis: 16,
+      sonne: 1, outdoor: 1, tags: ['kultur'],
+      desc: 'Iglesia de la Concepción, Castillo San Cristóbal, Herrenhäuser aus vier Jahrhunderten – Geschichte zum Anfassen.' },
     { id: 'benijo', name: 'Playa de Benijo (Geheimstrand)', icon: '🖤', zone: 'anaga',
       slots: [0, 1], dauer: 1, kosten: 4, energie: -16, erholung: +14, stimmung: +12, erlebnis: 18,
       stress: -6, sonne: 3, outdoor: 3, blockiertBei: ['windig', 'regen'], tags: ['strand', 'geheim'],
@@ -718,7 +747,7 @@ const DATA = (() => {
     'loroparque', 'paragliding', 'anaga', 'losgigantes', 'abades', 'paisaje', 'cueva'];
 
   return {
-    WETTER, WETTER_CHANCEN, ZONEN, TRANSPORT, REGIONEN, HOTELS, ITEMS,
+    WETTER, WETTER_CHANCEN, ZONEN, TRANSPORT, AUTOS, REGIONEN, HOTELS, ITEMS,
     AKTIVITAETEN, FOTOS, EREIGNISSE, QUESTS, ERFOLGE, LEVELS, LEVEL_UNLOCKS,
     BEWERTUNGEN, SLOT_NAMEN, hops,
     FLIRT_NAMEN, FAHRT_BASIS, FAHRT_EREIGNISSE, HIGHLIGHTS,
