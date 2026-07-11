@@ -2297,6 +2297,311 @@ const UI = (() => {
     requestAnimationFrame(schleife);
   }
 
+  // -------------------- Minispiel: Terrassen-Labyrinth (Abend-Sitzplatzjagd)
+  // Die Abendterrasse ist ein Labyrinth aus Pflanzkübeln und besetzten
+  // Tischen – schnapp dir einen der freien Plätze, bevor andere Gäste da sind!
+  function starteTerrassenSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '🍽️ Terrassen-Labyrinth – wer ergattert einen Platz?',
+      'Abends auf der Terrasse: Nur wenige Plätze sind frei! Tippe irgendwo hin – dein Männchen ' +
+      '<strong>findet den Weg durchs Labyrinth</strong> (Pfeiltasten/WASD gehen auch). Sei schneller als die anderen Gäste!', 420);
+
+    const SP = 11, RE = 10, ZELLE = 28;
+    const X0 = (W - SP * ZELLE) / 2, Y0 = 106;
+    const wand = new Set();
+    const deko = {};
+    for (let gy = 1; gy < RE - 1; gy += 2) {
+      const luecken = new Set();
+      while (luecken.size < 3) luecken.add(Math.floor(Math.random() * SP));
+      for (let gx = 0; gx < SP; gx++) {
+        if (luecken.has(gx)) continue;
+        wand.add(gx + ',' + gy);
+        deko[gx + ',' + gy] = Math.random() < 0.45 ? 'pflanze' : 'tisch';
+      }
+    }
+    // 3 freie Plätze: Wand-Zellen werden zu Tischen mit freiem Stuhl
+    const sitze = [];
+    const wandListe = [...wand];
+    while (sitze.length < 3 && wandListe.length) {
+      const i = Math.floor(Math.random() * wandListe.length);
+      const [k] = wandListe.splice(i, 1);
+      wand.delete(k);
+      const [gx, gy] = k.split(',').map(Number);
+      sitze.push({ gx, gy, frei: true });
+    }
+    const istFrei = (gx, gy) => gx >= 0 && gx < SP && gy >= 0 && gy < RE && !wand.has(gx + ',' + gy);
+
+    function pfadSuchen(vonX, vonY, nachX, nachY) {
+      if (!istFrei(nachX, nachY)) return null;
+      const start = vonX + ',' + vonY;
+      const ziel = nachX + ',' + nachY;
+      const vorher = { [start]: null };
+      const schlange = [[vonX, vonY]];
+      while (schlange.length) {
+        const [x, y] = schlange.shift();
+        if (x + ',' + y === ziel) {
+          const weg = [];
+          let k = ziel;
+          while (k !== start) { const [wx, wy] = k.split(',').map(Number); weg.unshift({ gx: wx, gy: wy }); k = vorher[k]; }
+          return weg;
+        }
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy, nk = nx + ',' + ny;
+          if (istFrei(nx, ny) && !(nk in vorher)) { vorher[nk] = x + ',' + y; schlange.push([nx, ny]); }
+        }
+      }
+      return null;
+    }
+
+    const figurNeu = (gx, gy, tempo, icon) =>
+      ({ gx, gy, tempo, icon, weg: [], schritt: 0, naechste: null, sitz: null, blick: 1 });
+    const du = figurNeu(Math.floor(SP / 2), RE - 1, 4.2, '🏃');
+    const rivalen = [0, 1, 2, 3].map(i => {
+      const r = figurNeu([0, SP - 1, 2, SP - 3][i], 0, 2.2 + i * 0.28, ['🧔', '👩', '🧓', '👦'][i]);
+      r.start = 0.4 + i * 1.1;
+      return r;
+    });
+    let meins = null, verloren = false, vorbei = false, endeIn = -1, goAlter = 0;
+    const tasten = { l: 0, r: 0, o: 0, u: 0 };
+    const uhr = minispielUhr(canvas, ctx, W, H,
+      ['Tippe hin – dein Männchen findet', 'den Weg zum freien Platz! 🪑']);
+
+    function fertig(icon, text, effekte, extra) {
+      if (vorbei) return;
+      vorbei = true; aufraeumen();
+      minispielErgebnis(icon, text, effekte, extra, fertigCb);
+    }
+    function zeigerRunter(e) {
+      if (vorbei || meins || verloren) return;
+      const box = canvas.getBoundingClientRect();
+      const mx = (e.clientX - box.left) / box.width * W;
+      const my = (e.clientY - box.top) / box.height * H;
+      let gx = Math.round((mx - X0 - ZELLE / 2) / ZELLE);
+      let gy = Math.round((my - Y0 - ZELLE / 2) / ZELLE);
+      gx = Math.max(0, Math.min(SP - 1, gx));
+      gy = Math.max(0, Math.min(RE - 1, gy));
+      // Tippt man einen freien Sitz an, ist der das Ziel; sonst nächste freie Zelle
+      let ziel = null;
+      if (istFrei(gx, gy)) ziel = { gx, gy };
+      else for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]])
+        if (istFrei(gx + dx, gy + dy)) { ziel = { gx: gx + dx, gy: gy + dy }; break; }
+      if (!ziel) return;
+      const weg = pfadSuchen(du.naechste ? du.naechste.gx : du.gx, du.naechste ? du.naechste.gy : du.gy, ziel.gx, ziel.gy);
+      if (weg) { du.weg = weg; piep(520, 50, 'square', 0.04); }
+      e.preventDefault();
+    }
+    function tasteRunter(e) {
+      const map = { ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r', ArrowUp: 'o', w: 'o', ArrowDown: 'u', s: 'u' };
+      if (map[e.key]) { tasten[map[e.key]] = 1; du.weg = []; e.preventDefault(); }
+    }
+    function tasteHoch(e) {
+      const map = { ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r', ArrowUp: 'o', w: 'o', ArrowDown: 'u', s: 'u' };
+      if (map[e.key]) tasten[map[e.key]] = 0;
+    }
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    document.addEventListener('keydown', tasteRunter);
+    document.addEventListener('keyup', tasteHoch);
+    function aufraeumen() {
+      uhr.aufraeumen();
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+      document.removeEventListener('keydown', tasteRunter);
+      document.removeEventListener('keyup', tasteHoch);
+    }
+    if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('🍽️', 'Platz ergattert!', { stimmung: 3, erholung: 2 }), 700);
+
+    const posVon = f => ({
+      x: X0 + (f.naechste ? f.gx + (f.naechste.gx - f.gx) * f.schritt : f.gx) * ZELLE + ZELLE / 2,
+      y: Y0 + (f.naechste ? f.gy + (f.naechste.gy - f.gy) * f.schritt : f.gy) * ZELLE + ZELLE / 2,
+    });
+
+    function bewege(f, dt) {
+      if (f.sitz) return;
+      if (!f.naechste && f.weg.length) {
+        f.naechste = f.weg.shift();
+        if (f.naechste.gx !== f.gx) f.blick = Math.sign(f.naechste.gx - f.gx);
+      }
+      if (!f.naechste) return;
+      f.schritt += f.tempo * dt;
+      if (f.schritt >= 1) {
+        f.gx = f.naechste.gx; f.gy = f.naechste.gy;
+        f.naechste = null; f.schritt = 0;
+        const sitz = sitze.find(z => z.frei && z.gx === f.gx && z.gy === f.gy);
+        if (sitz) { sitz.frei = false; f.sitz = sitz; }
+      }
+    }
+
+    function schleife(now) {
+      if (vorbei) return;
+      const t = uhr.tick(now);
+      const dt = t.dt, zeit = t.zeit;
+      if (t.laeuft) goAlter += dt;
+
+      // Tastensteuerung: Schritt für Schritt durchs Labyrinth
+      if (!meins && !verloren && !du.naechste && !du.weg.length) {
+        const dx = tasten.r - tasten.l, dy = tasten.u - tasten.o;
+        if (dx && istFrei(du.gx + dx, du.gy)) du.weg = [{ gx: du.gx + dx, gy: du.gy }];
+        else if (dy && istFrei(du.gx, du.gy + dy)) du.weg = [{ gx: du.gx, gy: du.gy + dy }];
+      }
+      if (!verloren) bewege(du, dt);
+      if (du.sitz && !meins) {
+        meins = du.sitz; endeIn = 1.1;
+        piep(720, 150, 'triangle', 0.09); setTimeout(() => piep(950, 200, 'triangle', 0.09), 140);
+        brumm(40);
+      }
+
+      // Rivalen streben zum nächsten freien Platz
+      for (const riv of rivalen) {
+        if (riv.sitz || zeit < riv.start) continue;
+        if (!riv.weg.length && !riv.naechste) {
+          const freie = sitze.filter(z => z.frei);
+          if (!freie.length) continue;
+          const ziel = freie.reduce((a, b) =>
+            Math.abs(a.gx - riv.gx) + Math.abs(a.gy - riv.gy) <
+            Math.abs(b.gx - riv.gx) + Math.abs(b.gy - riv.gy) ? a : b);
+          riv.weg = pfadSuchen(riv.gx, riv.gy, ziel.gx, ziel.gy) || [];
+        }
+        // Ziel weg? Neu planen
+        if (riv.weg.length) {
+          const letzte = riv.weg[riv.weg.length - 1];
+          if (!sitze.some(z => z.frei && z.gx === letzte.gx && z.gy === letzte.gy)) riv.weg = [];
+        }
+        bewege(riv, dt);
+      }
+
+      if (!meins && !verloren && !sitze.some(z => z.frei)) {
+        verloren = true; endeIn = 1.1;
+        piep(180, 300, 'sawtooth', 0.1);
+        brumm(80);
+      }
+      if (endeIn > 0) {
+        endeIn -= dt;
+        if (endeIn <= 0) {
+          if (meins) {
+            if (zeit < 9)
+              fertig('🍽️', 'Zack – bester Platz der Terrasse, noch bevor die Kellnerin die Karte holen kann! Der Abend gehört dir.' ,
+                { stimmung: 6, erholung: 4, stress: -4, erlebnis: 4 }, ['🥇 Blitzschnell!']);
+            else
+              fertig('🍽️', 'Einmal quer durchs Grün-Labyrinth – und der Stuhl ist deiner. Der Blick? Herrlich.',
+                { stimmung: 4, erholung: 3, stress: -2, erlebnis: 3 });
+          } else {
+            fertig('😤', 'Der letzte freie Stuhl wird dir vor der Nase weggeschnappt. Heute isst du eben am Tresen.',
+              { stress: 4, stimmung: -2 });
+          }
+          return;
+        }
+      }
+      if (!meins && !verloren && zeit > 30) {
+        fertig('🤷', 'Du irrst so lange durchs Terrassen-Labyrinth, dass der Kellner Mitleid hat und einen Klappstuhl bringt.',
+          { stimmung: 1, stress: 1 });
+        return;
+      }
+
+      // ————— Abendterrasse zeichnen —————
+      const nacht = ctx.createLinearGradient(0, 0, 0, H);
+      nacht.addColorStop(0, '#1c2541'); nacht.addColorStop(1, '#3d3654');
+      ctx.fillStyle = nacht; ctx.fillRect(0, 0, W, H);
+      const fotoT = fotoLaden('sonnenuntergang');
+      if (fotoT) {
+        fotoStreifen(ctx, fotoT, 0, 26, W, 72);
+        ctx.fillStyle = 'rgba(28,37,65,0.35)'; ctx.fillRect(0, 26, W, 72);
+      }
+      // Lichterkette
+      ctx.strokeStyle = 'rgba(255,220,150,0.3)'; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo(0, 88);
+      ctx.quadraticCurveTo(W / 2, 112, W, 88); ctx.stroke();
+      for (let i = 1; i < 9; i++) {
+        const lt = i / 9;
+        ctx.fillStyle = i % 2 ? '#ffd166' : '#f4a261';
+        ctx.beginPath(); ctx.arc(lt * W, 88 + Math.sin(Math.PI * lt) * 22, 2.4, 0, Math.PI * 2); ctx.fill();
+      }
+      // Terrassenboden
+      ctx.fillStyle = '#4a4258';
+      ctx.fillRect(X0 - 8, Y0 - 8, SP * ZELLE + 16, RE * ZELLE + 16);
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      for (let gx = 0; gx <= SP; gx++) {
+        ctx.beginPath(); ctx.moveTo(X0 + gx * ZELLE, Y0); ctx.lineTo(X0 + gx * ZELLE, Y0 + RE * ZELLE); ctx.stroke();
+      }
+      // Hindernisse: Pflanzkübel & besetzte Tische mit Kerzen
+      ctx.textAlign = 'center';
+      for (const k of wand) {
+        const [gx, gy] = k.split(',').map(Number);
+        const zx = X0 + gx * ZELLE + ZELLE / 2, zy = Y0 + gy * ZELLE + ZELLE / 2;
+        if (deko[k] === 'pflanze') {
+          ctx.font = '22px serif';
+          ctx.fillText('🪴', zx, zy + 8);
+        } else {
+          ctx.fillStyle = '#5f4a33';
+          ctx.beginPath(); ctx.arc(zx, zy, 11, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#f5f0e6';
+          ctx.beginPath(); ctx.arc(zx, zy, 8.5, 0, Math.PI * 2); ctx.fill();
+          const flacker = 0.6 + 0.4 * Math.sin(zeit * 9 + gx * 3 + gy);
+          ctx.fillStyle = 'rgba(255,180,80,' + (0.5 * flacker).toFixed(2) + ')';
+          ctx.beginPath(); ctx.arc(zx, zy, 4 + flacker * 2, 0, Math.PI * 2); ctx.fill();
+          ctx.font = '10px serif';
+          ctx.fillText('🧑', zx - 10, zy - 8);
+          ctx.fillText('🧑', zx + 10, zy - 8);
+        }
+      }
+      // Freie Plätze: Tisch mit leuchtendem Stuhl
+      for (const sitz of sitze) {
+        const zx = X0 + sitz.gx * ZELLE + ZELLE / 2, zy = Y0 + sitz.gy * ZELLE + ZELLE / 2;
+        if (!sitz.frei && !(meins === sitz)) {
+          ctx.font = '18px serif'; ctx.fillText('🧔', zx, zy + 7);
+          continue;
+        }
+        const puls = 0.5 + 0.5 * Math.sin(zeit * 5);
+        ctx.strokeStyle = 'rgba(61,220,151,' + (0.4 + 0.5 * puls).toFixed(2) + ')';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.roundRect(zx - 13, zy - 13, 26, 26, 7); ctx.stroke();
+        ctx.font = '18px serif';
+        ctx.fillText(meins === sitz ? '😎' : '🪑', zx, zy + 7);
+        if (sitz.frei) gtaText(ctx, 'FREI', zx, zy - 17, 10, '#3ddc97');
+      }
+      // Rivalen & dein Männchen
+      for (const riv of rivalen) {
+        if (riv.sitz) continue;
+        if (uhr.zeit < riv.start) continue;
+        const p = posVon(riv);
+        ctx.font = '20px serif';
+        ctx.fillText(riv.icon, p.x, p.y + 7 + Math.abs(Math.sin(zeit * 9 + riv.start * 7)) * -2);
+      }
+      if (!meins) {
+        const p = posVon(du);
+        const huepf = du.naechste ? Math.abs(Math.sin(zeit * 11)) * -3 : 0;
+        ctx.save();
+        ctx.translate(p.x, p.y + huepf);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); ctx.ellipse(0, 9 - huepf, 8, 3, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.scale(-du.blick, 1);
+        ctx.font = '22px serif';
+        ctx.fillText(du.naechste || du.weg.length ? '🏃' : '🧍', 0, 8);
+        ctx.restore();
+        // Zielmarke am Ende des geplanten Weges
+        if (du.weg.length) {
+          const zielZ = du.weg[du.weg.length - 1];
+          const zx = X0 + zielZ.gx * ZELLE + ZELLE / 2, zy = Y0 + zielZ.gy * ZELLE + ZELLE / 2;
+          ctx.strokeStyle = 'rgba(230,57,70,0.85)'; ctx.lineWidth = 2.4;
+          ctx.beginPath(); ctx.arc(zx, zy, 9 + Math.sin(zeit * 8) * 2, 0, Math.PI * 2); ctx.stroke();
+        }
+      }
+
+      if (goAlter > 0 && goAlter < 0.8) {
+        ctx.globalAlpha = 1 - goAlter / 0.8;
+        gtaText(ctx, '¡GO!', W / 2, H / 2 - 10, 50, '#3ddc97');
+        ctx.globalAlpha = 1;
+      }
+      if (meins) gtaText(ctx, 'PLATZ EROBERT!', W / 2, 70, 26, '#ffd166');
+      else if (verloren) gtaText(ctx, 'ALLE BESETZT!', W / 2, 70, 28, '#ff5b6a');
+
+      ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
+      gtaText(ctx, '🌙 Abendterrasse', 8, 17, 11, '#ffd166', 'left');
+      gtaText(ctx, 'frei: ' + sitze.filter(z => z.frei).length, W - 8, 17, 11, '#3ddc97', 'right');
+      uhr.zeichnen();
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
+
   // ------------------------------- Minispiel: Bar-Flirt (nur Single-Urlaub)
   // Der Moment muss stimmen: Stoße genau dann an, wenn das Herz am größten ist.
   function starteFlirtSpiel(fertigCb) {
@@ -4472,6 +4777,9 @@ const UI = (() => {
           (tags.includes('party') || tags.includes('bummeln') || tags.includes('restaurant')) &&
           Math.random() < 0.5 * chance('tanzGespielt'))
         kandidaten.push(['tanzGespielt', starteTanzSpiel]);
+      if (abends && tags.includes('restaurant') &&
+          Math.random() < 0.5 * chance('terrasseGespielt'))
+        kandidaten.push(['terrasseGespielt', starteTerrassenSpiel]);
       if (tags.includes('strand') && res.act.zone !== 'hotel' &&
           Math.random() < 0.4 * chance('zoepfeGespielt'))
         kandidaten.push(['zoepfeGespielt', starteFlechtenSpiel]);
