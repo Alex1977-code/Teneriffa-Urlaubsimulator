@@ -400,6 +400,9 @@ const UI = (() => {
       anaga: { boden: '#88ad68', deko: ['🌳', '🌿', '🌲', '🍃', '🐦'], himmel: ['#5aa5cf', '#c9e6f0'] },
     };
     const thema = THEMEN[zielZone] || THEMEN.sued;
+    const abdunkeln = (hex, f) => '#' + [1, 3, 5].map(i =>
+      Math.round(parseInt(hex.slice(i, i + 2), 16) * f).toString(16).padStart(2, '0')).join('');
+    const bodenDunkel = abdunkeln(thema.boden, 0.9);
     const wagen = (Game.run && DATA.AUTOS[Game.run.auto]) || DATA.AUTOS.kompakt;
     const panoMotiv = { sued: 'playa-americas', west: 'losgigantes', teide: 'teide',
       nord: 'puerto', anaga: 'anaga' }[zielZone] || 'teide';
@@ -486,7 +489,7 @@ const UI = (() => {
     const planken = [];
     for (let sp = 20; sp < S_END - 10; sp += 9) {
       const dr = samplesBei(sp + 24).richtung - samplesBei(sp).richtung;
-      if (Math.abs(dr) > 0.22) {
+      if (Math.abs(dr) > 0.17) {
         const pp = samplesBei(sp), rp = rechtsVon(pp);
         const seiteP = -Math.sign(dr);
         planken.push({ x: pp.x + rp.x * seiteP * (HALB + 1.1), z: pp.z + rp.z * seiteP * (HALB + 1.1) });
@@ -825,20 +828,24 @@ const UI = (() => {
       const himmel = ctx.createLinearGradient(0, 0, 0, HORIZONT);
       himmel.addColorStop(0, himmelFarben[0]); himmel.addColorStop(1, himmelFarben[1]);
       ctx.fillStyle = himmel; ctx.fillRect(0, 0, W, HORIZONT);
-      // Echtes Foto-Panorama des Zielortes – dreht mit der Kamera
+      // Echtes Foto-Panorama des Zielortes – als breites Band, dreht mit
       const pano = fotoLaden(panoMotiv);
-      if (pano) {
+      if (pano && pano.width > 50) {
         const ph = HORIZONT + 4;
-        const pw = Math.max(80, pano.width * (ph / pano.height));
-        let poff = (-camYaw * F * 0.9) % pw;
-        if (poff > 0) poff -= pw;
+        const bandB = W * 1.9;                       // ein Foto ≈ zwei Bildschirmbreiten
+        // Cover-Ausschnitt: obere Bildhälfte (dort sitzt der Horizont)
+        const quellH = Math.min(pano.height, pano.width * (ph / bandB) * 2.2);
+        const quellY = Math.max(0, (pano.height - quellH) * 0.3);
+        let poff = (-camYaw * W * 0.55) % bandB;
+        if (poff > 0) poff -= bandB;
         ctx.save();
-        ctx.globalAlpha = truebe || regnet ? 0.5 : 0.85;
-        for (let px2 = poff; px2 < W; px2 += pw) ctx.drawImage(pano, px2, 0, pw, ph);
+        ctx.globalAlpha = truebe || regnet ? 0.55 : 0.9;
+        for (let px2 = poff; px2 < W; px2 += bandB)
+          ctx.drawImage(pano, 0, quellY, pano.width, quellH, px2, 0, bandB, ph);
         ctx.restore();
         const blende = ctx.createLinearGradient(0, 0, 0, ph);
-        blende.addColorStop(0, himmelFarben[0] + 'bb');
-        blende.addColorStop(0.6, himmelFarben[1] + '11');
+        blende.addColorStop(0, himmelFarben[0] + '99');
+        blende.addColorStop(0.55, himmelFarben[1] + '11');
         blende.addColorStop(1, himmelFarben[1] + '00');
         ctx.fillStyle = blende;
         ctx.fillRect(0, 0, W, ph);
@@ -921,6 +928,18 @@ const UI = (() => {
           rx: W / 2 + re.rx * F / re.rz, ry: HORIZONT + KAM_H * F / re.rz, i,
         });
       }
+      // Durchgang 1: klassische 90er-Bodenstreifen über die volle Breite
+      for (let n = punkte.length - 2; n >= 0; n--) {
+        const a = punkte[n], b = punkte[n + 1];
+        if (!a || !b) continue;
+        const hell = Math.floor(a.i / 4) % 2 === 0;
+        const bandOben = Math.min(b.ly, b.ry), bandUnten = Math.max(a.ly, a.ry);
+        if (bandUnten > bandOben) {
+          ctx.fillStyle = hell ? thema.boden : bodenDunkel;
+          ctx.fillRect(0, bandOben, W, bandUnten - bandOben + 1);
+        }
+      }
+      // Durchgang 2: die Straße selbst (übermalt die Bänder sauber)
       for (let n = punkte.length - 2; n >= 0; n--) {
         const a = punkte[n], b = punkte[n + 1];
         if (!a || !b) continue;
