@@ -360,8 +360,18 @@ button { font: inherit; cursor: pointer; }
 }
 
 .karte-punkt { fill: var(--ozean-dunkel); }
-.karte-label { font-size: 11px; fill: #55586a; font-weight: 600; }
+.karte-stadt { fill: var(--ozean-dunkel); }
+.karte-label { font-size: 8px; fill: #55586a; font-weight: 600; }
 .karte-teide { font-size: 20px; }
+.karte-marker { font-size: 13px; }
+
+.karte-strasse {
+  fill: none;
+  stroke: #b8a97e;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
 
 .karte-route {
   fill: none;

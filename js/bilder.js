@@ -141,36 +141,64 @@ const BILDER = (() => {
   // Frei lizenzierte Kurzvideos direkt aus Wikimedia Commons – als kleine,
   // transkodierte Web-Dateien. Suche zur Laufzeit, Ergebnis wird gecacht.
   const VIDEO_SUCHE = {
-    'teide':           'Teide Tenerife',
-    'teide-gipfel':    'Teide Tenerife',
-    'teide-anflug':    'Tenerife aerial',
-    'masca':           'Masca Tenerife',
-    'siampark':        'water slide',
-    'whalewatching':   'pilot whales',
-    'wal':             'pilot whales',
-    'delfine':         'dolphins bow riding',
-    'loroparque':      'Loro Parque',
-    'orca-splash':     'orca surface',
-    'sterne':          'milky way timelapse',
-    'anaga':           'Anaga Tenerife',
-    'losgigantes':     'Los Gigantes Tenerife',
-    'klippen':         'Los Gigantes Tenerife',
-    'abades':          'green sea turtle swimming',
-    'schildkroete':    'green sea turtle swimming',
-    'paragliding':     'paragliding',
-    'cueva':           'lava tube',
-    'lavatunnel':      'lava tube',
-    'teresitas':       'Las Teresitas',
-    'garachico':       'Garachico',
-    'caleton':         'Garachico',
-    'surfkurs':        'surfing wave ocean',
-    'benijo':          'Tenerife beach waves',
-    'playa-americas':  'Tenerife beach waves',
-    'puerto':          'Puerto de la Cruz Tenerife',
-    'sonnenuntergang': 'ocean sunset timelapse',
-    'urlaubsflirt':    'ocean sunset timelapse',
-    'paisaje':         'Tenerife landscape',
-    'paisaje-lunar':   'Tenerife landscape',
+    'teide':           ['Teide Tenerife', 'Teide timelapse'],
+    'teide-gipfel':    ['Teide Tenerife'],
+    'teide-anflug':    ['Tenerife aerial'],
+    'masca':           ['Masca Tenerife', 'Tenerife gorge'],
+    'siampark':        ['water slide', 'water park'],
+    'whalewatching':   ['pilot whales', 'whale watching'],
+    'wal':             ['pilot whales'],
+    'delfine':         ['dolphins bow riding', 'dolphins swimming'],
+    'loroparque':      ['Loro Parque', 'parrots'],
+    'orca-splash':     ['orca surface', 'killer whale'],
+    'sterne':          ['milky way timelapse', 'night sky timelapse'],
+    'anaga':           ['Anaga Tenerife', 'laurel forest'],
+    'losgigantes':     ['Los Gigantes Tenerife', 'Tenerife cliffs'],
+    'klippen':         ['Los Gigantes Tenerife'],
+    'abades':          ['green sea turtle swimming', 'sea turtle'],
+    'schildkroete':    ['green sea turtle swimming'],
+    'paragliding':     ['paragliding'],
+    'cueva':           ['lava tube', 'cave'],
+    'lavatunnel':      ['lava tube'],
+    'teresitas':       ['Las Teresitas', 'Tenerife beach'],
+    'garachico':       ['Garachico', 'natural pool'],
+    'caleton':         ['Garachico'],
+    'surfkurs':        ['surfing wave ocean', 'surfing'],
+    'benijo':          ['Benijo', 'Tenerife beach waves'],
+    'playa-americas':  ['Tenerife beach waves', 'Playa de las Américas', 'beach waves'],
+    'tejita':          ['El Médano kitesurfing', 'Tenerife beach waves'],
+    'puerto':          ['Puerto de la Cruz Tenerife'],
+    'sonnenuntergang': ['ocean sunset timelapse', 'sunset timelapse'],
+    'urlaubsflirt':    ['ocean sunset timelapse'],
+    'paisaje':         ['Tenerife landscape'],
+    'paisaje-lunar':   ['Tenerife landscape'],
+    'pool':            ['swimming pool', 'hotel pool'],
+    'spa':             ['spa massage', 'wellness'],
+    'balkon':          ['ocean sunset timelapse'],
+    'promenade':       ['Los Cristianos', 'Tenerife promenade'],
+    'cocktailbar':     ['cocktail bartender', 'cocktail'],
+    'lacaleta':        ['seafood grill', 'fish market'],
+    'brunellis':       ['steak grilling', 'steakhouse'],
+    'guachinche':      ['canarian food', 'spanish food'],
+    'bodega':          ['wine cellar', 'vineyard'],
+    'orotava':         ['La Orotava'],
+    'lalaguna':        ['San Cristóbal de La Laguna', 'La Laguna Tenerife'],
+    'santacruz':       ['Santa Cruz de Tenerife'],
+    'candelaria':      ['Candelaria Tenerife'],
+    'icod':            ['Drago Icod', 'dragon tree'],
+    'drachenbaum':     ['Drago Icod', 'dragon tree'],
+    'teno':            ['Punta de Teno', 'lighthouse ocean'],
+    'barranco':        ['Barranco del Infierno', 'canyon waterfall'],
+    'chinyero':        ['Tenerife volcano', 'volcanic landscape'],
+    'roques':          ['Roques de García', 'Teide Tenerife'],
+    'botanico':        ['botanical garden'],
+    'palmetum':        ['palm trees garden', 'palm garden'],
+    'sanandres':       ['Tenerife fishing village', 'fishing harbour'],
+    'guimar':          ['Pyramids of Güímar', 'Tenerife'],
+    'auditorio':       ['Auditorio de Tenerife', 'Santa Cruz de Tenerife'],
+    'karting':         ['kart racing', 'go-kart'],
+    'hotelrestaurant': ['buffet food'],
+    'guimar-x':        ['Tenerife'],
   };
 
   const VIDEO_CACHE_KEY = 'tus_videos_v1';
@@ -203,7 +231,7 @@ const BILDER = (() => {
       const vi = seite.videoinfo && seite.videoinfo[0];
       if (!vi) continue;
       const dauer = vi.duration || 0;
-      if (dauer && (dauer < 4 || dauer > 300)) continue;   // zu kurz/lang fürs Kino
+      if (dauer && (dauer < 2 || dauer > 600)) continue;   // zu kurz/lang fürs Kino
       const ableitungen = (vi.derivatives || []).filter(d =>
         d.src && /video\/(webm|mp4)/.test(d.type || '') && d.height && d.height <= 720);
       if (!ableitungen.length) continue;
@@ -225,10 +253,13 @@ const BILDER = (() => {
     if (typeof fetch === 'undefined') return Promise.resolve(null);
 
     videoLaufend[motiv] = (async () => {
-      try {
-        const video = await videoSuchen(VIDEO_SUCHE[motiv]);
-        if (video) { videoCache[motiv] = video; videoCacheSpeichern(); return video; }
-      } catch (e) { /* offline → Bild-Fallback */ }
+      const begriffe = Array.isArray(VIDEO_SUCHE[motiv]) ? VIDEO_SUCHE[motiv] : [VIDEO_SUCHE[motiv]];
+      for (const begriff of begriffe) {
+        try {
+          const video = await videoSuchen(begriff);
+          if (video) { videoCache[motiv] = video; videoCacheSpeichern(); return video; }
+        } catch (e) { /* offline → Bild-Fallback */ }
+      }
       videoFehlgeschlagen.add(motiv);
       return null;
     })();

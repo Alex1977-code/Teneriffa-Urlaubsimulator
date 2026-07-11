@@ -83,33 +83,97 @@ const UI = (() => {
   }
 
   // ------------------------------------------------------------- Inselkarte
-  // Stilisierte Teneriffa-Silhouette mit Zonenpunkten und animierter Route.
-  const KARTE_PUNKTE = {
-    sued: [100, 188], west: [48, 118], teide: [142, 122],
-    nord: [182, 62], anaga: [283, 58],
+  // Detaillierte Teneriffa-Karte: Autobahnen TF-1/TF-5, Städte und die Route
+  // vom Hotelort zur echten geographischen Position des Ausflugsziels.
+  const KARTE_ORTE = {
+    hotelSued: [92, 196], hotelNord: [151, 63],
   };
 
-  function inselSvg(von, nach, transport) {
-    const a = KARTE_PUNKTE[von] || KARTE_PUNKTE.sued;
-    const b = KARTE_PUNKTE[nach] || KARTE_PUNKTE.sued;
-    // Kontrollpunkt Richtung Inselmitte gezogen → geschwungene „Straße“
-    const cx = (a[0] + b[0]) / 2 + (160 - (a[0] + b[0]) / 2) * 0.45;
-    const cy = (a[1] + b[1]) / 2 + (120 - (a[1] + b[1]) / 2) * 0.45;
-    const punkte = Object.entries(KARTE_PUNKTE).map(([zone, [x, y]]) =>
-      `<circle cx="${x}" cy="${y}" r="4" class="karte-punkt"/>` +
-      `<text x="${x}" y="${y - 8}" class="karte-label" text-anchor="middle">${esc(DATA.ZONEN[zone].name.split(' ')[0].replace('Nordosten', 'Anaga'))}</text>`
-    ).join('');
+  const KARTE_STAEDTE = [
+    ['Costa Adeje', 92, 196], ['El Médano', 141, 200], ['Los Gigantes', 52, 132],
+    ['Garachico', 78, 84], ['Icod', 93, 82], ['Puerto de la Cruz', 151, 63],
+    ['La Laguna', 232, 73], ['Santa Cruz', 252, 90], ['Candelaria', 233, 116],
+    ['Vilaflor', 133, 168], ['Masca', 46, 112],
+  ];
+
+  // TF-1 (Süd-/Ost-Autobahn), TF-5 (Nord) und die Westumfahrung als Polylinien
+  const KARTE_STRASSEN = [
+    [[92, 196], [104, 203], [141, 200], [180, 178], [222, 131], [233, 116], [252, 90]],
+    [[252, 90], [232, 73], [205, 66], [178, 62], [151, 63], [120, 72], [93, 82], [78, 84]],
+    [[78, 84], [60, 100], [58, 125], [52, 132], [62, 158], [75, 176], [92, 196]],
+    [[133, 168], [138, 148], [140, 128]],
+    [[153, 74], [147, 100], [140, 128]],
+  ];
+
+  // Aktivität → echte Position auf der Karte (Zonen-Punkt als Rückfall)
+  const AKT_ORTE = {
+    'playa-americas': [100, 201], 'siampark': [97, 197], 'whalewatching': [103, 206],
+    'surfkurs': [141, 201], 'lacaleta': [87, 192], 'promenade': [102, 203],
+    'cocktailbar': [99, 199], 'abades': [170, 182], 'paragliding': [95, 184],
+    'barranco': [94, 187], 'tejita': [146, 199], 'karting': [122, 195],
+    'masca': [46, 112], 'losgigantes': [52, 132], 'garachico': [78, 84],
+    'icod': [93, 82], 'teno': [26, 100], 'cueva': [90, 88], 'chinyero': [98, 112],
+    'teide': [140, 127], 'roques': [136, 134], 'sterne': [144, 130], 'paisaje': [134, 162],
+    'puerto': [151, 63], 'loroparque': [146, 61], 'botanico': [155, 66],
+    'guachinche': [162, 70], 'brunellis': [147, 59], 'orotava': [153, 74], 'bodega': [204, 64],
+    'teresitas': [263, 80], 'anaga': [272, 58], 'lalaguna': [232, 73],
+    'santacruz': [252, 90], 'candelaria': [233, 116], 'benijo': [278, 50],
+    'guimar': [222, 131], 'palmetum': [250, 94], 'sanandres': [261, 83], 'auditorio': [249, 92],
+  };
+
+  const ZONEN_PUNKTE = {
+    sued: [110, 195], west: [55, 120], teide: [140, 127], nord: [155, 65], anaga: [255, 80],
+  };
+
+  // Zwischenpunkte entlang der echten Straßen je (Startregion → Zielzone)
+  const KARTE_VIAS = {
+    sued: {
+      sued: [], west: [[75, 176], [62, 158], [52, 132]],
+      teide: [[112, 187], [133, 168], [138, 148]],
+      nord: [[141, 200], [180, 178], [233, 116], [252, 90], [232, 73], [205, 66], [178, 62]],
+      anaga: [[141, 200], [180, 178], [233, 116]],
+    },
+    nord: {
+      nord: [], west: [[120, 72], [93, 82]],
+      teide: [[153, 74], [147, 100]],
+      sued: [[178, 62], [205, 66], [232, 73], [252, 90], [233, 116], [180, 178], [141, 200]],
+      anaga: [[178, 62], [205, 66], [232, 73]],
+    },
+  };
+
+  function routePunkte(fahrt) {
+    const start = fahrt.von === 'nord' ? KARTE_ORTE.hotelNord : KARTE_ORTE.hotelSued;
+    const ziel = AKT_ORTE[fahrt.actId] || ZONEN_PUNKTE[fahrt.nach] || ZONEN_PUNKTE.sued;
+    const vias = (KARTE_VIAS[fahrt.von] || KARTE_VIAS.sued)[fahrt.nach] || [];
+    return [start, ...vias, ziel];
+  }
+
+  function inselSvg(fahrt) {
+    const punkte = routePunkte(fahrt);
+    const start = punkte[0], ziel = punkte[punkte.length - 1];
+    const act = DATA.AKTIVITAETEN.find(a => a.id === fahrt.actId);
+
+    const strassen = KARTE_STRASSEN.map(linie =>
+      `<polyline class="karte-strasse" points="${linie.map(p => p.join(',')).join(' ')}"/>`).join('');
+    const staedte = KARTE_STAEDTE.map(([name, x, y]) =>
+      `<circle cx="${x}" cy="${y}" r="2.4" class="karte-stadt"/>` +
+      `<text x="${x + (x > 240 ? -4 : 4)}" y="${y - 4}" class="karte-label"` +
+      ` text-anchor="${x > 240 ? 'end' : 'start'}">${esc(name)}</text>`).join('');
+    const routeD = 'M' + punkte.map(p => p.join(',')).join(' L');
+
     return `
       <svg viewBox="0 0 320 240" id="karte-svg" role="img" aria-label="Route über Teneriffa">
         <path class="karte-insel" d="M300,45 Q285,38 245,52 Q210,55 185,58 Q150,63 120,72
           Q60,84 28,98 Q22,110 38,128 Q50,152 60,170 Q80,198 110,215 Q135,214 170,190
           Q205,165 235,128 Q258,105 272,88 Q292,66 300,45 Z"/>
-        <text x="142" y="130" class="karte-teide" text-anchor="middle">🌋</text>
-        ${punkte}
-        <path id="karte-route" class="karte-route"
-          d="M${a[0]},${a[1]} Q${cx.toFixed(0)},${cy.toFixed(0)} ${b[0]},${b[1]}"/>
-        <text id="karte-fahrzeug" class="karte-fahrzeug" x="${a[0]}" y="${a[1]}"
-          text-anchor="middle">${transport === 'bus' ? '🚌' : '🚗'}</text>
+        ${strassen}
+        <text x="140" y="132" class="karte-teide" text-anchor="middle">🌋</text>
+        ${staedte}
+        <path id="karte-route" class="karte-route" d="${routeD}"/>
+        <text x="${start[0]}" y="${start[1] - 6}" class="karte-marker" text-anchor="middle">🏨</text>
+        <text x="${ziel[0]}" y="${ziel[1] - 6}" class="karte-marker" text-anchor="middle">${act ? act.icon : '📍'}</text>
+        <text id="karte-fahrzeug" class="karte-fahrzeug" x="${start[0]}" y="${start[1]}"
+          text-anchor="middle">${fahrt.transport === 'bus' ? '🚌' : '🚗'}</text>
       </svg>`;
   }
 
@@ -137,9 +201,11 @@ const UI = (() => {
     const fahrt = res.fahrt;
     const overlay = $('#fahrt-overlay');
     overlay.classList.remove('versteckt');
+    const zielAct = DATA.AKTIVITAETEN.find(a => a.id === fahrt.actId);
+    const startOrt = fahrt.von === 'nord' ? 'Puerto de la Cruz' : 'Costa Adeje';
     $('#fahrt-titel').textContent =
-      `${fahrt.transport === 'bus' ? '🚌' : '🚗'} Fahrt: ${DATA.ZONEN[fahrt.von].name} → ${DATA.ZONEN[fahrt.nach].name}`;
-    $('#fahrt-inselkarte').innerHTML = inselSvg(fahrt.von, fahrt.nach, fahrt.transport);
+      `${fahrt.transport === 'bus' ? '🚌' : '🚗'} ${startOrt} → ${zielAct ? zielAct.name.replace(/ \(.*\)$/, '') : DATA.ZONEN[fahrt.nach].name}`;
+    $('#fahrt-inselkarte').innerHTML = inselSvg(fahrt);
     $('#fahrspiel-wrap').classList.add('versteckt');
     $('#fahrt-inselkarte').classList.remove('versteckt');
 
@@ -307,7 +373,8 @@ const UI = (() => {
         spur: gegen ? -2.2 : 2.2,
         v: gegen ? 10 + Math.random() * 5 : 8 + Math.random() * 4,
         gegen,
-        icon: gegen ? (Math.random() < 0.5 ? '🚌' : '🚗') : ['🚗', '🚙', '🚕'][Math.floor(Math.random() * 3)],
+        bus: gegen && Math.random() < 0.5,
+        farbe: ['#3a6ea5', '#d8d8d8', '#454754', '#c46a2b', '#7b5aa6'][Math.floor(Math.random() * 5)],
         prevRel: 1, hitCd: 0,
       });
     }
@@ -317,6 +384,21 @@ const UI = (() => {
     let camYaw = heading, speed = 0, lenk = 0, lenkIst = 0, gas = 0;
     let roadIdx = 0, treffer = 0, stil = 0, blitz = 0, offroadZeit = 0;
     let boostRest = 3, boostZeit = 0, vorbei = false, countdownPiep = 3;
+    let kamModus = 'chase';
+
+    // Sammelsterne entlang der Strecke (Bonus!)
+    const sterne = [];
+    const sterneGesamt = Math.max(3, Math.round(S_END / 65));
+    for (let i = 1; i <= sterneGesamt; i++) {
+      const p = samplesBei(i * S_END / (sterneGesamt + 1)), r = rechtsVon(p);
+      const q = (Math.random() * 2 - 1) * 4;
+      sterne.push({ x: p.x + r.x * q, z: p.z + r.z * q, icon: '⭐', gr: 2.4 });
+    }
+    let sterneGesammelt = 0;
+
+    // Wolken & Autofarben für den Verkehr
+    const wolken = [{ az: -0.6, h: 34, gr: 26 }, { az: 1.4, h: 52, gr: 34 }, { az: 2.8, h: 40, gr: 22 }];
+    const AUTOFARBEN = ['#3a6ea5', '#d8d8d8', '#454754', '#c46a2b', '#7b5aa6'];
     const schweber = [];
     const start = performance.now();
     let letztes = start;
@@ -370,6 +452,7 @@ const UI = (() => {
       if (e.key === 'ArrowUp' || e.key === 'w') { gas = 1; e.preventDefault(); }
       if (e.key === 'ArrowDown' || e.key === 's') { gas = -1; e.preventDefault(); }
       if (e.key === ' ') { boost(); e.preventDefault(); }
+      if (e.key === 'c' || e.key === 'C') { kamModus = kamModus === 'chase' ? 'top' : 'chase'; }
     }
     function tasteHoch(e) {
       if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) lenk = 0;
@@ -380,6 +463,10 @@ const UI = (() => {
       const x = (e.clientX - box.left) / box.width * W;
       const y = (e.clientY - box.top) / box.height * H;
       if (x > W - 74 && y > H - 52) { boost(); e.preventDefault(); return; }
+      if (x > W - 46 && y > 30 && y < 66) {
+        kamModus = kamModus === 'chase' ? 'top' : 'chase';
+        e.preventDefault(); return;
+      }
       lenk = x < W / 2 ? -1 : 1;
       e.preventDefault();
     }
@@ -511,6 +598,20 @@ const UI = (() => {
         }
       }
 
+      // Sterne einsammeln
+      for (const st of sterne) {
+        if (st.weg) continue;
+        if (Math.hypot(st.x - px, st.z - pz) < 2.8) {
+          st.weg = true; sterneGesammelt++; stil += 8;
+          schweber.push({ text: '⭐ Stern! +8', alter: 0 });
+          piep(980, 120, 'triangle', 0.07);
+          if (sterneGesammelt === sterneGesamt) {
+            stil += 20;
+            schweber.push({ text: '🌟 Alle Sterne! +20', alter: 0 });
+          }
+        }
+      }
+
       // Kamera folgt mit Verzögerung (Chase-Cam)
       camYaw += winkelNorm(heading - camYaw) * Math.min(1, dt * 4);
       const sinY = Math.sin(camYaw), cosY = Math.cos(camYaw);
@@ -521,6 +622,7 @@ const UI = (() => {
       };
 
       // ————— Zeichnen —————
+      if (kamModus === 'chase') {
       // Himmel, Sonne & Teide (dreht mit der Blickrichtung)
       const himmel = ctx.createLinearGradient(0, 0, 0, HORIZONT);
       himmel.addColorStop(0, himmelFarben[0]); himmel.addColorStop(1, himmelFarben[1]);
@@ -545,6 +647,24 @@ const UI = (() => {
           ctx.beginPath(); ctx.arc(W / 2 + Math.tan(sonneRel) * F, 40, 16, 0, Math.PI * 2); ctx.fill();
         }
       }
+      // Meer am Horizont (gegenüber dem Teide) & Wolken
+      const meerRel = winkelNorm(0.6 + Math.PI - camYaw);
+      if (Math.abs(meerRel) < 1.35) {
+        ctx.fillStyle = 'rgba(31,111,165,' + (0.85 * Math.cos(meerRel * 1.1)).toFixed(2) + ')';
+        ctx.fillRect(0, HORIZONT - 7, W, 7);
+      }
+      for (const wolke of wolken) {
+        wolke.az += dt * 0.004;
+        const rel = winkelNorm(wolke.az - camYaw);
+        if (Math.abs(rel) > 1.2) continue;
+        const wx = W / 2 + Math.tan(rel) * F;
+        ctx.fillStyle = regnet || truebe ? 'rgba(220,226,232,0.8)' : 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.ellipse(wx, wolke.h, wolke.gr, wolke.gr * 0.4, 0, 0, Math.PI * 2);
+        ctx.ellipse(wx + wolke.gr * 0.6, wolke.h + 4, wolke.gr * 0.6, wolke.gr * 0.26, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       // Boden & Dunst am Horizont
       ctx.fillStyle = thema.boden;
       ctx.fillRect(0, HORIZONT, W, H - HORIZONT);
@@ -605,7 +725,8 @@ const UI = (() => {
       };
       for (const o of objekte) sammle(o, 'deko');
       for (const h of hindernisse) if (!h.erledigt || h.icon !== '🐐') sammle(h, 'deko');
-      for (const auto of verkehr) sammle(auto, 'deko');
+      for (const st of sterne) if (!st.weg) sammle(st, 'deko');
+      for (const auto of verkehr) sammle(auto, 'auto');
       sammle(flagge, 'deko');
       sammle(schild, 'schild');
       sichtbar.sort((a, b) => b.rz - a.rz);
@@ -622,8 +743,35 @@ const UI = (() => {
           ctx.fillText(s.o.text, s.sx, s.sy - sh / 2 - 1.4 * F / s.rz + 0.4 * F / s.rz);
           ctx.fillStyle = '#8a8d9c';
           ctx.fillRect(s.sx - 0.08 * F / s.rz, s.sy - 1.4 * F / s.rz, 0.16 * F / s.rz, 1.4 * F / s.rz);
+        } else if (s.art === 'auto') {
+          // Verkehr als gezeichnetes Auto (Heck- bzw. Frontansicht)
+          const q = F / s.rz;
+          const bw = (s.o.bus ? 2.3 : 1.8) * q, bh = (s.o.bus ? 2.5 : 1.45) * q;
+          ctx.fillStyle = 'rgba(0,0,0,0.22)';
+          ctx.beginPath(); ctx.ellipse(s.sx, s.sy, bw * 0.62, bw * 0.15, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#1d1f2a';
+          ctx.fillRect(s.sx - bw * 0.46, s.sy - bh * 0.16, bw * 0.2, bh * 0.18);
+          ctx.fillRect(s.sx + bw * 0.26, s.sy - bh * 0.16, bw * 0.2, bh * 0.18);
+          ctx.fillStyle = s.o.bus ? '#2a9d8f' : s.o.farbe;
+          ctx.beginPath(); ctx.roundRect(s.sx - bw / 2, s.sy - bh, bw, bh * 0.92, bw * 0.14); ctx.fill();
+          ctx.fillStyle = 'rgba(210,230,240,0.9)';
+          ctx.beginPath(); ctx.roundRect(s.sx - bw * 0.32, s.sy - bh * 0.94, bw * 0.64, bh * 0.34, bw * 0.08); ctx.fill();
+          if (s.o.gegen) {
+            ctx.fillStyle = '#fff7cc';
+            ctx.beginPath();
+            ctx.arc(s.sx - bw * 0.3, s.sy - bh * 0.22, Math.max(1, bw * 0.09), 0, Math.PI * 2);
+            ctx.arc(s.sx + bw * 0.3, s.sy - bh * 0.22, Math.max(1, bw * 0.09), 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.fillStyle = '#e63946';
+            ctx.fillRect(s.sx - bw * 0.42, s.sy - bh * 0.28, bw * 0.16, bh * 0.1);
+            ctx.fillRect(s.sx + bw * 0.26, s.sy - bh * 0.28, bw * 0.16, bh * 0.1);
+          }
         } else {
-          ctx.font = Math.min(96, Math.max(5, (s.o.gr || 3) * F / s.rz)) + 'px serif';
+          const groesse = Math.min(96, Math.max(5, (s.o.gr || 3) * F / s.rz));
+          ctx.fillStyle = 'rgba(0,0,0,0.18)';
+          ctx.beginPath(); ctx.ellipse(s.sx, s.sy + 1, groesse * 0.3, groesse * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.font = groesse + 'px serif';
           ctx.fillText(s.o.icon, s.sx, s.sy);
         }
       }
@@ -632,6 +780,87 @@ const UI = (() => {
       const versatz = Math.max(-46, Math.min(46, Math.sin(winkelNorm(heading - camYaw)) * 150));
       const ruettel = abseits && speed > 6 ? (Math.random() - 0.5) * 4 : 0;
       zeichneAuto(W / 2 + versatz + ruettel, H - 58 + ruettel * 0.5, lenkIst + winkelNorm(heading - camYaw) * 2);
+
+      } else {
+        // ————— Top-Down-Ansicht (klassischer Draufsicht-Look) —————
+        const skala = 2.6;
+        const sinH = Math.sin(heading), cosH = Math.cos(heading);
+        const topP = (x, z) => {
+          const dx = x - px, dz = z - pz;
+          return {
+            sx: W / 2 + (dx * cosH - dz * sinH) * skala,
+            sy: H * 0.62 - (dx * sinH + dz * cosH) * skala,
+          };
+        };
+        ctx.fillStyle = thema.boden;
+        ctx.fillRect(0, 0, W, H);
+
+        // Straße: Randstreifen, Asphalt, Mittellinie
+        const pfad = new Path2D();
+        const vonT = Math.max(0, roadIdx - 55), bisT = Math.min(samples.length - 1, roadIdx + 55);
+        for (let i = vonT; i <= bisT; i++) {
+          const p = topP(samples[i].x, samples[i].z);
+          if (i === vonT) pfad.moveTo(p.sx, p.sy); else pfad.lineTo(p.sx, p.sy);
+        }
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.strokeStyle = '#e63946';
+        ctx.lineWidth = (HALB * 2 + 1.6) * skala;
+        ctx.stroke(pfad);
+        ctx.strokeStyle = regnet ? '#4e5058' : '#67696f';
+        ctx.lineWidth = HALB * 2 * skala;
+        ctx.stroke(pfad);
+        ctx.strokeStyle = '#f5f0e6';
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([12, 12]);
+        ctx.stroke(pfad);
+        ctx.setLineDash([]);
+
+        // Objekte in Sichtweite
+        ctx.textAlign = 'center';
+        const topZeichne = (o, gr) => {
+          if (Math.hypot(o.x - px, o.z - pz) > 110) return;
+          const p = topP(o.x, o.z);
+          ctx.fillStyle = 'rgba(0,0,0,0.16)';
+          ctx.beginPath(); ctx.ellipse(p.sx + 1.4, p.sy + 1.8, gr * skala * 0.55, gr * skala * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.font = Math.round(gr * skala * 1.9) + 'px serif';
+          ctx.fillText(o.icon, p.sx, p.sy + gr * skala * 0.6);
+        };
+        for (const o of objekte) topZeichne(o, 2.6);
+        for (const h of hindernisse) if (!h.erledigt || h.icon !== '🐐') topZeichne(h, 2.2);
+        for (const st of sterne) if (!st.weg) topZeichne(st, 2.2);
+        topZeichne(flagge, 3.2);
+
+        // Verkehr als Draufsicht-Autos, in Fahrtrichtung gedreht
+        for (const auto of verkehr) {
+          if (Math.hypot(auto.x - px, auto.z - pz) > 110) continue;
+          const p = topP(auto.x, auto.z);
+          const richt = samplesBei(auto.s).richtung + (auto.gegen ? Math.PI : 0);
+          ctx.save();
+          ctx.translate(p.sx, p.sy);
+          ctx.rotate(richt - heading);
+          const bw = 1.8 * skala, bl = (auto.bus ? 5 : 3.4) * skala;
+          ctx.fillStyle = auto.bus ? '#2a9d8f' : auto.farbe;
+          ctx.beginPath(); ctx.roundRect(-bw / 2, -bl / 2, bw, bl, bw * 0.25); ctx.fill();
+          ctx.fillStyle = 'rgba(210,230,240,0.9)';
+          ctx.fillRect(-bw * 0.32, -bl * 0.32, bw * 0.64, bl * 0.2);
+          ctx.restore();
+        }
+
+        // Spielerauto (zeigt immer nach oben)
+        ctx.save();
+        ctx.translate(W / 2, H * 0.62);
+        const abw = 1.9 * skala, abl = 3.6 * skala;
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); ctx.ellipse(1.5, 2, abw * 0.7, abl * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e63946';
+        ctx.beginPath(); ctx.roundRect(-abw / 2, -abl / 2, abw, abl, abw * 0.28); ctx.fill();
+        ctx.fillStyle = '#2b3a55';
+        ctx.fillRect(-abw * 0.32, -abl * 0.3, abw * 0.64, abl * 0.22);
+        ctx.fillStyle = '#ffd166';
+        ctx.fillRect(-abw * 0.4, -abl * 0.5, abw * 0.18, abl * 0.08);
+        ctx.fillRect(abw * 0.22, -abl * 0.5, abw * 0.18, abl * 0.08);
+        ctx.restore();
+      }
 
       // Turbo-Linien
       if (boostZeit > 0) {
@@ -682,7 +911,8 @@ const UI = (() => {
         ctx.fillText('↩ Zurück zur Straße!', W / 2, 60);
       }
 
-      // Minimap (unten links)
+      // Minimap (unten links) – nur in der Verfolgerkamera
+      if (kamModus === 'chase') {
       ctx.fillStyle = 'rgba(43,45,66,0.66)';
       ctx.beginPath(); ctx.roundRect(MMX, MMY, MM, MM, 10); ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
@@ -700,6 +930,13 @@ const UI = (() => {
       ctx.fillStyle = '#e63946';
       ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(3.6, 4); ctx.lineTo(-3.6, 4); ctx.closePath(); ctx.fill();
       ctx.restore();
+      }
+
+      // Kamera-Umschalter (Taste C oder Tippen)
+      ctx.fillStyle = 'rgba(43,45,66,0.55)';
+      ctx.beginPath(); ctx.roundRect(W - 44, 32, 38, 30, 8); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = '16px serif'; ctx.textAlign = 'center';
+      ctx.fillText(kamModus === 'chase' ? '🗺️' : '🎥', W - 25, 53);
 
       // Turbo-Knopf
       ctx.fillStyle = boostRest > 0 ? 'rgba(43,45,66,0.65)' : 'rgba(43,45,66,0.3)';
@@ -762,6 +999,278 @@ const UI = (() => {
     requestAnimationFrame(schleife);
   }
 
+
+  // -------------------------------------------------- Bonuslevel: Kart-Rennen
+  // Rundkurs in Draufsicht: 2 Runden gegen die Uhr, Rivalen überholen.
+  function starteKartRennen(fertigCb) {
+    const overlay = $('#fahrt-overlay');
+    overlay.classList.remove('versteckt');
+    $('#fahrt-titel').textContent = '🏁 Bonuslevel: Kart-Rennen – 2 Runden!';
+    $('#fahrt-inselkarte').classList.add('versteckt');
+    $('#fahrspiel-wrap').classList.remove('versteckt');
+    $('#fahrt-log').innerHTML = '';
+    $('#fahrt-buttons').innerHTML = '';
+
+    const canvas = $('#fahrspiel-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = 340, H = 420;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = 'min(340px, 100%)';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const COUNTDOWN = 2000;
+    const RUNDEN_ZIEL = window.FAHRSPIEL_DAUER ? 1 : 2;
+    const ZEITLIMIT = window.FAHRSPIEL_DAUER ? window.FAHRSPIEL_DAUER / 1000 + 2 : 75;
+    const HALB = 4.6;
+
+    // Geschlossener Kurs: verbeulte Ellipse
+    const N = 160;
+    const samples = [];
+    for (let i = 0; i < N; i++) {
+      const t = i / N * Math.PI * 2;
+      const r = 1 + 0.16 * Math.sin(2 * t) + 0.1 * Math.sin(3 * t + 1);
+      samples.push({ x: Math.sin(t) * 46 * r, z: Math.cos(t) * 30 * r });
+    }
+    for (let i = 0; i < N; i++) {
+      const a = samples[i], b = samples[(i + 1) % N];
+      a.richtung = Math.atan2(b.x - a.x, b.z - a.z);
+    }
+
+    // Rivalen-Karts
+    const rivalen = [1, 2, 3].map(n => ({
+      idx: n * 12, v: 9.5 + n * 1.1,
+      farbe: ['#3a6ea5', '#2a9d8f', '#f4a261'][n - 1], hitCd: 0, prevVor: false,
+    }));
+
+    let px = samples[0].x, pz = samples[0].z, heading = samples[0].richtung;
+    let speed = 0, lenk = 0, lenkIst = 0, gas = 0;
+    let roadIdx = 0, gesamtIdx = 0, runden = 0, treffer = 0, stil = 0;
+    let blitz = 0, offZeit = 0, vorbei = false, countdownPiep = 3;
+    const schweber = [];
+    const start = performance.now();
+    let letztes = start;
+
+    function tasteRunter(e) {
+      if (e.key === 'ArrowLeft' || e.key === 'a') { lenk = -1; e.preventDefault(); }
+      if (e.key === 'ArrowRight' || e.key === 'd') { lenk = 1; e.preventDefault(); }
+      if (e.key === 'ArrowUp' || e.key === 'w') { gas = 1; e.preventDefault(); }
+      if (e.key === 'ArrowDown' || e.key === 's') { gas = -1; e.preventDefault(); }
+    }
+    function tasteHoch(e) {
+      if (['ArrowLeft', 'ArrowRight', 'a', 'd'].includes(e.key)) lenk = 0;
+      if (['ArrowUp', 'ArrowDown', 'w', 's'].includes(e.key)) gas = 0;
+    }
+    function zeigerRunter(e) {
+      const box = canvas.getBoundingClientRect();
+      lenk = (e.clientX - box.left) / box.width * W < W / 2 ? -1 : 1;
+      e.preventDefault();
+    }
+    const zeigerHoch = () => { lenk = 0; };
+    document.addEventListener('keydown', tasteRunter);
+    document.addEventListener('keyup', tasteHoch);
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    document.addEventListener('pointerup', zeigerHoch);
+    function aufraeumen() {
+      document.removeEventListener('keydown', tasteRunter);
+      document.removeEventListener('keyup', tasteHoch);
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+      document.removeEventListener('pointerup', zeigerHoch);
+    }
+
+    function schleife(now) {
+      if (vorbei) return;
+      const dt = Math.min(50, now - letztes) / 1000;
+      letztes = now;
+      const seitStart = now - start;
+      const fahrZeit = Math.max(0, seitStart - COUNTDOWN) / 1000;
+
+      if (seitStart < COUNTDOWN) {
+        const rest = Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3));
+        if (rest < countdownPiep) { countdownPiep = rest; piep(440, 120, 'square'); }
+      } else if (countdownPiep > 0) { countdownPiep = 0; piep(880, 220, 'square'); }
+
+      // Kurs-Fortschritt inkl. Rundenzählung (mit Umlauf)
+      const d2 = i => {
+        const p = samples[((i % N) + N) % N];
+        return (p.x - px) * (p.x - px) + (p.z - pz) * (p.z - pz);
+      };
+      for (let n = 0; n < 8 && d2(roadIdx + 1) < d2(roadIdx); n++) { roadIdx++; gesamtIdx++; }
+      while (d2(roadIdx - 1) < d2(roadIdx)) { roadIdx--; gesamtIdx--; }
+      const neueRunden = Math.floor(gesamtIdx / N);
+      if (neueRunden > runden) {
+        runden = neueRunden;
+        schweber.push({ text: '🏁 Runde ' + Math.min(RUNDEN_ZIEL, runden + 1), alter: 0 });
+        piep(760, 150, 'triangle', 0.08);
+      }
+      const seitAbstand = Math.sqrt(d2(roadIdx));
+
+      // Physik
+      if (seitStart >= COUNTDOWN) {
+        let ziel = gas > 0 ? 20 : gas < 0 ? 4 : 15;
+        if (seitAbstand > HALB + 0.8) ziel *= 0.45;
+        speed += (ziel - speed) * dt * (gas < 0 ? 2.8 : 1.2);
+        lenkIst += (lenk - lenkIst) * Math.min(1, dt * 8);
+        heading += lenkIst * 2.3 * dt * Math.min(1, speed / 7);
+        px += Math.sin(heading) * speed * dt;
+        pz += Math.cos(heading) * speed * dt;
+      }
+      if (seitAbstand > HALB + 0.8 && speed > 5) {
+        offZeit += dt;
+        if (offZeit > 1) { treffer++; blitz = 300; offZeit = 0; piep(120, 200, 'sawtooth', 0.12); }
+      } else offZeit = 0;
+
+      // Rivalen
+      for (const r of rivalen) {
+        r.idx = (r.idx + r.v * dt / (Math.PI * 2 * 38 / N)) % N;
+        const p = samples[Math.floor(r.idx)];
+        r.x = p.x; r.z = p.z; r.richtung = p.richtung;
+        r.hitCd = Math.max(0, r.hitCd - dt);
+        const abstand = Math.hypot(r.x - px, r.z - pz);
+        if (abstand < 2 && r.hitCd <= 0 && speed > 4) {
+          treffer++; blitz = 300; r.hitCd = 2; speed *= 0.5;
+          piep(110, 260, 'sawtooth', 0.14);
+        }
+        const vor = ((Math.floor(r.idx) - roadIdx % N) + N) % N < N / 2;
+        if (r.prevVor && !vor && abstand > 2 && abstand < 15) {
+          stil += 10;
+          schweber.push({ text: 'Überholt! +10', alter: 0 });
+          piep(760, 90, 'triangle', 0.06);
+        }
+        r.prevVor = vor;
+      }
+
+      // ————— Draufsicht zeichnen —————
+      const skala = 3.1;
+      const sinH = Math.sin(heading), cosH = Math.cos(heading);
+      const topP = (x, z) => {
+        const dx = x - px, dz = z - pz;
+        return {
+          sx: W / 2 + (dx * cosH - dz * sinH) * skala,
+          sy: H * 0.6 - (dx * sinH + dz * cosH) * skala,
+        };
+      };
+      ctx.fillStyle = '#9fb86e';
+      ctx.fillRect(0, 0, W, H);
+
+      const pfad = new Path2D();
+      for (let i = 0; i <= N; i++) {
+        const p = topP(samples[i % N].x, samples[i % N].z);
+        if (i === 0) pfad.moveTo(p.sx, p.sy); else pfad.lineTo(p.sx, p.sy);
+      }
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.strokeStyle = '#e63946'; ctx.lineWidth = (HALB * 2 + 1.4) * skala; ctx.stroke(pfad);
+      ctx.strokeStyle = '#5c5e66'; ctx.lineWidth = HALB * 2 * skala; ctx.stroke(pfad);
+      ctx.strokeStyle = 'rgba(245,240,230,0.8)'; ctx.lineWidth = 1.6;
+      ctx.setLineDash([10, 12]); ctx.stroke(pfad); ctx.setLineDash([]);
+
+      // Start-/Ziellinie
+      const sl = topP(samples[0].x, samples[0].z);
+      ctx.save();
+      ctx.translate(sl.sx, sl.sy);
+      ctx.rotate(samples[0].richtung - heading);
+      ctx.fillStyle = '#fff';
+      for (let i = -4; i < 4; i++)
+        if (i % 2 === 0) ctx.fillRect(i * HALB * skala / 4, -1.6, HALB * skala / 4, 3.2);
+      ctx.fillStyle = '#111';
+      for (let i = -4; i < 4; i++)
+        if (i % 2 !== 0) ctx.fillRect(i * HALB * skala / 4, -1.6, HALB * skala / 4, 3.2);
+      ctx.restore();
+
+      // Karts
+      const kart = (x, z, richt, farbe) => {
+        const p = topP(x, z);
+        ctx.save();
+        ctx.translate(p.sx, p.sy);
+        ctx.rotate(richt - heading);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); ctx.ellipse(1, 1.5, 5.5, 8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#1d1f2a';
+        ctx.fillRect(-6, -6, 3, 4); ctx.fillRect(3, -6, 3, 4);
+        ctx.fillRect(-6, 3, 3, 4); ctx.fillRect(3, 3, 3, 4);
+        ctx.fillStyle = farbe;
+        ctx.beginPath(); ctx.roundRect(-4, -8, 8, 15, 3); ctx.fill();
+        ctx.fillStyle = '#ffe8a3';
+        ctx.beginPath(); ctx.arc(0, -1, 2.4, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      };
+      for (const r of rivalen) kart(r.x, r.z, r.richtung, r.farbe);
+      kart(px, pz, heading, '#e63946');
+
+      if (blitz > 0) {
+        blitz -= dt * 1000;
+        ctx.fillStyle = 'rgba(230,57,70,0.28)'; ctx.fillRect(0, 0, W, H);
+      }
+      ctx.textAlign = 'center';
+      for (const sch of schweber) {
+        sch.alter += dt;
+        ctx.globalAlpha = Math.max(0, 1 - sch.alter / 1.1);
+        ctx.fillStyle = '#ffd166';
+        ctx.strokeStyle = 'rgba(43,45,66,0.8)'; ctx.lineWidth = 3;
+        ctx.font = 'bold 17px sans-serif';
+        ctx.strokeText(sch.text, W / 2, H - 120 - sch.alter * 55);
+        ctx.fillText(sch.text, W / 2, H - 120 - sch.alter * 55);
+      }
+      ctx.globalAlpha = 1;
+      while (schweber.length && schweber[0].alter > 1.1) schweber.shift();
+
+      // HUD
+      ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 26);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('💥 ' + treffer, 6, 18);
+      ctx.fillStyle = '#ffd166'; ctx.fillText('🏎️ ' + stil, 46, 18);
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+      ctx.fillText('Runde ' + Math.min(RUNDEN_ZIEL, runden + 1) + '/' + RUNDEN_ZIEL, W / 2, 18);
+      ctx.textAlign = 'right';
+      ctx.fillText(fahrZeit.toFixed(1) + ' s', W - 6, 18);
+
+      if (seitStart < COUNTDOWN) {
+        ctx.fillStyle = 'rgba(43,45,66,0.45)'; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+        ctx.font = 'bold 64px sans-serif';
+        ctx.fillText(String(Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3))), W / 2, H / 2);
+        ctx.font = 'bold 15px sans-serif';
+        ctx.fillText('Bonuslevel – gib alles!', W / 2, H / 2 + 34);
+      }
+
+      // Rennen vorbei?
+      if (runden >= RUNDEN_ZIEL || fahrZeit > ZEITLIMIT) {
+        vorbei = true;
+        aufraeumen();
+        ctx.fillStyle = 'rgba(43,45,66,0.55)'; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+        ctx.font = 'bold 32px sans-serif';
+        ctx.fillText('🏁 Zielflagge!', W / 2, H / 2);
+        piep(660, 150, 'square'); setTimeout(() => piep(880, 250, 'square'), 160);
+
+        const geschafft = runden >= RUNDEN_ZIEL;
+        let icon, text, effekte;
+        if (geschafft && treffer === 0 && fahrZeit < 55) {
+          icon = '🏆'; text = 'Pole Position! Sauber gefahren, alle Runden geschafft – die Bahn feiert dich.';
+          effekte = { erlebnis: 12 + Math.min(10, stil / 10 | 0), stimmung: 8, stress: -4 };
+        } else if (geschafft) {
+          icon = '🏁'; text = 'Zielflagge nach ' + Math.round(fahrZeit) + ' Sekunden – ordentliche Vorstellung!';
+          effekte = { erlebnis: 8 + Math.min(8, stil / 12 | 0), stimmung: 5 };
+        } else {
+          icon = '⏱️'; text = 'Die Zeit ist um – aber Spaß gemacht hat es trotzdem.';
+          effekte = { erlebnis: 4, stimmung: 2 };
+        }
+        const chips = Game.bonusAnwenden(effekte);
+        if (stil > 0) chips.unshift('🏎️ Fahrstil: ' + stil);
+        $('#fahrt-log').appendChild(el('div', 'flug-zeile sichtbar',
+          `<span class="flug-zeile-icon">${icon}</span><div>${esc(text)}` +
+          (chips.length ? '<div class="flug-chips">' + chips.map(c => `<span class="chip">${esc(c)}</span>`).join('') + '</div>' : '') +
+          '</div>'));
+        const weiter = el('button', 'btn btn-primary', 'Weiter');
+        weiter.addEventListener('click', () => { overlay.classList.add('versteckt'); fertigCb(); });
+        $('#fahrt-buttons').appendChild(weiter);
+        renderStats();
+        return;
+      }
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
 
   // ------------------------------------------------------------ Kino-Moment
   // Vollbild-Moment mit echtem Foto – und wenn Wikimedia Commons ein passendes
@@ -1169,10 +1678,13 @@ const UI = (() => {
   }
 
   function ergebnisZeigen(res) {
-    // Highlights & neue Fotos bekommen zuerst ihren Kino-Moment
+    // Beim ersten Besuch gibt es den Kino-Moment mit echtem Foto/Video –
+    // auch für Strand- und Pooltage, nicht nur für die großen Highlights.
     const erstesMal = Game.run && Game.run.aktZaehler[res.act.id] === 1;
+    const aktMotiv = motivFuerAct(res.act);
     const kinoMotiv = res.fotoNeu && BILDER.ARTIKEL[res.fotoNeu] ? res.fotoNeu
-      : (DATA.HIGHLIGHTS.includes(res.act.id) && erstesMal ? motivFuerAct(res.act) : null);
+      : (erstesMal && aktMotiv &&
+         (DATA.HIGHLIGHTS.includes(res.act.id) || BILDER.VIDEO_SUCHE[aktMotiv]) ? aktMotiv : null);
 
     const modalZeigen = () => {
       let html = '';
@@ -1193,10 +1705,16 @@ const UI = (() => {
       if (img) BILDER.anzeigen(img, img.dataset.motiv, false);
     };
 
-    if (kinoMotiv) {
-      const titel = res.fotoNeu ? DATA.FOTOS[res.fotoNeu].name : res.act.name;
-      zeigeKino(kinoMotiv, titel, `Teneriffa · Tag ${Game.run.tag}`, modalZeigen, !!res.fotoNeu);
-    } else modalZeigen();
+    const kinoOderModal = () => {
+      if (kinoMotiv) {
+        const titel = res.fotoNeu ? DATA.FOTOS[res.fotoNeu].name : res.act.name;
+        zeigeKino(kinoMotiv, titel, `Teneriffa · Tag ${Game.run.tag}`, modalZeigen, !!res.fotoNeu);
+      } else modalZeigen();
+    };
+
+    // Die Kartbahn ist ein Bonuslevel: erst fahren, dann abrechnen!
+    if (res.act.id === 'karting') starteKartRennen(kinoOderModal);
+    else kinoOderModal();
   }
 
   function zeigeEreignis(ereignis) {

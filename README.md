@@ -46,8 +46,12 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Abreisetag bleibt nur der Vormittag.
 - **Unterwegs auf der Insel** – Ausflüge in andere Regionen laufen als Reise-Sequenz mit
   animierter Route auf der Inselkarte ab: Staus, Ziegenherden, Miradore, Barraquito-Stopps.
-  Mit dem Mietwagen kannst du **selbst ans Steuer** – eine echte 3D-Fahrt mit
-  Verfolgerkamera im Open-World-Stil (eigene Mini-3D-Engine, Minimap inklusive):
+  Die Reisekarte zeigt die Insel im Detail: Autobahnen TF-1/TF-5, elf Städte und die
+  Route vom Hotelort zur echten Position des Ziels. Mit dem Mietwagen kannst du
+  **selbst ans Steuer** – eine echte 3D-Fahrt mit Verfolgerkamera im Open-World-Stil
+  (eigene Mini-3D-Engine), per Taste C auch in klassischer **Draufsicht**. Wolken,
+  Meer am Horizont und gezeichnete Verkehrsautos inklusive – plus **Sammelsterne**
+  auf jeder Strecke und das **Bonuslevel Kart-Rennen** auf der Kartbahn:
   Lenkung, Gas, Bremse und Turbo-Boost, langsamer Verkehr zum Überholen (Fahrstil-Punkte
   für Überholmanöver und knappe Ausweicher!), Hügelkuppen, Kurven-Warnschilder,
   Gegenverkehr und Ortsschild am Ziel. Die Landschaft passt zur echten Route (Lavaland

@@ -254,6 +254,14 @@ const Game = (() => {
     return { icon, text, chips };
   }
 
+  // Effekte aus Bonusleveln (z. B. Kart-Rennen) anwenden
+  function bonusAnwenden(effekte) {
+    if (!run) return [];
+    const chips = effekteAnwenden(effekte);
+    runSpeichern();
+    return chips;
+  }
+
   // Perfekt getimter Foto-Auslöser (Kino-Minispiel)
   function fotoPerfekt() {
     if (!run) return null;
@@ -372,6 +380,7 @@ const Game = (() => {
     if (anzahlHops > 0) {
       const t = D.TRANSPORT[run.transport];
       fahrt = fahrtGenerieren(act.zone, anzahlHops);
+      fahrt.actId = act.id;
       effekte.push({ icon: t.icon, text: `Anfahrt in die Region ${D.ZONEN[act.zone].name} (${reiseKosten ? reiseKosten + ' €, ' : ''}${reiseEnergie} Energie)` });
     }
 
@@ -732,7 +741,7 @@ const Game = (() => {
     titelFuerLevel: levelTitel,
     neuerUrlaub, aktivitaetenListe, aktivitaetAusfuehren,
     ereignisEntscheiden, fortfahren, urlaubAbbrechen,
-    wetterFuerZone, flugBestaetigen, hatItem, fahrtBewerten, fotoPerfekt,
+    wetterFuerZone, flugBestaetigen, hatItem, fahrtBewerten, fotoPerfekt, bonusAnwenden,
     _reset() { meta = metaNeu(); run = null; metaSpeichern(); runSpeichern(); },
   };
 })();
