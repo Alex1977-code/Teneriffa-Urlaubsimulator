@@ -2959,12 +2959,62 @@ const UI = (() => {
     requestAnimationFrame(schleife);
   }
 
-  // ----------------------------------- Minispiel: Farkle gegen Karl (Würfel)
+  // ------------------------- Minispiel: Farkle gegen die Stammtisch-Runde
   // Klassisches Würfelspiel: Einsen & Fünfen zählen, Drillinge bringen mehr.
-  // Wer nach 3 Runden vorne liegt, gewinnt den Spieleabend.
+  // Jeden Abend sitzt jemand anderes am Tisch – mit eigenen Stärken, Schwächen
+  // und reichlich Tischgespräch (nützliche und herrlich unnütze Tipps).
+  const FARKLE_GEGNER = [
+    { name: 'Birgit', icon: '👩\u200d🦳', w: true, art: 'sichert früh – langsam, aber unaufhaltsam', bankAb: 300, stopBei: 3, jokerAb: 400, jokerLust: 0.8,
+      sprueche: ['Ich spiel immer nur bis 300. Dann ist gut.', 'Im Kegelclub nennen sie mich „die Bank“.', 'Hauptsache, gemütlich.'] },
+    { name: 'Cem', icon: '🧑🏽', w: false, art: 'glaubt felsenfest an die nächste Eins', bankAb: 550, stopBei: 2, jokerAb: 500, jokerLust: 0.6,
+      sprueche: ['Bruder, glaub mir: Die Eins kommt.', 'Das ist kein Glück, das ist Gefühl.', 'Noch EIN Wurf. Vertrau mir.'] },
+    { name: 'Hubert', icon: '👴', w: false, art: 'alte Schule, null Risiko', bankAb: 350, stopBei: 3, jokerAb: 650, jokerLust: 0.45,
+      sprueche: ['Zu meiner Zeit hätten wir das gesichert.', 'Früher waren die Würfel aus Holz. Und ehrlicher.', 'Wer sein Glück reizt, verliert sein Kleingeld.'] },
+    { name: 'Chantal', icon: '💁\u200d♀️', w: true, art: 'zockt streng nach Bauchgefühl', bankAb: 450, stopBei: 1, jokerAb: 450, jokerLust: 0.7,
+      sprueche: ['Ey, dis is’ Schicksal, ne?', 'Mein Horoskop hat heute Würfelglück versprochen.', 'Isso. Punkt.'] },
+    { name: 'Cheyenne', icon: '👱\u200d♀️', w: true, art: 'spielt den Joker fast sofort', bankAb: 400, stopBei: 2, jokerAb: 300, jokerLust: 0.95,
+      sprueche: ['Mama sagt, ich bin ein Glückskind.', 'Joker sind zum Spielen da, oder?!', 'Glitzer bringt Glück. Würfel auch.'] },
+    { name: 'I-Bims', icon: '🥸', w: false, art: 'Chaos mit System (ohne System)', bankAb: 650, stopBei: 1, jokerAb: 700, jokerLust: 0.4,
+      sprueche: ['I bims, 1 Würfelgott!', 'Das war 1 Wurf vong Qualität her.', 'Lassen Sie mich durch, i bims Statistiker.'] },
+    { name: 'Fränk', icon: '🕶️', w: false, art: 'sichert nie unter 500 – Prinzip', bankAb: 500, stopBei: 2, jokerAb: 550, jokerLust: 0.65,
+      sprueche: ['Fränk sichert nie unter 500. Fränk weiß, was Fränk tut.', 'Fränk hat ein System. Fränk verrät es nicht.', 'Cool bleiben. Fränk ist cool.'] },
+    { name: 'Leons Mama', icon: '👩\u200d🍼', w: true, art: 'räumt ab wie ein Kinderzimmer: gründlich', bankAb: 400, stopBei: 2, jokerAb: 400, jokerLust: 0.8,
+      sprueche: ['Leon räumt nie auf. Aber ICH räume jetzt ab.', 'Ich hab schon Memory-Turniere gewonnen. Gegen Sechsjährige. Trotzdem.', 'Wenn Leon das sehen könnte … der wäre so stolz.'] },
+    { name: 'Matze', icon: '🧔', w: false, art: 'Vollgas, sichert fast nie', bankAb: 800, stopBei: 1, jokerAb: 800, jokerLust: 0.5,
+      sprueche: ['Vollgas. Immer.', 'Sichern ist was für Feiglinge.', 'Einmal. Alles. Rein.'] },
+    { name: 'Dennis', icon: '🤓', w: false, art: 'rechnet jede Quote im Kopf aus', bankAb: 400, stopBei: 2, jokerAb: 500, jokerLust: 0.75,
+      sprueche: ['Statistisch gesehen farkelt ein voller Wurf nur zu 2,3 Prozent.', 'Statistisch gesehen … oh. Vergiss es.', 'Ich habe dazu eine Tabelle. Zuhause. Laminiert.'] },
+    { name: 'Tini', icon: '🎀', w: true, art: 'verspielt, aber gefährlich', bankAb: 350, stopBei: 2, jokerAb: 300, jokerLust: 0.9,
+      sprueche: ['Hihi, Würfelchen!', 'Die Fünf ist meine Lieblingszahl. Nach der Eins.', 'Nochmal, nochmal!'] },
+    { name: 'Danny', icon: '😎', w: false, art: 'bleibt immer locker', bankAb: 450, stopBei: 2, jokerAb: 500, jokerLust: 0.6,
+      sprueche: ['Locker bleiben.', 'Alles im Griff. Meistens.', 'Kein Stress, nur Würfel.'] },
+    { name: 'Anni', icon: '☝️', w: true, art: 'sagt „einmal noch“ … einmal zu oft', bankAb: 700, stopBei: 1, jokerAb: 600, jokerLust: 0.55,
+      sprueche: ['Einmal noch. EINMAL.', 'Ich kann jederzeit aufhören. Wirklich.', 'Der nächste Wurf gehört mir.'] },
+    { name: 'Dirk', icon: '🍺', w: false, art: 'behauptet, Bier verbessert die Quote', bankAb: 550, stopBei: 1, jokerAb: 650, jokerLust: 0.5,
+      sprueche: ['Nach drei Bier würfelt es sich besser. Behaupte ich.', 'Prost erstmal.', 'Die Würfel mögen mich. Ich spür das.'] },
+    { name: 'Peter', icon: '📏', w: false, art: 'sichert streng nach Vorschrift', bankAb: 300, stopBei: 3, jokerAb: 450, jokerLust: 0.85,
+      sprueche: ['Regel ist Regel.', 'Paragraf 1: Erst sichern, dann feiern.', 'Das steht so in der Anleitung. Ich habe sie dabei.'] },
+    { name: 'Lotti', icon: '👵', w: true, art: 'Oma-Tricks aus 60 Jahren Würfelerfahrung', bankAb: 400, stopBei: 2, jokerAb: 400, jokerLust: 0.75,
+      sprueche: ['Oma-Trick: Würfel vorm Wurf dreimal schütteln. Nicht zweimal!', 'Ich spiele das seit 1967, Kindchen.', 'Früher gab’s für drei Paare noch Schnaps.'] },
+    { name: 'Fabian', icon: '📐', w: false, art: 'Theoretiker mit Praxisproblem', bankAb: 450, stopBei: 2, jokerAb: 500, jokerLust: 0.7,
+      sprueche: ['Ich hab das mal durchgerechnet. Moment …', 'In der Theorie gewinne ich längst.', 'Interessante Varianz heute.'] },
+    { name: 'Ole-Johann', icon: '⚓', w: false, art: 'nordisch ruhig, nichts erschüttert ihn', bankAb: 500, stopBei: 3, jokerAb: 500, jokerLust: 0.7,
+      sprueche: ['Moin.', 'In der Ruhe liegt die Punktekraft.', 'Wind dreht. Würfel auch.'] },
+  ];
+  const FARKLE_TIPPS = {
+    joker: ['Hörte ich Jolly?!', 'JOKER vor dem ersten Wurf – Lehrbuch!', 'Uii, jetzt zählt alles doppelt. Auch der Ärger.', 'Mutig. Oder verzweifelt. Man weiß es nie.'],
+    bork: ['Statistisch gesehen: Die {zahl} kommt zu 16,7 Prozent. Pro Wurf. Sag ich nur.', 'BORK! Jetzt bloß nicht husten.', 'Mein Opa hat mal eine Straße nachgeworfen. Wir reden heute noch davon.', 'Geheimtipp: Würfel vorher warmpusten. Klappt fast nie.', 'Eine {zahl}! Nur eine kleine {zahl}!'],
+    doep: ['DÖP! Schön laut rufen, sonst zählt’s nicht.', 'Drei Paare – Ordnung im Chaos. 1500!', 'DÖP! Sowas sieht man nicht alle Tage.'],
+    strasse: ['STRASSE! Dagegen kann man nichts sagen.', 'Zweitausend! Einfach so!', 'Die volle Straße – ich verneige mich.'],
+    hot: ['Alle sechs im Einsatz – und bestätigt! Stark.', 'Hot Dice überlebt. Respekt.', 'Bestätigt! Ich hätte da längst gezittert.'],
+    farkleDu: ['Ich hätte ja gesichert. Nur so.', 'Gier frisst Punkte. Alte Stammtischregel.', 'Statistisch gesehen … war das absehbar.', 'Autsch. Ich sag ja nichts. … Doch: autsch.'],
+    farkleIch: ['Das war Taktik. Langfristige.', 'Die Würfel sind gezinkt. Eindeutig.', 'Sowas passiert nur den ganz Großen. Also mir.'],
+    bankGross: ['Ordentlich abgeräumt. Ich notiere. Leider.', 'Stark gespielt. Aber der Abend ist lang.', 'Bei DEM Zug hätte selbst Hubert applaudiert.'],
+  };
   function starteFarkleSpiel(fertigCb) {
+    const gegner = FARKLE_GEGNER[Math.floor(Math.random() * FARKLE_GEGNER.length)];
     const { canvas, ctx, W, H } = minispielFenster(
-      '🎲 Spieleabend: Farkle gegen Karl',
+      '🎲 Spieleabend: Farkle gegen ' + gegner.name,
       '<strong>1</strong> = 100 · <strong>5</strong> = 50 · Drilling = Augenzahl × 100 (Einsen: 1000) – ' +
       '<strong>jede weitere gleiche Zahl verdoppelt</strong> (3×5 = 500 → 1000 → 2000). ' +
       'Straße 1–6 = <strong>2000</strong> (fehlt eine, darfst du sie nachwürfeln – bork bork bork!) · drei Paare = 1500.<br>' +
@@ -3000,6 +3050,7 @@ const UI = (() => {
       ausrufen('JOKER! ×2');
       piep(880, 180, 'triangle', 0.09);
       malen();
+      plauschen('joker', 0.95);
     });
 
     function ausrufen(text) {
@@ -3022,6 +3073,17 @@ const UI = (() => {
     function logZeile(icon, text) {
       $('#fahrt-log').appendChild(el('div', 'flug-zeile sichtbar',
         `<span class="flug-zeile-icon">${icon}</span><div>${esc(text)}</div>`));
+    }
+    let letzterPlausch = 0;
+    function plauschen(anlass, chance, zahl) {
+      // Tischgespräch: nützliche und herrlich unnütze Tipps vom Gegenüber
+      if (vorbei || Math.random() > (chance || 0.7)) return;
+      if (Date.now() - letzterPlausch < 2600) return;   // nicht zuquatschen
+      letzterPlausch = Date.now();
+      const pool = anlass === 'plausch' ? gegner.sprueche : (FARKLE_TIPPS[anlass] || []);
+      if (!pool.length) return;
+      const zeile = pool[Math.floor(Math.random() * pool.length)].replace(/\{zahl\}/g, zahl || '');
+      logZeile('💬', `${gegner.name}: „${zeile}“`);
     }
     function fertig(icon, text, effekte, extra) {
       if (vorbei) return;
@@ -3124,6 +3186,7 @@ const UI = (() => {
           ausrufen('STRASSE! +' + zuwachs);
           piep(880, 200, 'triangle', 0.09);
           malen();
+          plauschen('strasse', 0.8);
           return;
         }
         jagd = null;   // daneben – der Würfel muss jetzt normal zählen (sonst Farkle)
@@ -3137,12 +3200,13 @@ const UI = (() => {
         jokerAktiv = false;
         phase = 'karl';
         meldung = verfehlt
-          ? '💥 Daneben – Farkle! Die Straße platzt, deine Zugpunkte sind weg.'
+          ? '💥 Daneben – Farkle! Die Straße platzt, alles weg.'
           : bestaetigen
-            ? '💥 Nicht bestätigt – nichts zählt! Farkle, deine Zugpunkte sind weg.'
+            ? '💥 Nicht bestätigt – Farkle! Alles weg.'
             : '💥 Farkle! Kein Wurf zählt – deine Zugpunkte sind weg.';
         piep(140, 300, 'sawtooth', 0.1);
         malen();
+        plauschen('farkleDu', 0.65);
         timer.push(setTimeout(karlZug, 1600));
         return;
       }
@@ -3165,9 +3229,11 @@ const UI = (() => {
           ausrufen('BORK BORK BORK!');
           huhnStarten();
           piep(500, 90, 'square', 0.07); setTimeout(() => piep(560, 90, 'square', 0.07), 120);
+          plauschen('bork', 0.85, [1, 2, 3, 4, 5, 6].find(v => !zaehlK[v]));
         } else if (mengenK === '222') {
           ausrufen('DÖP!');
           piep(720, 140, 'triangle', 0.09);
+          plauschen('doep', 0.85);
         }
       }
       phase = 'wahl';
@@ -3179,6 +3245,7 @@ const UI = (() => {
       } else if (bestaetigen) {
         if (ausrufBis <= Date.now()) ausrufen('BESTÄTIGT!');   // BORK/DÖP hat Vorrang
         meldung = '✔ Bestätigt! Tippe Würfel an (oder Tasten 1–6), die du behalten willst.';
+        plauschen('hot', 0.45);
       } else {
         meldung = 'Tippe Würfel an (oder Tasten 1–6), die du behalten willst.';
       }
@@ -3231,10 +3298,11 @@ const UI = (() => {
       duPunkte += turnPunkte;
       logZeile('🙂', `Du sicherst ${turnPunkte} Punkte (gesamt ${duPunkte}).`);
       piep(660, 140, 'triangle', 0.08);
+      if (turnPunkte >= 1000) plauschen('bankGross', 0.7); else plauschen('plausch', 0.3);
       turnPunkte = 0; abgelegt = []; feld = []; jagd = null; jokerAktiv = false;
       if (duPunkte >= ZIEL) { spielEnde(true); return; }
       phase = 'karl';
-      meldung = 'Karl schüttelt den Würfelbecher …';
+      meldung = gegner.name + ' schüttelt den Würfelbecher …';
       malen();
       timer.push(setTimeout(karlZug, 1400));
     });
@@ -3244,20 +3312,20 @@ const UI = (() => {
       malen();
       timer.push(setTimeout(() => {
         if (duZuerst && jokerBenutzt)
-          fertig('🏆', `${duPunkte}:${karlPunkte} – die 10.000 sind geknackt! Karl legt feierlich den Becher hin und verbeugt sich. Die ganze Bar applaudiert.`,
+          fertig('🏆', `${duPunkte}:${karlPunkte} – die 10.000 sind geknackt! ${gegner.name} legt feierlich den Becher hin und verbeugt sich. Die ganze Bar applaudiert.`,
             { stimmung: 10, erlebnis: 12, stress: -6 }, ['🎲 ' + duPunkte + ' Punkte']);
         else if (duZuerst)
-          fertig('🃏', `${duPunkte} Punkte – aber HALT: Du hast deinen Joker nie gespielt! Hausregel ist Hausregel – Karl gewinnt kichernd. „Bork bork bork!“`,
+          fertig('🃏', `${duPunkte} Punkte – aber HALT: Du hast deinen Joker nie gespielt! Hausregel ist Hausregel – ${gegner.name} gewinnt kichernd. „Bork bork bork!“`,
             { stimmung: 3, erlebnis: 5 });
         else
-          fertig('🧔', `Karl knackt zuerst das Ziel (${karlPunkte}:${duPunkte})${jokerBenutzt ? '' : ' – und du hast nicht mal deinen Joker gespielt'}. Er poliert unsichtbare Pokale. Revanche?`,
+          fertig(gegner.icon, `${gegner.name} knackt zuerst das Ziel (${karlPunkte}:${duPunkte})${jokerBenutzt ? '' : ' – und du hast nicht mal deinen Joker gespielt'}. ${gegner.w ? 'Sie' : 'Er'} poliert unsichtbare Pokale. Revanche?`,
             { stimmung: 3, erlebnis: 4, stress: -2 });
       }, 1300));
     }
 
     function karlZug() {
       if (vorbei) return;
-      // Karl spielt solide: sichern ab 300, weiterwürfeln nur mit ≥3 Würfeln
+      // Gegner-KI: jeder am Tisch sichert und riskiert anders
       let punkte = 0, frei = 6, farkle = false;
       for (let sicher = 0; sicher < 20; sicher++) {
         const zaehl = [0, 0, 0, 0, 0, 0, 0];
@@ -3273,21 +3341,22 @@ const UI = (() => {
         genutzt += zaehl[1] + zaehl[5];
         if (wurfPunkte === 0) { farkle = true; punkte = 0; break; }
         punkte += wurfPunkte; frei -= genutzt;
-        if (frei <= 0) { frei = 6; continue; }   // Hot Dice: auch Karl muss bestätigen
-        if (punkte >= 300 || frei <= 2) break;
+        if (frei <= 0) { frei = 6; continue; }   // Hot Dice: auch der Gegner muss bestätigen
+        if (punkte >= gegner.bankAb || frei <= gegner.stopBei) break;
       }
       if (!farkle && karlPunkte === 0 && punkte < 300) {
-        logZeile('🧔', 'Karl kommt nicht raus – unter 300 Punkte zählt nichts!');
+        logZeile(gegner.icon, `${gegner.name} kommt nicht raus – unter 300 Punkte zählt nichts!`);
         punkte = 0;
-      } else if (!farkle && !karlJoker && punkte >= 450 && Math.random() < 0.6) {
+      } else if (!farkle && !karlJoker && punkte >= gegner.jokerAb && Math.random() < gegner.jokerLust) {
         karlJoker = true;
         punkte *= 2;
-        logZeile('🃏', 'Karl spielt seinen Joker – der Zug zählt doppelt!');
+        logZeile('🃏', `${gegner.name} spielt den Joker – der Zug zählt doppelt!`);
       }
       karlPunkte += punkte;
-      logZeile(farkle ? '💥' : '🧔', farkle
-        ? 'Karl übertreibt es – Farkle! Null Punkte für ihn.'
-        : `Karl sichert ${punkte} Punkte (gesamt ${karlPunkte}).`);
+      logZeile(farkle ? '💥' : gegner.icon, farkle
+        ? `${gegner.name} übertreibt es – Farkle! Null Punkte.`
+        : `${gegner.name} sichert ${punkte} Punkte (gesamt ${karlPunkte}).`);
+      if (farkle) plauschen('farkleIch', 0.6);
       if (karlPunkte >= ZIEL) { spielEnde(false); return; }
       phase = 'start';
       meldung = 'Dein Zug – wirf die Würfel!';
@@ -3346,7 +3415,7 @@ const UI = (() => {
       // Punktetafel
       ctx.fillStyle = 'rgba(43,45,66,0.75)'; ctx.fillRect(0, 40, W, 28);
       gtaText(ctx, 'Du: ' + duPunkte, 12, 61, 14, '#ffd166', 'left');
-      gtaText(ctx, 'Karl: ' + karlPunkte, W - 12, 61, 14, '#59c2ff', 'right');
+      gtaText(ctx, gegner.name + ': ' + karlPunkte, W - 12, 61, 13, '#59c2ff', 'right');
       gtaText(ctx, 'Ziel: ' + ZIEL.toLocaleString('de-DE'), W / 2, 61, 13, '#fff');
       gtaText(ctx, jokerBenutzt ? '🃏✓' : '🃏!', W / 2, 34, 12, jokerBenutzt ? '#3ddc97' : '#ff5b6a');
 
@@ -3406,6 +3475,9 @@ const UI = (() => {
       bankBtn.textContent = '💰 ' + bankWert + ' Punkte sichern';
       jokerBtn.textContent = jokerAktiv ? '🃏 ZUG ×2!' : jokerBenutzt ? '🃏 gespielt' : '🃏 Joker ansagen';
     }
+
+    logZeile(gegner.icon, `Heute am Tisch: ${gegner.name} – ${gegner.art}.`);
+    plauschen('plausch', 1);
 
     if (window.MINISPIEL_SCHNELL)
       timer.push(setTimeout(() => fertig('🎲', 'Ein schneller Spieleabend!', { stimmung: 4, stress: -3 }), 700));

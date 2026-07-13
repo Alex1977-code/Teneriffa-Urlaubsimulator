@@ -75,8 +75,10 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Pfeiltasten), nur drei freien Liegen und rennenden Rivalen, die Parkplatzsuche mit dem Mietwagen, das
   Perlen-Merkspiel beim Haareflechten am Strandstand und der spontane spanische
   Tanzabend als Rhythmusspiel im Takt der Band. Dazu der buchbare **Spieleabend in
-  der Hotelbar**: Farkle-Würfelduell gegen Karl (Einsen 100, Fünfen 50, Drillinge
-  Augenzahl × 100 – Gier wird mit dem Farkle bestraft).
+  der Hotelbar**: Farkle-Würfelduell gegen 18 wechselnde Stammtisch-Gegner (von
+  Birgit bis Ole-Johann) mit eigenen Stärken, Schwächen und Tischgesprächen
+  (Einsen 100, Fünfen 50, Drillinge Augenzahl × 100 – Gier wird mit dem Farkle
+  bestraft).
   Jedes Actionspiel startet mit einem **3-2-1-Countdown samt Erklärung** und lässt
   sich jederzeit mit **Taste P oder dem ⏸-Knopf pausieren**. Die Spiel-Schrift kommt
   im Open-World-Stil daher: fett, bunt und mit dicker schwarzer Umrandung.
