@@ -33,7 +33,9 @@ const UI = (() => {
   }
   function hiscoreSenden(score) {
     if (!hiscoreUrl() || !score) return;
-    const name = (localStorage.getItem('tus_name_v1') || 'Gast').slice(0, 14) || 'Gast';
+    const eigener = (localStorage.getItem('tus_name_v1') || '').trim();
+    if (!eigener) toast('🌍 Tipp: Trag in der Bestenliste deinen Highscore-Namen ein – bis dahin stehst du als „Gast“ in der Welt-Liste!');
+    const name = (eigener || 'Gast').replace(/\|/g, '/').slice(0, 14);
     fetch(hiscoreUrl() + 's' + Date.now() + Math.floor(Math.random() * 1000), {
       method: 'PUT',
       body: name + '|' + score + '|' + new Date().toLocaleDateString('de-DE'),
@@ -41,13 +43,17 @@ const UI = (() => {
   }
   function hiscoreLaden() {
     if (!hiscoreUrl()) return Promise.resolve(null);
-    return fetch(hiscoreUrl() + '?values=true&limit=500&format=json')
-      .then(r => r.json())
-      .then(liste => liste
-        .map(([, v]) => {
-          const t = String(v).split('|');
-          return { name: t[0] || 'Gast', score: +t[1] || 0, datum: t[2] || '' };
+    // Textformat "schluessel=name|punkte|datum" – robust gegen Formatvarianten
+    return fetch(hiscoreUrl() + '?values=true&limit=500')
+      .then(r => r.text())
+      .then(text => text.trim().split('\n')
+        .map(zeile => {
+          zeile = zeile.trim();
+          const wert = zeile.includes('=') ? zeile.slice(zeile.indexOf('=') + 1) : zeile;
+          const t = wert.split('|');
+          return { name: (t[0] || '').trim().slice(0, 14) || 'Gast', score: +t[1] || 0, datum: (t[2] || '').trim() };
         })
+        .filter(e => e.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, 15))
       .catch(() => null);
