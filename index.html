@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teneriffa Urlaubssimulator</title>
+  <meta name="description" content="Simuliere deinen Traumurlaub auf Teneriffa – realistisch, mit echten Orten, Wetter, Budget und Suchtfaktor.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌴</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ————— Startbildschirm ————— -->
+  <section id="screen-start" class="screen aktiv">
+    <div class="hero">
+      <div class="hero-sonne"></div>
+      <h1>🌴 Teneriffa<br><span>Urlaubssimulator</span></h1>
+      <p class="untertitel">Die Insel des ewigen Frühlings – wann immer du willst.</p>
+    </div>
+    <div class="start-menue">
+      <div id="start-profil" class="profil-karte"></div>
+      <button id="btn-fortsetzen" class="btn btn-primary btn-gross versteckt">🧳 Urlaub fortsetzen</button>
+      <button id="btn-neu" class="btn btn-primary btn-gross">✈️ Neuen Urlaub buchen</button>
+      <div class="start-reihe">
+        <button id="btn-album" class="btn">📸 Fotoalbum</button>
+        <button id="btn-besten" class="btn">🏆 Bestenliste</button>
+        <button id="btn-hilfe" class="btn">❓ Anleitung</button>
+      </div>
+    </div>
+    <footer class="start-fusszeile">Ein Spiel über die schönste Insel des Atlantiks · Spielstand wird lokal gespeichert</footer>
+  </section>
+
+  <!-- ————— Reisebüro / Setup ————— -->
+  <section id="screen-setup" class="screen">
+    <header class="seiten-kopf">
+      <button class="btn btn-zurueck" data-ziel="start">‹ Zurück</button>
+      <h2>✈️ Dein Urlaub, deine Entscheidungen</h2>
+    </header>
+    <div id="setup-inhalt" class="setup-raster"></div>
+    <div class="setup-fuss">
+      <div id="setup-budget" class="budget-vorschau"></div>
+      <button id="btn-abflug" class="btn btn-primary btn-gross">🛫 Abflug!</button>
+    </div>
+  </section>
+
+  <!-- ————— Anreise / Flug ————— -->
+  <section id="screen-flug" class="screen">
+    <div class="flug-himmel">
+      <div class="flug-wolke w1"></div>
+      <div class="flug-wolke w2"></div>
+      <div class="flug-wolke w3"></div>
+      <div class="flug-karte">
+        <div class="flug-info">
+          <span class="flug-route">✈️ Flug TFS-1977 · nach Teneriffa Süd</span>
+          <span id="flug-uhr">Flugzeit 0:00 h</span>
+        </div>
+        <div class="flug-strecke">
+          <span class="flug-punkt">🏠</span>
+          <div class="flug-spur"><div id="flug-fortschritt"></div><span id="flug-flugzeug">✈️</span></div>
+          <span class="flug-punkt">🌴</span>
+        </div>
+        <div id="flug-log"></div>
+        <div class="flug-buttons">
+          <button id="btn-flug-skip" class="btn">⏩ Vorspulen</button>
+          <button id="btn-flug-weiter" class="btn btn-primary btn-gross versteckt">🏨 Auf ins Hotel!</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ————— Hauptspiel ————— -->
+  <section id="screen-spiel" class="screen">
+    <header id="spiel-kopf"></header>
+    <div class="spiel-layout">
+      <main id="spiel-haupt">
+        <div id="wetter-leiste"></div>
+        <h3 id="aktivitaeten-titel"></h3>
+        <div id="aktivitaeten-raster"></div>
+      </main>
+      <aside id="spiel-seite">
+        <div id="stats-panel" class="panel"></div>
+        <div id="quest-panel" class="panel"></div>
+        <div id="inventar-panel" class="panel"></div>
+        <div id="log-panel" class="panel"></div>
+        <button id="btn-abbrechen" class="btn btn-klein btn-gefahr">Urlaub abbrechen</button>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ————— Urlaubsende ————— -->
+  <section id="screen-ende" class="screen">
+    <div id="ende-inhalt"></div>
+  </section>
+
+  <!-- ————— Fotoalbum ————— -->
+  <section id="screen-album" class="screen">
+    <header class="seiten-kopf">
+      <button class="btn btn-zurueck" data-ziel="start">‹ Zurück</button>
+      <h2>📸 Dein Teneriffa-Album</h2>
+    </header>
+    <div id="album-inhalt"></div>
+  </section>
+
+  <!-- ————— Bestenliste ————— -->
+  <section id="screen-besten" class="screen">
+    <header class="seiten-kopf">
+      <button class="btn btn-zurueck" data-ziel="start">‹ Zurück</button>
+      <h2>🏆 Bestenliste</h2>
+    </header>
+    <div id="besten-inhalt"></div>
+  </section>
+
+  <!-- ————— Anleitung ————— -->
+  <section id="screen-hilfe" class="screen">
+    <header class="seiten-kopf">
+      <button class="btn btn-zurueck" data-ziel="start">‹ Zurück</button>
+      <h2>❓ So funktioniert dein Urlaub</h2>
+    </header>
+    <div id="hilfe-inhalt" class="hilfe-text">
+      <div class="panel">
+        <h3>🎯 Das Ziel</h3>
+        <p>Du hast eine begrenzte Zahl an Urlaubstagen auf Teneriffa. Erhole dich, erlebe die Insel und sammle
+        Erinnerungen – am Ende zählt dein <strong>Urlaubsscore</strong> aus Erholung, Erlebnissen, Stimmung,
+        Fotos und erreichten Urlaubszielen.</p>
+      </div>
+      <div class="panel">
+        <h3>📅 Der Tagesablauf</h3>
+        <p>Jeder Tag hat drei Zeitfenster: <strong>Vormittag, Nachmittag und Abend</strong>. Pro Zeitfenster wählst du
+        eine Aktivität. Große Ausflüge (z.&nbsp;B. die Masca-Schlucht oder der Siam Park) dauern den ganzen Tag.
+        Am Anreisetag bist du erst mittags im Hotel, am Abreisetag bleibt nur der Vormittag.</p>
+      </div>
+      <div class="panel">
+        <h3>🔋 Deine Werte</h3>
+        <p><strong>Budget</strong> – Jede Aktivität und jede Anfahrt kostet Geld. Ist es leer, bleiben nur Gratis-Aktivitäten.<br>
+        <strong>Energie</strong> – Ausflüge machen müde, Schlaf, Pool und Siesta machen fit. Wer erschöpft loszieht, hat nur halb so viel vom Tag.<br>
+        <strong>Stimmung</strong> – Steigt bei schönen Erlebnissen, leidet unter Ärger, Staus und Sonnenbrand.<br>
+        <strong>Erholung</strong> – Der Kern deines Urlaubs. Strand, Pool und schöne Abende füllen sie langsam auf.<br>
+        <strong>Stress</strong> – Verspätete Flieger, verlorene Koffer, reservierte Poolliegen: Der Alltag reist mit.
+        Ab 70 Stress kannst du dich kaum noch erholen. Spa, Siesta, Strand und schöne Abende bauen ihn ab –
+        und jedes Stresslevel bei der Abreise kostet dich am Ende Punkte.</p>
+      </div>
+      <div class="panel">
+        <h3>✈️ Die Anreise zählt mit</h3>
+        <p>Schon der Flug gehört zum Urlaub: Ein pünktlicher Abflug entspannt, Verspätungen und Turbulenzen nerven.
+        Mit etwas Glück siehst du beim Anflug den Teide über dem Wolkenmeer – und mit etwas Pech dreht sich am
+        Gepäckband alles, nur dein Koffer nicht. Dann heißt es: zwei Tage ohne Sonnencreme, Wanderschuhe &amp; Co.
+        auskommen. Auch die Zimmer-Lotterie beim Check-in entscheidet mit, wie gut du in den Urlaub startest.</p>
+      </div>
+      <div class="panel">
+        <h3>🌦️ Das Wetter</h3>
+        <p>Teneriffa hat Mikroklimata – wie im echten Leben: Der <strong>Süden</strong> ist fast immer sonnig, der
+        <strong>Norden</strong> grüner und wechselhafter, am <strong>Teide</strong> herrscht Höhenwetter. Plane deine Ausflüge
+        nach dem Wetterbericht! Und wenn <strong>Calima</strong> (Saharastaub) aufzieht, hilft nur: ruhig machen.</p>
+      </div>
+      <div class="panel">
+        <h3>🧴 Gepäck &amp; Geheimtipps</h3>
+        <p>Sonnencreme schützt vor Sonnenbrand, Wanderschuhe sparen auf Wanderungen viel Energie, mit dem Schnorchelset
+        triffst du vielleicht eine Meeresschildkröte – und der Reiseführer verrät dir von Anfang an, wo die
+        Einheimischen essen. Auch Gespräche mit Einheimischen können Geheimtipps freischalten.</p>
+      </div>
+      <div class="panel">
+        <h3>🚗 Unterwegs auf der Insel</h3>
+        <p>Ausflüge in andere Regionen laufen als kleine Reise ab – mit Route auf der Inselkarte und
+        Ereignissen unterwegs: Staus, Ziegenherden, Miradore, Barraquito-Stopps. Mit dem <strong>Mietwagen</strong>
+        kannst du auch <strong>selbst ans Steuer</strong> – in echter 3D-Verfolgerperspektive wie in großen
+        Open-World-Spielen: Das Auto lenkt wirklich, die Kamera schwenkt hinterher, die <strong>Minimap</strong>
+        unten links zeigt Route und Ziel. Mit <strong>Taste C</strong> (oder dem 🗺️-Knopf) wechselst du in die
+        klassische <strong>Draufsicht</strong>. Unterwegs warten <strong>Sammelsterne</strong> ⭐ auf dich.
+        Lenken mit ← →, Gas mit ↑, Bremsen mit ↓ (oder per Tippen).
+        Die Landschaft passt zur echten Route – Lavaland Richtung Teide, grüner Norden – und auch das Wetter
+        fährt mit: Bei Regen wird die Straße rutschig. Wer Gas gibt, ist schneller am Ziel, riskiert aber mehr –
+        und mit der <strong>Leertaste (oder 🔥-Knopf)</strong> zündest du einen von drei Turbos.
+        <strong>Überholmanöver und knappe Ausweicher bringen Fahrstil-Punkte</strong>, die am Ende
+        Erlebnispunkte wert sind. Eine fehlerfreie Fahrt entspannt – Rempler kosten Nerven.</p>
+      </div>
+      <div class="panel">
+        <h3>🏁 Bonuslevel & Minispiele</h3>
+        <p>Auf der <strong>Kartbahn Teneriffa Süd</strong> startet ein echtes <strong>Kart-Rennen</strong>:
+        zwei Runden gegen drei Rivalen, mit ?-Boxen (🍄 Turbo, 🍌 Banane, ⚡ Schock), Boost-Pfeilen und
+        Platzierung – Items setzt du mit der Leertaste oder per Tipp auf die Item-Box ein.
+        Und der Alltag steckt voller kleiner Herausforderungen: Am <strong>ovalen Gepäckband</strong> mit
+        blinkender Warnleuchte sehen alle Koffer fast gleich aus – steuere dein Männchen um das Band,
+        vergleiche Gurt-Farbe und Sticker und greif zu, bevor die wartende Menge danebengreift.
+        <strong>Überquere in der Stadt die Straße</strong> (die Fahrweise ist …
+        temperamentvoll), <strong>balanciere am Pool den frisch gepressten Zumo</strong> zur Liege
+        und gewinne morgens den <strong>Wettlauf um die Poolliegen</strong>: Du steuerst dein
+        Männchen selbst über die Terrasse (Tippen/Ziehen oder Pfeiltasten) – nur drei Liegen sind
+        frei, und die anderen Gäste rennen auch! Mit dem Mietwagen
+        wartet in der Stadt die <strong>Parkplatzsuche</strong>, am Strandstand kannst du dir beim
+        <strong>Haareflechten</strong> die Perlen-Reihenfolge merken – und abends zieht dich vielleicht
+        ein <strong>spontaner spanischer Tanzabend</strong> auf die Plaza: Triff die Schritte im Takt
+        der Band! Jedes dieser Spiele taucht einmal pro Urlaub spontan auf.
+        Jedes Actionspiel beginnt mit einem <strong>3-2-1-Countdown samt Erklärung</strong>, damit du
+        weißt, was zu tun ist – und mit <strong>Taste P oder dem ⏸-Knopf</strong> kannst du jederzeit
+        pausieren und weiterspielen.
+        Lust auf Gesellschaftsspiele? Buch abends den <strong>Spieleabend in der Hotelbar</strong> und
+        fordere die Stammtisch-Runde zum Würfelklassiker <strong>Farkle</strong> heraus – jeden Abend
+        sitzt wer anderes am Tisch (Birgit, Cem, Hubert, Chantal &amp; Co.), jeder zockt anders und
+        gibt nützliche wie herrlich unnütze Tipps (Einsen 100, Fünfen 50, Drillinge Augenzahl × 100 –
+        aber wer zu gierig weiterwürfelt, riskiert den Farkle!).
+        Alles per Tipp/Tasten steuerbar – auch auf dem Handy.</p>
+      </div>
+      <div class="panel">
+        <h3>🎬 Ausflüge mit Vorschau buchen</h3>
+        <p>Bei größeren Ausflügen findest du auf der Aktivitätskarte den Knopf <strong>„▶ Vorschau“</strong>:
+        Er öffnet den Kino-Modus mit echtem Foto oder Video des Ortes – danach entscheidest du dich mit
+        <strong>„✅ Jetzt buchen“</strong> direkt für den Ausflug oder kehrst mit „↩ Zurück“ zur Auswahl zurück.</p>
+      </div>
+      <div class="panel">
+        <h3>💞 Begegnungen</h3>
+        <p>Der Urlaub steckt voller Geschichten: ein Gruß aus der Küche, ein Gespräch am Pool …
+        und vielleicht sogar ein <strong>Urlaubsflirt</strong>, der sich über mehrere Tage zu einem
+        Sonnenuntergangs-Date entwickelt. Halte am Strand, in Bars und beim Bummeln die Augen offen.</p>
+      </div>
+      <div class="panel">
+        <h3>📷 Echte Fotos &amp; Videos – direkt im Spiel</h3>
+        <p>Die Aktivitäten zeigen echte Fotos der Orte, und Highlights feiert das Spiel mit einem
+        Kino-Moment in Vollbild. Wenn es ein passendes freies Video gibt, spielt es
+        <strong>direkt im Spiel</strong> ab (über den 🔊-Knopf auch mit Ton). Bei jedem neuen Fotomotiv
+        wandert außerdem der <strong>Foto-Auslöser</strong> über den Bildschirm: Triffst du den grünen Bereich,
+        gelingt der perfekte Schnappschuss mit Bonus. Fotos und Videos kommen live von
+        <strong>Wikipedia/Wikimedia Commons</strong>; der Quelle-Link öffnet die Seite mit Autor- und
+        Lizenzangaben. Ohne Internetverbindung erscheint stattdessen der klassische Look.</p>
+      </div>
+      <div class="panel">
+        <h3>📈 Suchtfaktor: Sammeln &amp; Aufsteigen</h3>
+        <p>Jeder Urlaub bringt <strong>Erfahrungspunkte</strong>. Mit steigendem Inselkenner-Level schaltest du neue
+        Aktivitäten frei (Geheimstrand, Tauchen, Paragliding). Dein <strong>Fotoalbum</strong> und die
+        <strong>Erfolge</strong> bleiben über alle Urlaube erhalten – schaffst du das komplette Album?</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ————— Inselfahrt ————— -->
+  <div id="fahrt-overlay" class="versteckt">
+    <div class="fahrt-karte">
+      <h3 id="fahrt-titel"></h3>
+      <div id="fahrt-inselkarte"></div>
+      <div id="fahrspiel-wrap" class="versteckt">
+        <canvas id="fahrspiel-canvas"></canvas>
+        <div id="fahrspiel-hilfe">Lenken: ← → · Gas: ↑ · Bremse: ↓ · Turbo: Leertaste oder 🔥 · Pause: P oder ⏸ (Touch: links/rechts halten)<br>Überhole den Verkehr für 🏎️ Fahrstil-Punkte, weiche Ziegen &amp; Gegenverkehr aus – bei Regen wird’s rutschig!</div>
+      </div>
+      <div id="fahrt-log"></div>
+      <div id="fahrt-buttons" class="modal-buttons"></div>
+    </div>
+  </div>
+
+  <!-- ————— Kino-Moment (Highlights) ————— -->
+  <div id="kino-overlay" class="versteckt">
+    <div id="kino-bildwrap">
+      <img id="kino-bild" alt="">
+      <video id="kino-video" class="versteckt" muted autoplay loop playsinline preload="none"></video>
+    </div>
+    <div id="kino-text">
+      <div id="kino-untertitel"></div>
+      <h2 id="kino-titel"></h2>
+      <div id="kino-buttons" class="modal-buttons"></div>
+    </div>
+  </div>
+
+  <!-- ————— Modals & Toasts ————— -->
+  <div id="modal-hintergrund" class="versteckt">
+    <div id="modal-box" role="dialog" aria-modal="true"></div>
+  </div>
+  <div id="toasts"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/bilder.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
