@@ -197,6 +197,14 @@ button { font: inherit; cursor: pointer; }
 
 .btn:hover { transform: translateY(-2px); box-shadow: var(--schatten); border-color: var(--ozean-hell); }
 .btn:active { transform: none; }
+.btn:disabled {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.btn:disabled:hover { transform: none; box-shadow: none; border-color: var(--sand-dunkel); }
 
 .btn-primary {
   background: linear-gradient(135deg, var(--ozean), var(--ozean-dunkel));

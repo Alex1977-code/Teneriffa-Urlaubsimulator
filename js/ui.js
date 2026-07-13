@@ -3108,6 +3108,7 @@ const UI = (() => {
       doepGesagt = false; borkGesagt = false;
       piep(320, 60, 'triangle', 0.06);
       setTimeout(() => piep(260, 50, 'triangle', 0.05), 80);
+      let verfehlt = false;
       if (jagd !== null) {
         if (feld[0].wert === jagd) {
           // Straße komplett!
@@ -3124,7 +3125,8 @@ const UI = (() => {
           return;
         }
         jagd = null;   // daneben – der Würfel muss jetzt normal zählen (sonst Farkle)
-        meldung = 'Daneben! Der Nachwurf zeigt keine passende Zahl …';
+        verfehlt = true;
+        ausrufen('DANEBEN!');
       }
       if (!hatZug()) {
         // Farkle! Zugpunkte futsch – ein angesagter Joker verpufft mit
@@ -3132,7 +3134,9 @@ const UI = (() => {
         abgelegt = [];
         jokerAktiv = false;
         phase = 'karl';
-        meldung = '💥 Farkle! Kein Wurf zählt – deine Zugpunkte sind weg.';
+        meldung = verfehlt
+          ? '💥 Daneben – Farkle! Die Straße platzt, deine Zugpunkte sind weg.'
+          : '💥 Farkle! Kein Wurf zählt – deine Zugpunkte sind weg.';
         piep(140, 300, 'sawtooth', 0.1);
         malen();
         timer.push(setTimeout(karlZug, 1600));
@@ -3163,7 +3167,14 @@ const UI = (() => {
         }
       }
       phase = 'wahl';
-      meldung = 'Tippe Würfel an (oder Tasten 1–6), die du behalten willst.';
+      if (verfehlt) {
+        // Der Fehl-Nachwurf zeigt eine 1 oder 5 – die einzige legale Wahl,
+        // also direkt vormerken, damit kein Knopf gesperrt bleibt
+        feld[0].gewaehlt = true;
+        meldung = 'Daneben! Aber die ' + feld[0].wert + ' zählt – weiterwürfeln oder sichern.';
+      } else {
+        meldung = 'Tippe Würfel an (oder Tasten 1–6), die du behalten willst.';
+      }
       malen();
     }
 
@@ -3348,7 +3359,8 @@ const UI = (() => {
 
       // Ausrufe & das berühmte Hühnchen
       if (ausrufBis > Date.now())
-        gtaText(ctx, ausrufText, W / 2, 165, 30, ausrufText.startsWith('DÖP') ? '#3ddc97' : '#ff7bd5');
+        gtaText(ctx, ausrufText, W / 2, 165, 30,
+          ausrufText.startsWith('DÖP') ? '#3ddc97' : ausrufText.startsWith('DANEBEN') ? '#ff5b6a' : '#ff7bd5');
       if (huhn) {
         ctx.save();
         ctx.translate(huhn.x, 206 + Math.abs(Math.sin(huhn.x / 9)) * -5);
