@@ -2968,6 +2968,8 @@ const UI = (() => {
       '<strong>1</strong> = 100 · <strong>5</strong> = 50 · Drilling = Augenzahl × 100 (Einsen: 1000) – ' +
       '<strong>jede weitere gleiche Zahl verdoppelt</strong> (3×5 = 500 → 1000 → 2000). ' +
       'Straße 1–6 = <strong>2000</strong> (fehlt eine, darfst du sie nachwürfeln – bork bork bork!) · drei Paare = 1500.<br>' +
+      'Zählen <strong>alle sechs Würfel</strong>, musst du den Wurf mit einem neuen Wurf <strong>bestätigen</strong> ' +
+      '(wieder 1/5, Drilling, Straße, drei Paare …) – sonst Farkle! ' +
       'Zum <strong>Rauskommen</strong> brauchst du 300 Punkte im Zug. Ziel: <strong>10.000</strong>. ' +
       'Deinen <strong>🃏 Joker musst du VOR dem ersten Wurf ansagen</strong> – dann zählt der ganze Zug doppelt. ' +
       'Ohne gespielten Joker ist das Spiel verloren!', 340);
@@ -3103,7 +3105,7 @@ const UI = (() => {
       return feld.some(w => istWaehlbar(w.wert));
     }
 
-    function werfen(anzahl) {
+    function werfen(anzahl, bestaetigen) {
       feld = Array.from({ length: anzahl }, () => ({ wert: 1 + Math.floor(Math.random() * 6), gewaehlt: false }));
       doepGesagt = false; borkGesagt = false;
       piep(320, 60, 'triangle', 0.06);
@@ -3118,7 +3120,7 @@ const UI = (() => {
           jagd = null;
           abgelegt = []; feld = [];
           phase = 'heiss';
-          meldung = '🎉 Straße komplett! +' + zuwachs + ' – alle sechs neu oder sichern.';
+          meldung = '🎉 Straße komplett! +' + zuwachs + ' – alle sechs genutzt: bestätige mit einem neuen Wurf!';
           ausrufen('STRASSE! +' + zuwachs);
           piep(880, 200, 'triangle', 0.09);
           malen();
@@ -3136,7 +3138,9 @@ const UI = (() => {
         phase = 'karl';
         meldung = verfehlt
           ? '💥 Daneben – Farkle! Die Straße platzt, deine Zugpunkte sind weg.'
-          : '💥 Farkle! Kein Wurf zählt – deine Zugpunkte sind weg.';
+          : bestaetigen
+            ? '💥 Nicht bestätigt – nichts zählt! Farkle, deine Zugpunkte sind weg.'
+            : '💥 Farkle! Kein Wurf zählt – deine Zugpunkte sind weg.';
         piep(140, 300, 'sawtooth', 0.1);
         malen();
         timer.push(setTimeout(karlZug, 1600));
@@ -3171,7 +3175,10 @@ const UI = (() => {
         // Der Fehl-Nachwurf zeigt eine 1 oder 5 – die einzige legale Wahl,
         // also direkt vormerken, damit kein Knopf gesperrt bleibt
         feld[0].gewaehlt = true;
-        meldung = 'Daneben! Aber die ' + feld[0].wert + ' zählt – weiterwürfeln oder sichern.';
+        meldung = 'Daneben! Aber die ' + feld[0].wert + ' zählt – wirf alle sechs neu und bestätige!';
+      } else if (bestaetigen) {
+        if (ausrufBis <= Date.now()) ausrufen('BESTÄTIGT!');   // BORK/DÖP hat Vorrang
+        meldung = '✔ Bestätigt! Tippe Würfel an (oder Tasten 1–6), die du behalten willst.';
       } else {
         meldung = 'Tippe Würfel an (oder Tasten 1–6), die du behalten willst.';
       }
@@ -3180,7 +3187,10 @@ const UI = (() => {
 
     rollBtn.addEventListener('click', () => {
       if (vorbei) return;
-      if (phase === 'start' || phase === 'heiss') { abgelegt = []; jagd = null; werfen(6); return; }
+      if (phase === 'start' || phase === 'heiss') {
+        const bestaetigen = phase === 'heiss';
+        abgelegt = []; jagd = null; werfen(6, bestaetigen); return;
+      }
       if (phase !== 'wahl') return;
       const a = auswahlWertung();
       if (!a.gueltig) return;
@@ -3191,18 +3201,26 @@ const UI = (() => {
       for (const w of feld) if (w.gewaehlt) abgelegt.push(w.wert);
       if (a.jagd) { jagd = a.jagd; werfen(1); return; }   // Straßen-Nachwurf!
       const rest = 6 - abgelegt.length;
-      if (rest <= 0) abgelegt = [];             // „Hot Dice“: alle sechs neu!
-      werfen(rest <= 0 ? 6 : rest);
+      if (rest <= 0) abgelegt = [];             // „Hot Dice“: alle sechs neu – Bestätigung!
+      werfen(rest <= 0 ? 6 : rest, rest <= 0);
     });
     bankBtn.addEventListener('click', () => {
       if (vorbei || (phase !== 'wahl' && phase !== 'heiss')) return;
-      let zuwachs = 0;
-      if (phase === 'wahl') {
-        const a = auswahlWertung();
-        if (!a.gueltig) return;
-        zuwachs = a.punkte;
-        if (jokerAktiv && zuwachs > 0) zuwachs *= 2;
+      if (phase === 'heiss') {
+        meldung = '⚠️ Erst bestätigen: wirf alle sechs neu!';
+        malen();
+        return;
       }
+      const a = auswahlWertung();
+      if (!a.gueltig) return;
+      if (abgelegt.length + feld.filter(w => w.gewaehlt).length >= 6) {
+        // Alle sechs Würfel zählen → Hausregel: der Wurf muss bestätigt werden
+        meldung = '⚠️ Alle sechs zählen – bestätige den Wurf erst mit einem neuen Wurf!';
+        malen();
+        return;
+      }
+      let zuwachs = a.punkte;
+      if (jokerAktiv && zuwachs > 0) zuwachs *= 2;
       const gesamt = turnPunkte + zuwachs;
       if (duPunkte === 0 && gesamt < 300) {
         meldung = 'Zum Rauskommen brauchst du mindestens 300 Punkte im Zug!';
@@ -3255,7 +3273,7 @@ const UI = (() => {
         genutzt += zaehl[1] + zaehl[5];
         if (wurfPunkte === 0) { farkle = true; punkte = 0; break; }
         punkte += wurfPunkte; frei -= genutzt;
-        if (frei <= 0) frei = 6;
+        if (frei <= 0) { frei = 6; continue; }   // Hot Dice: auch Karl muss bestätigen
         if (punkte >= 300 || frei <= 2) break;
       }
       if (!farkle && karlPunkte === 0 && punkte < 300) {
@@ -3352,9 +3370,15 @@ const UI = (() => {
         (a.punkte ? ' + ' + (jokerAktiv ? a.punkte * 2 + ' (🃏×2)' : a.punkte) : ''), W / 2, 238, 16,
         a.punkte ? '#3ddc97' : '#ffd166');
       gtaText(ctx, meldung, W / 2, 263, 12, meldung.includes('Farkle') ? '#ff5b6a' : '#fff');
+      // Hausregel: Zählen alle sechs Würfel, muss der Wurf per Neuwurf bestätigt werden
+      const alleSechs = phase === 'heiss' ||
+        (phase === 'wahl' && a.gueltig && abgelegt.length + feld.filter(w => w.gewaehlt).length >= 6);
       if (phase === 'wahl' && !a.gueltig) {
         ctx.fillStyle = 'rgba(245,240,230,0.65)'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
         ctx.fillText('Wähle mindestens eine 1, 5 oder einen Drilling.', W / 2, 282);
+      } else if (alleSechs) {
+        ctx.fillStyle = 'rgba(255,209,102,0.9)'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('Alle 6 im Einsatz – neuer Wurf muss bestätigen!', W / 2, 282);
       }
 
       // Ausrufe & das berühmte Hühnchen
@@ -3373,11 +3397,12 @@ const UI = (() => {
       const zuwachs = a.punkte * (jokerAktiv && a.punkte > 0 ? 2 : 1);
       const bankWert = turnPunkte + (phase === 'wahl' ? zuwachs : 0);
       rollBtn.disabled = !(phase === 'start' || phase === 'heiss' || (phase === 'wahl' && a.gueltig));
-      bankBtn.disabled = !(((phase === 'wahl' && a.gueltig) || phase === 'heiss') &&
+      bankBtn.disabled = alleSechs || !(phase === 'wahl' && a.gueltig &&
         (duPunkte > 0 || bankWert >= 300));
       jokerBtn.disabled = jokerBenutzt || phase !== 'start';
       rollBtn.textContent = phase === 'start' ? '🎲 Würfeln'
-        : phase === 'heiss' ? '🎲 Alle sechs neu' : '🎲 Weiterwürfeln';
+        : phase === 'heiss' ? '🎲 Bestätigen: alle 6 neu!'
+        : alleSechs ? '🎲 Bestätigen: alle 6 neu!' : '🎲 Weiterwürfeln';
       bankBtn.textContent = '💰 ' + bankWert + ' Punkte sichern';
       jokerBtn.textContent = jokerAktiv ? '🃏 ZUG ×2!' : jokerBenutzt ? '🃏 gespielt' : '🃏 Joker ansagen';
     }
