@@ -2969,7 +2969,8 @@ const UI = (() => {
       '<strong>jede weitere gleiche Zahl verdoppelt</strong> (3×5 = 500 → 1000 → 2000). ' +
       'Straße 1–6 = <strong>2000</strong> (fehlt eine, darfst du sie nachwürfeln – bork bork bork!) · drei Paare = 1500.<br>' +
       'Zum <strong>Rauskommen</strong> brauchst du 300 Punkte im Zug. Ziel: <strong>10.000</strong>. ' +
-      'Und spiel irgendwann deinen <strong>🃏 Joker</strong> (verdoppelt den Wurf) – ohne ihn ist das Spiel verloren!', 340);
+      'Deinen <strong>🃏 Joker musst du VOR dem ersten Wurf ansagen</strong> – dann zählt der ganze Zug doppelt. ' +
+      'Ohne gespielten Joker ist das Spiel verloren!', 340);
 
     const ZIEL = window.FARKLE_ZIEL || 10000;
     let duPunkte = 0, karlPunkte = 0;
@@ -2983,14 +2984,17 @@ const UI = (() => {
     const timer = [];
 
     const buttons = $('#fahrt-buttons');
+    // Die Knöpfe wandern direkt unter das Würfelfeld (und nachher wieder zurück)
+    const buttonsHeim = buttons.parentNode, buttonsNachbar = buttons.nextSibling;
+    $('#fahrspiel-wrap').insertBefore(buttons, $('#fahrspiel-hilfe'));
     const rollBtn = el('button', 'btn btn-primary', '🎲 Würfeln');
     const bankBtn = el('button', 'btn', '💰 Punkte sichern');
     const jokerBtn = el('button', 'btn', '🃏 Joker (×2)');
     buttons.appendChild(rollBtn); buttons.appendChild(bankBtn); buttons.appendChild(jokerBtn);
     jokerBtn.addEventListener('click', () => {
-      if (vorbei || jokerBenutzt || phase !== 'wahl') return;
+      if (vorbei || jokerBenutzt || phase !== 'start') return;
       jokerBenutzt = true; jokerAktiv = true;
-      meldung = '🃏 Joker gespielt – dieser Wurf zählt DOPPELT!';
+      meldung = '🃏 Joker angesagt – dieser ganze ZUG zählt doppelt!';
       ausrufen('JOKER! ×2');
       piep(880, 180, 'triangle', 0.09);
       malen();
@@ -3027,24 +3031,13 @@ const UI = (() => {
       timer.forEach(clearTimeout);
       canvas.removeEventListener('pointerdown', klick);
       document.removeEventListener('keydown', tasteRunter);
+      buttonsHeim.insertBefore(buttons, buttonsNachbar);   // Knöpfe zurück an ihren Platz
     }
     function wuerfelWaehlen(w) {
       const komboWurf = feld.length === 6 && abgelegt.length === 0;   // Straße/Paare möglich
       if (!w.gewaehlt && !istWaehlbar(w.wert) && !komboWurf) { piep(180, 90, 'sawtooth', 0.05); return; }
       w.gewaehlt = !w.gewaehlt;
       piep(w.gewaehlt ? 520 : 320, 50, 'triangle', 0.05);
-      const a = auswahlWertung();
-      if (a.kombo === 'doep' && !doepGesagt) {
-        doepGesagt = true;
-        ausrufen('DÖP!');                                  // drei Paare!
-        piep(720, 140, 'triangle', 0.09);
-      }
-      if (a.kombo === 'bork' && !borkGesagt) {
-        borkGesagt = true;
-        ausrufen('BORK BORK BORK!');                       // Straße in Sicht!
-        huhnStarten();
-        piep(500, 90, 'square', 0.07); setTimeout(() => piep(560, 90, 'square', 0.07), 120);
-      }
       malen();
     }
     function tasteRunter(e) {
@@ -3119,7 +3112,7 @@ const UI = (() => {
         if (feld[0].wert === jagd) {
           // Straße komplett!
           let zuwachs = 2000;
-          if (jokerAktiv) { zuwachs *= 2; jokerAktiv = false; }
+          if (jokerAktiv) zuwachs *= 2;
           turnPunkte += zuwachs;
           jagd = null;
           abgelegt = []; feld = [];
@@ -3134,9 +3127,10 @@ const UI = (() => {
         meldung = 'Daneben! Der Nachwurf zeigt keine passende Zahl …';
       }
       if (!hatZug()) {
-        // Farkle! Zugpunkte futsch – auch die abgelegten Würfel sind dahin
+        // Farkle! Zugpunkte futsch – ein angesagter Joker verpufft mit
         turnPunkte = 0;
         abgelegt = [];
+        jokerAktiv = false;
         phase = 'karl';
         meldung = '💥 Farkle! Kein Wurf zählt – deine Zugpunkte sind weg.';
         piep(140, 300, 'sawtooth', 0.1);
@@ -3144,17 +3138,32 @@ const UI = (() => {
         timer.push(setTimeout(karlZug, 1600));
         return;
       }
-      // Offensichtliche Treffer gleich vorwählen – Anpassen jederzeit möglich
-      const zaehlW = {};
-      for (const w of feld) zaehlW[w.wert] = (zaehlW[w.wert] || 0) + 1;
-      for (const w of feld) {
-        if (w.wert === 1 || w.wert === 5 || zaehlW[w.wert] >= 3 ||
-            abgelegt.filter(v => v === w.wert).length >= 3) w.gewaehlt = true;
+      if (window.FARKLE_AUTO) {   // nur für automatische Tests
+        const zaehlW = {};
+        for (const w of feld) zaehlW[w.wert] = (zaehlW[w.wert] || 0) + 1;
+        for (const w of feld) {
+          if (w.wert === 1 || w.wert === 5 || zaehlW[w.wert] >= 3 ||
+              abgelegt.filter(v => v === w.wert).length >= 3) w.gewaehlt = true;
+        }
+        if (!feld.some(w => w.gewaehlt) && feld.length === 6)
+          for (const w of feld) w.gewaehlt = true;
       }
-      if (!feld.some(w => w.gewaehlt) && feld.length === 6)
-        for (const w of feld) w.gewaehlt = true;   // Straße/drei Paare
+      // Bork & Döp direkt beim Wurf: 5 Passende zur Straße bzw. drei Paare
+      if (feld.length === 6 && abgelegt.length === 0) {
+        const zaehlK = {};
+        for (const w of feld) zaehlK[w.wert] = (zaehlK[w.wert] || 0) + 1;
+        const mengenK = Object.values(zaehlK).sort().join('');
+        if (Object.keys(zaehlK).length === 5) {
+          ausrufen('BORK BORK BORK!');
+          huhnStarten();
+          piep(500, 90, 'square', 0.07); setTimeout(() => piep(560, 90, 'square', 0.07), 120);
+        } else if (mengenK === '222') {
+          ausrufen('DÖP!');
+          piep(720, 140, 'triangle', 0.09);
+        }
+      }
       phase = 'wahl';
-      meldung = 'Vorauswahl steht – anpassen, weiterwürfeln oder sichern.';
+      meldung = 'Tippe Würfel an (oder Tasten 1–6), die du behalten willst.';
       malen();
     }
 
@@ -3165,7 +3174,7 @@ const UI = (() => {
       const a = auswahlWertung();
       if (!a.gueltig) return;
       let zuwachs = a.punkte;
-      if (jokerAktiv && zuwachs > 0) { zuwachs *= 2; jokerAktiv = false; }
+      if (jokerAktiv && zuwachs > 0) zuwachs *= 2;   // Joker verdoppelt den ganzen Zug
       turnPunkte += zuwachs;
       // Gewählte Würfel bleiben sichtbar liegen – sie sind für den Zug gesichert
       for (const w of feld) if (w.gewaehlt) abgelegt.push(w.wert);
@@ -3181,7 +3190,7 @@ const UI = (() => {
         const a = auswahlWertung();
         if (!a.gueltig) return;
         zuwachs = a.punkte;
-        if (jokerAktiv && zuwachs > 0) { zuwachs *= 2; jokerAktiv = false; }
+        if (jokerAktiv && zuwachs > 0) zuwachs *= 2;
       }
       const gesamt = turnPunkte + zuwachs;
       if (duPunkte === 0 && gesamt < 300) {
@@ -3193,7 +3202,7 @@ const UI = (() => {
       duPunkte += turnPunkte;
       logZeile('🙂', `Du sicherst ${turnPunkte} Punkte (gesamt ${duPunkte}).`);
       piep(660, 140, 'triangle', 0.08);
-      turnPunkte = 0; abgelegt = []; feld = []; jagd = null;
+      turnPunkte = 0; abgelegt = []; feld = []; jagd = null; jokerAktiv = false;
       if (duPunkte >= ZIEL) { spielEnde(true); return; }
       phase = 'karl';
       meldung = 'Karl schüttelt den Würfelbecher …';
@@ -3354,11 +3363,11 @@ const UI = (() => {
       rollBtn.disabled = !(phase === 'start' || phase === 'heiss' || (phase === 'wahl' && a.gueltig));
       bankBtn.disabled = !(((phase === 'wahl' && a.gueltig) || phase === 'heiss') &&
         (duPunkte > 0 || bankWert >= 300));
-      jokerBtn.disabled = jokerBenutzt || phase !== 'wahl';
+      jokerBtn.disabled = jokerBenutzt || phase !== 'start';
       rollBtn.textContent = phase === 'start' ? '🎲 Würfeln'
         : phase === 'heiss' ? '🎲 Alle sechs neu' : '🎲 Weiterwürfeln';
       bankBtn.textContent = '💰 ' + bankWert + ' Punkte sichern';
-      jokerBtn.textContent = jokerAktiv ? '🃏 AKTIV ×2' : jokerBenutzt ? '🃏 gespielt' : '🃏 Joker (×2)';
+      jokerBtn.textContent = jokerAktiv ? '🃏 ZUG ×2!' : jokerBenutzt ? '🃏 gespielt' : '🃏 Joker ansagen';
     }
 
     if (window.MINISPIEL_SCHNELL)
