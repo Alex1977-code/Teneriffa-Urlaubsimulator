@@ -358,7 +358,7 @@ const UI = (() => {
     $('#fahrt-inselkarte').classList.add('versteckt');
     $('#fahrspiel-wrap').classList.remove('versteckt');
     $('#fahrspiel-hilfe').innerHTML = 'Lenken: ← → · Gas: ↑ · Bremse: ↓ · Turbo: Leertaste oder 🔥 · Kamera: C oder 🗺️ · Pause: P oder ⏸<br>' +
-      'Überhole für 🏎️ Fahrstil-Punkte, sammle ⭐ Sterne und weiche Ziegen & Gegenverkehr aus!';
+      'Fahr durch die ?-Boxen (🍄 Turbo, ⭐ Schutzstern) und über die Boost-Pfeile – überhole für 🏎️ Fahrstil-Punkte!';
     $('#fahrt-buttons').innerHTML = '';
 
     const canvas = $('#fahrspiel-canvas');
@@ -383,6 +383,9 @@ const UI = (() => {
     const HALB = 6.4;               // halbe Fahrbahnbreite (m)
     const COUNTDOWN = 2000;
 
+    // Serpentinen-Modus für Bergziele: enge Kehren wie auf der Masca-Straße
+    const serp = !!(fahrt && ['masca', 'teno', 'benijo', 'anaga', 'teide', 'roques',
+      'sterne', 'paisaje', 'chinyero', 'barranco'].includes(fahrt.actId));
     const hops = (fahrt && fahrt.hops) || 1;
     const S_END = window.FAHRSPIEL_DAUER
       ? (window.FAHRSPIEL_DAUER / 1000) * 18
@@ -423,7 +426,9 @@ const UI = (() => {
       let x = 0, z = 0, richtung = 0;
       for (let s = 0; s <= S_END + 80; s += SCHRITT) {
         samples.push({ x, z, richtung });
-        richtung += (Math.sin(s * 0.012) + 0.7 * Math.sin(s * 0.0045 + 1.7)) * 0.028;
+        richtung += serp
+          ? (Math.sin(s * 0.045) > 0 ? 1 : -1) * 0.075 + Math.sin(s * 0.011) * 0.012
+          : (Math.sin(s * 0.012) + 0.7 * Math.sin(s * 0.0045 + 1.7)) * 0.028;
         x += Math.sin(richtung) * SCHRITT;
         z += Math.cos(richtung) * SCHRITT;
       }
@@ -542,6 +547,23 @@ const UI = (() => {
       sterne.push({ x: p.x + r.x * q, z: p.z + r.z * q, icon: '⭐', gr: 2.4 });
     }
     let sterneGesammelt = 0;
+
+    // Mario-Kart-Zutaten: ?-Boxen (Turbo oder Schutzstern) und Boost-Pfeile
+    const itemBoxen = [];
+    {
+      const anzahlB = Math.max(2, Math.round(S_END / 170));
+      for (let i = 1; i <= anzahlB; i++) {
+        const p = samplesBei(i * S_END / (anzahlB + 1) + 14), r = rechtsVon(p);
+        const q = (Math.random() * 2 - 1) * 3;
+        itemBoxen.push({ x: p.x + r.x * q, z: p.z + r.z * q, cd: 0 });
+      }
+    }
+    const boostPads = [];
+    for (let i = 0; i < Math.max(1, Math.round(S_END / 240)); i++) {
+      const p = samplesBei(70 + Math.random() * Math.max(40, S_END - 140));
+      boostPads.push({ x: p.x, z: p.z });
+    }
+    let sternZeit = 0;
 
     // Wolken & Autofarben für den Verkehr
     const wolken = [{ az: -0.6, h: 34, gr: 26 }, { az: 1.4, h: 52, gr: 34 }, { az: 2.8, h: 40, gr: 22 }];
@@ -730,7 +752,9 @@ const UI = (() => {
       // Fahrphysik: echtes Lenken, Gas, Bremse, Turbo
       if (seitStart >= COUNTDOWN) {
         boostZeit = Math.max(0, boostZeit - dt);
+        sternZeit = Math.max(0, sternZeit - dt);
         let zielTempo = boostZeit > 0 ? wagen.tempo + 12 : gas > 0 ? wagen.tempo : gas < 0 ? 4 : wagen.tempo * 0.7;
+        if (serp) zielTempo *= 0.88;
         if (abseits) zielTempo *= wagen.gelaende;
         speed += (zielTempo - speed) * dt * (gas < 0 ? 2.6 : boostZeit > 0 ? 2.0 : 0.9);
         lenkIst += (lenk - lenkIst) * Math.min(1, dt * 7);
@@ -763,9 +787,14 @@ const UI = (() => {
         auto.hitCd = Math.max(0, auto.hitCd - dt);
         const abstand = Math.hypot(auto.x - px, auto.z - pz);
         if (abstand < 2.3 && auto.hitCd <= 0 && speed > 4) {
-          treffer++; blitz = 300; shake = 400; auto.hitCd = 2; speed *= 0.55;
-          piep(110, 260, 'sawtooth', 0.14);
-          brumm(60);
+          if (sternZeit > 0) {
+            auto.hitCd = 2; stil += 5;
+            schweber.push({ text: '⭐ Durch!', alter: 0 });
+          } else {
+            treffer++; blitz = 300; shake = 400; auto.hitCd = 2; speed *= 0.55;
+            piep(110, 260, 'sawtooth', 0.14);
+            brumm(60);
+          }
         }
         const rel = auto.s - roadS;
         if (auto.prevRel > 0 && rel <= 0 && abstand >= 2.3) {
@@ -785,10 +814,35 @@ const UI = (() => {
         if (h.erledigt) continue;
         const abstand = Math.hypot(h.x - px, h.z - pz);
         if (abstand < 2.1 && speed > 4) {
-          h.erledigt = true; treffer++; blitz = 300; shake = 400; piep(110, 260, 'sawtooth', 0.14);
+          h.erledigt = true;
+          if (sternZeit > 0) { stil += 5; schweber.push({ text: '⭐ Durch!', alter: 0 }); }
+          else { treffer++; blitz = 300; shake = 400; piep(110, 260, 'sawtooth', 0.14); }
         } else if (abstand < 3.6 && speed > 15 && Math.abs(winkelNorm(Math.atan2(h.x - px, h.z - pz) - heading)) > 1.7) {
           h.erledigt = true; stil += 5;
           schweber.push({ text: 'Riskant! +5', alter: 0 });
+        }
+      }
+
+      // ?-Boxen & Boost-Pfeile (Mario-Kart lässt grüßen)
+      for (const box of itemBoxen) {
+        if (box.cd > 0) { box.cd -= dt; continue; }
+        if (Math.hypot(box.x - px, box.z - pz) < 2.7) {
+          box.cd = 9999;
+          if (Math.random() < 0.5) {
+            boostRest++;
+            schweber.push({ text: '🍄 +1 Turbo!', alter: 0 });
+          } else {
+            sternZeit = 5;
+            schweber.push({ text: '⭐ Unverwundbar!', alter: 0 });
+          }
+          piep(660, 120, 'triangle', 0.08);
+        }
+      }
+      for (const pad of boostPads) {
+        if (Math.hypot(pad.x - px, pad.z - pz) < 2.7 && boostZeit < 0.4) {
+          boostZeit = 0.9;
+          schweber.push({ text: '💨 Boost!', alter: 0 });
+          piep(540, 100, 'square', 0.08);
         }
       }
 
@@ -983,6 +1037,8 @@ const UI = (() => {
       for (const hs of haeuser) sammle(hs, 'haus');
       for (const h of hindernisse) if (!h.erledigt || h.icon !== '🐐') sammle(h, 'deko');
       for (const st of sterne) if (!st.weg) sammle(st, 'deko');
+      for (const box of itemBoxen) if (box.cd <= 0) sammle(box, 'itembox');
+      for (const pad of boostPads) sammle(pad, 'pad');
       for (const auto of verkehr) sammle(auto, 'auto');
       sammle(flagge, 'deko');
       sammle(schild, 'schild');
@@ -1000,6 +1056,35 @@ const UI = (() => {
           ctx.fillText(s.o.text, s.sx, s.sy - sh / 2 - 1.4 * F / s.rz + 0.4 * F / s.rz);
           ctx.fillStyle = '#8a8d9c';
           ctx.fillRect(s.sx - 0.08 * F / s.rz, s.sy - 1.4 * F / s.rz, 0.16 * F / s.rz, 1.4 * F / s.rz);
+        } else if (s.art === 'itembox') {
+          // Rotierende ?-Box wie im Vorbild
+          const q = F / s.rz;
+          const g = 1.5 * q;
+          ctx.save();
+          ctx.translate(s.sx, s.sy - g * 0.6);
+          ctx.rotate((performance.now() / 600) % (Math.PI * 2));
+          const grad = ctx.createLinearGradient(-g / 2, -g / 2, g / 2, g / 2);
+          grad.addColorStop(0, '#f4a261'); grad.addColorStop(0.5, '#e9c46a'); grad.addColorStop(1, '#2a9d8f');
+          ctx.fillStyle = grad;
+          ctx.beginPath(); ctx.roundRect(-g / 2, -g / 2, g, g, g * 0.22); ctx.fill();
+          ctx.rotate(-(performance.now() / 600) % (Math.PI * 2));
+          ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.max(5, g * 0.6) + 'px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('?', 0, g * 0.22);
+          ctx.restore();
+        } else if (s.art === 'pad') {
+          // Boost-Pfeil flach auf der Straße
+          const q = F / s.rz;
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.beginPath();
+          ctx.moveTo(s.sx, s.sy - 1.4 * q);
+          ctx.lineTo(s.sx + 0.9 * q, s.sy);
+          ctx.lineTo(s.sx + 0.35 * q, s.sy);
+          ctx.lineTo(s.sx + 0.35 * q, s.sy + 0.5 * q);
+          ctx.lineTo(s.sx - 0.35 * q, s.sy + 0.5 * q);
+          ctx.lineTo(s.sx - 0.35 * q, s.sy);
+          ctx.lineTo(s.sx - 0.9 * q, s.sy);
+          ctx.closePath(); ctx.fill();
         } else if (s.art === 'planke') {
           // Leitplanke: Pfosten + silberne Schiene
           const q = F / s.rz;
@@ -1069,8 +1154,10 @@ const UI = (() => {
           }
         } else {
           const groesse = Math.min(96, Math.max(5, (s.o.gr || 3) * F / s.rz));
-          ctx.fillStyle = 'rgba(0,0,0,0.18)';
-          ctx.beginPath(); ctx.ellipse(s.sx, s.sy + 1, groesse * 0.3, groesse * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+          if (s.rz < 95) {   // Schatten nur in der Nähe → flüssiger
+            ctx.fillStyle = 'rgba(0,0,0,0.18)';
+            ctx.beginPath(); ctx.ellipse(s.sx, s.sy + 1, groesse * 0.3, groesse * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+          }
           ctx.font = groesse + 'px serif';
           ctx.fillText(s.o.icon, s.sx, s.sy);
         }
@@ -1079,6 +1166,15 @@ const UI = (() => {
       // Auto: hängt in Kurven sichtbar seitlich in der Kamera (Chase-Cam-Gefühl)
       const versatz = Math.max(-52, Math.min(52, Math.sin(winkelNorm(heading - camYaw)) * 150));
       const ruettel = abseits && speed > 6 ? (Math.random() - 0.5) * 4 : 0;
+      if (sternZeit > 0) {
+        // Schutzstern: schimmernder Regenbogen-Schein ums Auto
+        const halo = ctx.createRadialGradient(W / 2 + versatz, H - 62, 8, W / 2 + versatz, H - 62, 52);
+        halo.addColorStop(0, 'rgba(255,255,255,0.4)');
+        halo.addColorStop(0.6, 'hsla(' + ((performance.now() / 6) % 360) + ',90%,65%,0.3)');
+        halo.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath(); ctx.arc(W / 2 + versatz, H - 62, 52, 0, Math.PI * 2); ctx.fill();
+      }
       zeichneAuto(W / 2 + versatz + ruettel, H - 62 + ruettel * 0.5,
         lenkIst + winkelNorm(heading - camYaw) * 2, gas < 0 && speed > 5, boostZeit > 0);
 
@@ -1276,7 +1372,7 @@ const UI = (() => {
         ctx.fillStyle = 'rgba(20,21,31,0.55)'; ctx.fillRect(0, 0, W, H);
         const nr = Math.ceil((COUNTDOWN - seitStart) / (COUNTDOWN / 3));
         gtaText(ctx, String(nr), W / 2, H / 2 - 30, 72, ['#3ddc97', '#ffd166', '#ff5b6a'][nr - 1] || '#ffd166');
-        gtaText(ctx, 'Fahrt nach ' + zielName, W / 2, H / 2 + 16, 20, '#59c2ff');
+        gtaText(ctx, (serp ? '🌀 Serpentinen nach ' : 'Fahrt nach ') + zielName, W / 2, H / 2 + 16, 20, '#59c2ff');
         gtaText(ctx, 'Lenken ← → · Gas ↑ · Bremse ↓', W / 2, H / 2 + 46, 14, '#fff');
         gtaText(ctx, 'Turbo: Leertaste · Pause: P', W / 2, H / 2 + 70, 14, '#fff');
       }
@@ -2292,6 +2388,162 @@ const UI = (() => {
             { stimmung: 3, erlebnis: 5 });
         return;
       }
+      requestAnimationFrame(schleife);
+    }
+    requestAnimationFrame(schleife);
+  }
+
+  // ------------------------- Minispiel: Der launische Hotelaufzug
+  // Der alte Aufzug hält nur, wenn DU bremst: Stoppe die Kabine bündig
+  // an der markierten Etage – drei Fahrten, immer schneller.
+  function starteFahrstuhlSpiel(fertigCb) {
+    const { canvas, ctx, W, H } = minispielFenster(
+      '🛗 Der launische Hotelaufzug',
+      'Der Aufzug bremst nur auf Kommando! Tippe (oder Leertaste), wenn die Kabine ' +
+      '<strong>bündig an der leuchtenden Etage</strong> ist – drei Fahrten, immer schneller.', 420);
+
+    const ETAGEN = 6;
+    const OBEN = 60, UNTEN = H - 60;
+    const etagenY = i => UNTEN - i * (UNTEN - OBEN) / (ETAGEN - 1);
+    const FAHRTEN = [
+      { ziel: 3, tempo: 105, gast: '👵' },
+      { ziel: 5, tempo: 150, gast: '🧳' },
+      { ziel: 1, tempo: 195, gast: '🍹' },
+    ];
+    let fahrt = 0, y = UNTEN, richtung = -1, gestoppt = false, punkte = 0;
+    let vorbei = false, endeIn = -1, wackel = 0, feedback = null, pauseZw = 0;
+    const uhr = minispielUhr(canvas, ctx, W, H,
+      ['Stoppe die Kabine bündig', 'an der leuchtenden Etage!']);
+
+    function fertig(icon, text, effekte, extra) {
+      if (vorbei) return;
+      vorbei = true; aufraeumen();
+      minispielErgebnis(icon, text, effekte, extra, fertigCb);
+    }
+    function stoppen() {
+      if (vorbei || gestoppt || endeIn > 0 || uhr.pausiert || pauseZw > 0) return;
+      gestoppt = true;
+      const abstand = Math.abs(y - etagenY(FAHRTEN[fahrt].ziel));
+      if (abstand < 7) {
+        punkte += 2;
+        feedback = { text: 'PERFEKT!', farbe: '#3ddc97', alter: 0 };
+        piep(880, 150, 'triangle', 0.08);
+      } else if (abstand < 18) {
+        punkte += 1;
+        feedback = { text: 'Passt!', farbe: '#ffd166', alter: 0 };
+        piep(620, 120, 'triangle', 0.06);
+      } else {
+        feedback = { text: 'RUMS!', farbe: '#ff5b6a', alter: 0 };
+        wackel = 400;
+        piep(160, 260, 'sawtooth', 0.1);
+        brumm(70);
+      }
+      pauseZw = 1.1;
+    }
+    const zeigerRunter = e => { stoppen(); e.preventDefault(); };
+    function tasteRunter(e) { if (e.key === ' ' || e.key === 'Enter') { stoppen(); e.preventDefault(); } }
+    canvas.addEventListener('pointerdown', zeigerRunter);
+    document.addEventListener('keydown', tasteRunter);
+    function aufraeumen() {
+      uhr.aufraeumen();
+      canvas.removeEventListener('pointerdown', zeigerRunter);
+      document.removeEventListener('keydown', tasteRunter);
+    }
+    if (window.MINISPIEL_SCHNELL) setTimeout(() => fertig('🛗', 'Butterweich gehalten!', { stimmung: 3, stress: -2 }), 700);
+
+    function schleife(now) {
+      if (vorbei) return;
+      const t = uhr.tick(now);
+      const dt = t.dt, zeit = t.zeit;
+
+      if (t.laeuft && !gestoppt) {
+        y += richtung * FAHRTEN[fahrt].tempo * dt;
+        if (y < OBEN) { y = OBEN; richtung = 1; }
+        if (y > UNTEN) { y = UNTEN; richtung = -1; }
+      }
+      if (pauseZw > 0) {
+        pauseZw -= dt;
+        if (pauseZw <= 0) {
+          fahrt++;
+          if (fahrt >= FAHRTEN.length) {
+            endeIn = 0.3;
+          } else {
+            gestoppt = false;
+            y = fahrt % 2 ? OBEN : UNTEN;
+            richtung = fahrt % 2 ? 1 : -1;
+          }
+        }
+      }
+      if (endeIn > 0) {
+        endeIn -= dt;
+        if (endeIn <= 0) {
+          if (punkte >= 5)
+            fertig('🛗', 'Drei butterweiche Stopps – die Señora applaudiert, der Page will deine Nummer. Aufzugflüsterer!',
+              { stimmung: 5, erholung: 2, stress: -4 }, ['🥇 ' + punkte + '/6 Punkte']);
+          else if (punkte >= 3)
+            fertig('🛗', 'Zwei von drei Stopps sitzen – nur einmal hüpfen alle kurz aus den Sandalen.',
+              { stimmung: 3, stress: -1 }, ['🛗 ' + punkte + '/6 Punkte']);
+          else
+            fertig('😵', 'Der Aufzug springt wie eine Ziege im Barranco. Ab morgen nimmst du die Treppe.',
+              { stimmung: 1, stress: 3 });
+          return;
+        }
+      }
+
+      // ————— Schacht zeichnen —————
+      const wandF = ctx.createLinearGradient(0, 0, W, 0);
+      wandF.addColorStop(0, '#3a3347'); wandF.addColorStop(0.5, '#4a4258'); wandF.addColorStop(1, '#3a3347');
+      ctx.fillStyle = wandF; ctx.fillRect(0, 0, W, H);
+      const ziel = FAHRTEN[Math.min(fahrt, FAHRTEN.length - 1)];
+      for (let i = 0; i < ETAGEN; i++) {
+        const ey = etagenY(i);
+        const istZiel = i === ziel.ziel && fahrt < FAHRTEN.length;
+        ctx.strokeStyle = istZiel
+          ? 'rgba(61,220,151,' + (0.55 + 0.45 * Math.sin(zeit * 6)).toFixed(2) + ')'
+          : 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = istZiel ? 3 : 1.6;
+        ctx.beginPath(); ctx.moveTo(30, ey); ctx.lineTo(W - 96, ey); ctx.stroke();
+        gtaText(ctx, 'E' + i, 18, ey + 5, 12, istZiel ? '#3ddc97' : '#8a8d9c', 'left');
+        if (istZiel) {
+          ctx.font = '17px serif'; ctx.textAlign = 'center';
+          ctx.fillText(ziel.gast, W - 74, ey - 6);
+          gtaText(ctx, 'HIER!', W - 74, ey + 14, 10, '#3ddc97');
+        }
+      }
+      // Seil & Kabine (wackelt nach einem Rums)
+      const wx = wackel > 0 ? (Math.random() - 0.5) * 5 : 0;
+      if (wackel > 0) wackel -= dt * 1000;
+      const kx = W / 2 - 44 + wx;
+      ctx.strokeStyle = '#23252d'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(kx + 44, 0); ctx.lineTo(kx + 44, y - 34); ctx.stroke();
+      const kabine = ctx.createLinearGradient(kx, 0, kx + 88, 0);
+      kabine.addColorStop(0, '#8f6b3f'); kabine.addColorStop(0.5, '#c99b5f'); kabine.addColorStop(1, '#8f6b3f');
+      ctx.fillStyle = kabine;
+      ctx.beginPath(); ctx.roundRect(kx, y - 34, 88, 68, 8); ctx.fill();
+      ctx.strokeStyle = '#5f4a33'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.roundRect(kx, y - 34, 88, 68, 8); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,235,180,0.25)';
+      ctx.fillRect(kx + 8, y - 26, 72, 52);
+      ctx.font = '24px serif'; ctx.textAlign = 'center';
+      ctx.fillText('🧍', kx + 44, y + 12);
+      // Anzeige über der Kabine
+      gtaText(ctx, '→ E' + ziel.ziel, kx + 44, y - 42, 13, '#ffd166');
+
+      if (feedback) {
+        feedback.alter += dt;
+        if (feedback.alter > 0.9) feedback = null;
+        else {
+          ctx.globalAlpha = 1 - feedback.alter / 0.9;
+          gtaText(ctx, feedback.text, W / 2, 100 - feedback.alter * 24, 30, feedback.farbe);
+          ctx.globalAlpha = 1;
+        }
+      }
+      ctx.fillStyle = 'rgba(43,45,66,0.72)'; ctx.fillRect(0, 0, W, 24);
+      gtaText(ctx, 'Fahrt ' + Math.min(fahrt + 1, FAHRTEN.length) + '/3', 8, 17, 11, '#ffd166', 'left');
+      gtaText(ctx, '★ ' + punkte + '/6', W - 8, 17, 11, '#3ddc97', 'right');
+      uhr.zeichnen();
+
+      if (zeit > 40 && !gestoppt) { stoppen(); }
       requestAnimationFrame(schleife);
     }
     requestAnimationFrame(schleife);
@@ -4788,6 +5040,8 @@ const UI = (() => {
       if ((res.act.id === 'pool' || tags.includes('strand')) &&
           Math.random() < 0.5 * chance('saftGespielt'))
         kandidaten.push(['saftGespielt', starteSaftSpiel]);
+      if (res.act.zone === 'hotel' && Math.random() < 0.35 * chance('fahrstuhlGespielt'))
+        kandidaten.push(['fahrstuhlGespielt', starteFahrstuhlSpiel]);
       if (kandidaten.length) {
         const [flagId, spiel] = kandidaten[Math.floor(Math.random() * kandidaten.length)];
         r.flags[flagId] = r.tag;
