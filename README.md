@@ -75,8 +75,9 @@ Zeitfenstern (Vormittag, Nachmittag, Abend) das Beste aus der Insel zu machen:
   Pfeiltasten), nur drei freien Liegen und rennenden Rivalen, die Parkplatzsuche mit dem Mietwagen, das
   Perlen-Merkspiel beim Haareflechten am Strandstand und der spontane spanische
   Tanzabend als Rhythmusspiel im Takt der Band. Dazu der buchbare **Spieleabend in
-  der Hotelbar**: Farkle-Würfelduell gegen 18 wechselnde Stammtisch-Gegner (von
-  Birgit bis Ole-Johann) mit eigenen Stärken, Schwächen und Tischgesprächen
+  der Hotelbar**: Farkle-Würfelduell gegen 20 wechselnde Stammtisch-Gegner (von
+  Birgit über Jeannine bis Endgegner Alex mit Mega-Würfelfähigkeiten) mit
+  eigenen Stärken, Schwächen und Tischgesprächen
   (Einsen 100, Fünfen 50, Drillinge Augenzahl × 100 – Gier wird mit dem Farkle
   bestraft).
   Jedes Actionspiel startet mit einem **3-2-1-Countdown samt Erklärung** und lässt

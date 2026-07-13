@@ -3000,6 +3000,10 @@ const UI = (() => {
       sprueche: ['Ich hab das mal durchgerechnet. Moment …', 'In der Theorie gewinne ich längst.', 'Interessante Varianz heute.'] },
     { name: 'Ole-Johann', icon: '⚓', w: false, art: 'nordisch ruhig, nichts erschüttert ihn', bankAb: 500, stopBei: 3, jokerAb: 500, jokerLust: 0.7,
       sprueche: ['Moin.', 'In der Ruhe liegt die Punktekraft.', 'Wind dreht. Würfel auch.'] },
+    { name: 'Alex', icon: '🎯', w: false, art: 'MEGA Würfelfähigkeiten – praktisch der Endgegner', bankAb: 550, stopBei: 1, jokerAb: 500, jokerLust: 0.85, glueck: 0.45,
+      sprueche: ['Die Würfel machen, was ich will.', 'Das ist kein Glück. Das ist Können.', 'Ich fühle die Sechs, bevor sie fällt.'] },
+    { name: 'Jeannine', icon: '😊', w: true, art: 'lächelt freundlich – und räumt dann eiskalt ab', bankAb: 450, stopBei: 2, jokerAb: 400, jokerLust: 0.8,
+      sprueche: ['Ach, ich spiel doch nur zum Spaß. Ehrlich!', 'Süß, wie du an deine Punkte glaubst.', 'Noch ein Ründchen? Mir zuliebe?'] },
   ];
   const FARKLE_TIPPS = {
     joker: ['Hörte ich Jolly?!', 'JOKER vor dem ersten Wurf – Lehrbuch!', 'Uii, jetzt zählt alles doppelt. Auch der Ärger.', 'Mutig. Oder verzweifelt. Man weiß es nie.'],
@@ -3339,7 +3343,13 @@ const UI = (() => {
         }
         wurfPunkte += zaehl[1] * 100 + zaehl[5] * 50;
         genutzt += zaehl[1] + zaehl[5];
-        if (wurfPunkte === 0) { farkle = true; punkte = 0; break; }
+        if (wurfPunkte === 0) {
+          if (gegner.glueck && Math.random() < gegner.glueck) {
+            logZeile(gegner.icon, `${gegner.name} rettet den Wurf mit purem Würfel-Skill!`);
+            continue;   // Mega-Würfelfähigkeiten: der Wurf zählt nicht, es wird neu geworfen
+          }
+          farkle = true; punkte = 0; break;
+        }
         punkte += wurfPunkte; frei -= genutzt;
         if (frei <= 0) { frei = 6; continue; }   // Hot Dice: auch der Gegner muss bestätigen
         if (punkte >= gegner.bankAb || frei <= gegner.stopBei) break;
